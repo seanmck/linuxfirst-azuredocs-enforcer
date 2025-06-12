@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Linux-first Docs for Azure</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            background: #f7fafd;
+            color: #222;
+        }
+        .container {
+            max-width: 900px;
+            margin: 2em auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            padding: 2em 2.5em 2.5em 2.5em;
+        }
+        h1 {
+            font-size: 2.2em;
+            font-weight: 700;
+            margin-bottom: 0.2em;
+            color: #2563eb;
+            letter-spacing: -1px;
+        }
+        form {
+            margin-bottom: 2em;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.7em;
+        }
+        input[type="text"] {
+            padding: 0.6em 1em;
+            border: 1px solid #cfd8dc;
+            border-radius: 6px;
+            font-size: 1em;
+            width: 350px;
+            background: #f4f8fb;
+            transition: border 0.2s;
+        }
+        input[type="text"]:focus {
+            border: 1.5px solid #2563eb;
+            outline: none;
+        }
+        button {
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 0.6em 1.5em;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:disabled {
+            background: #b3c6f7;
+            cursor: not-allowed;
+        }
+        .summary {
+            background: #eaf6ff;
+            border-left: 5px solid #3498db;
+            margin: 1.5em 0 2em 0;
+            padding: 1.2em 1.5em;
+            border-radius: 8px;
+            font-size: 1.08em;
+        }
+        .flagged {
+            background: #fff3f3;
+            border-left: 5px solid #e74c3c;
+            margin: 1.2em 0;
+            padding: 1.2em 1.5em;
+            border-radius: 8px;
+            box-shadow: 0 1px 6px rgba(231,76,60,0.04);
+        }
+        .ok {
+            background: #eafaf1;
+            border-left: 5px solid #27ae60;
+            margin: 1em 0;
+            padding: 1em;
+        }
+        .snippet {
+            font-family: 'JetBrains Mono', 'Fira Mono', 'Consolas', monospace;
+            background: #f4f4f4;
+            padding: 0.7em 1em;
+            display: block;
+            white-space: pre-wrap;
+            border-radius: 5px;
+            margin: 0.5em 0 0.7em 0;
+            font-size: 1em;
+        }
+        .context {
+            color: #888;
+            font-size: 0.97em;
+            margin-bottom: 0.2em;
+        }
+        .llm {
+            font-size: 0.97em;
+            color: #555;
+        }
+        .url {
+            font-size: 1em;
+            color: #2563eb;
+            margin-bottom: 0.3em;
+            word-break: break-all;
+        }
+        #progress {
+            background: #fffbe6;
+            border: 1px solid #ffe066;
+            color: #b59f00;
+            padding: 1em 1.5em;
+            margin: 1.5em 0 1em 0;
+            font-weight: bold;
+            font-size: 1.1em;
+            border-radius: 8px;
+            display: none;
+        }
+        .reason {
+            color: #b30000;
+            font-weight: bold;
+            margin-bottom: 0.5em;
+        }
+        .tux-logo {
+            display: block;
+            margin: 0;
+            max-width: 100px;
+            flex-shrink: 0;
+        }
+        @media (max-width: 600px) {
+            .container { padding: 1em; }
+            input[type="text"] { width: 100%; }
+        }
+    </style>
+    <script>
+        function pollStatus() {
+            fetch('/status')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.running) {
+                        document.getElementById('progress').style.display = 'block';
+                        setTimeout(pollStatus, 2000);
+                    } else {
+                        document.getElementById('progress').style.display = 'none';
+                        location.reload();
+                    }
+                });
+        }
+        function pollProgress() {
+            fetch('/progress')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.running) {
+                        let prog = document.getElementById('progress');
+                        prog.style.display = 'block';
+                        let flaggedSnippets = data.flagged_snippets || [];
+                        let flaggedHtml = '';
+                        let scannedUrls = data.scanned_urls || [];
+                        let flaggedUrls = new Set();
+                        flaggedSnippets.forEach(snip => flaggedUrls.add(snip.url));
+                        // Do NOT merge flaggedUrls into scannedUrls!
+                        let flaggedCount = flaggedUrls.size;
+                        let scannedCount = scannedUrls.length;
+                        let percentFlagged = scannedCount > 0 ? Math.min(100, (flaggedCount / scannedCount * 100)) : 0;
+                        if (flaggedSnippets.length > 0) {
+                            let byUrl = {};
+                            flaggedSnippets.forEach(snip => {
+                                if (!snip.llm_score || !snip.llm_score.windows_biased) return;
+                                if (!byUrl[snip.url]) byUrl[snip.url] = [];
+                                byUrl[snip.url].push(snip);
+                            });
+                            flaggedHtml = '<h3 style="margin-top:1.5em;">Problematic Pages (Live)</h3>';
+                            Object.keys(byUrl).forEach(function(url) {
+                                flaggedHtml += `<div class='flagged'><div class='url'>URL: <a href='${url}' target='_blank'>${url}</a></div>`;
+                                byUrl[url].forEach(function(snip) {
+                                    flaggedHtml += `<div class='context'>Context: ${snip.context}</div>`;
+                                    flaggedHtml += `<div class='snippet'>${snip.code}</div>`;
+                                    flaggedHtml += `<div class='reason'>Reason: ${snip.llm_score && snip.llm_score.explanation ? snip.llm_score.explanation : ''}</div><hr style='border:none;border-top:1px solid #eee;'>`;
+                                });
+                                flaggedHtml += `</div>`;
+                            });
+                        }
+                        prog.innerHTML = `<span>Scan in progress...<br>
+                            Stage: <b>${data.stage || ''}</b><br>
+                            Pages scanned: <b>${scannedCount}</b><br>
+                            Pages flagged as biased: <b>${flaggedCount}</b> (${percentFlagged.toFixed(1)}%)<br>
+                            <span style='font-size:0.97em;color:#888;'>Current: ${data.current_url || (scannedUrls.length ? scannedUrls[scannedUrls.length-1] : '')}</span>
+                        </span>` + flaggedHtml;
+                        setTimeout(pollProgress, 2000);
+                    } else {
+                        document.getElementById('progress').style.display = 'none';
+                        location.reload();
+                    }
+                });
+        }
+        window.onload = function() {
+            var scanRunning = "{{ 'true' if scan_status is sameas true else 'false' }}";
+            if (scanRunning === "true") {
+                pollProgress();
+            } else {
+                document.getElementById('progress').style.display = 'none';
+            }
+        };
+    </script>
+</head>
+<body>
+<div class="container">
+    <div style="display: flex; align-items: center; gap: 1.5em; margin-bottom: 1.2em;">
+        <img class="tux-logo" src="/static/tux_reading.png" alt="Tux the Linux penguin reading a book with glasses" style="margin: 0; max-width: 100px; flex-shrink: 0;">
+        <h1 style="margin: 0;">Linux-first Docs for Azure</h1>
+    </div>
+    <form method="post" action="/scan">
+        <input type="text" name="url" placeholder="Paste Azure doc URL or path (optional)" autocomplete="off">
+        <button type="submit" {% if scan_status is true %}disabled{% endif %}>Start Scan</button>
+    </form>
+    <div id="progress">
+        <span>Scan in progress... Please wait. This may take several minutes for large paths.</span>
+    </div>
+    {% if last_url %}
+        <p style="margin-bottom:1.2em;">Last scan target: <b>{{ last_url if last_url else 'Default path' }}</b></p>
+    {% endif %}
+    {% if last_result %}
+        {% set total_pages = last_result|map(attribute='url')|unique|list|length %}
+        {% set flagged = last_result|selectattr('llm_score.windows_biased')|list %}
+        {% set flagged_pages = flagged|map(attribute='url')|unique|list|length %}
+        {% set percent_flagged = (flagged_pages / total_pages * 100) if total_pages > 0 %}
+        <div class="summary">
+            <b>Summary:</b><br>
+            Pages evaluated: {{ total_pages }}<br>
+            Pages flagged as biased: {{ flagged_pages }} ({{ percent_flagged|round(1) }}%)
+        </div>
+        <h2 style="margin-top:2em;">Problematic Pages</h2>
+        {% if flagged_pages == 0 %}
+            <p>No biased pages detected.</p>
+        {% else %}
+            {% for page in flagged|groupby('url') %}
+                <div class="flagged">
+                    <div class="url">URL: <a href="{{ page.grouper }}" target="_blank">{{ page.grouper }}</a></div>
+                    {% for snip in page.list %}
+                        <div class="context">Context: {{ snip['context'] }}</div>
+                        <div class="snippet">{{ snip['code'] }}</div>
+                        <div class="reason">Reason: {{ snip['llm_score']['explanation'] if snip['llm_score'] and snip['llm_score']['windows_biased'] else '' }}</div>
+                        <hr style="border:none;border-top:1px solid #eee;">
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% else %}
+        <p>No results yet.</p>
+    {% endif %}
+</div>
+</body>
+</html>
