@@ -138,7 +138,7 @@
         function pollStatus() {
             fetch('/status')
                 .then(r => r.json())
-                .then(data => {
+                .then data => {
                     if (data.running) {
                         document.getElementById('progress').style.display = 'block';
                         setTimeout(pollStatus, 2000);
@@ -211,10 +211,45 @@
         <img class="tux-logo" src="/static/tux_reading.png" alt="Tux the Linux penguin reading a book with glasses" style="margin: 0; max-width: 100px; flex-shrink: 0;">
         <h1 style="margin: 0;">Linux-first Docs for Azure</h1>
     </div>
+    <h2 style="margin-top:2em;">Scan History</h2>
+    {% if all_scans %}
+    <table style="width:100%;border-collapse:collapse;margin-bottom:2em;">
+        <thead>
+            <tr style="background:#f4f8fb;">
+                <th style="text-align:left;padding:0.6em 0.8em;">Started</th>
+                <th style="text-align:left;padding:0.6em 0.8em;">Root URL</th>
+                <th style="text-align:right;padding:0.6em 0.8em;">Pages</th>
+                <th style="text-align:right;padding:0.6em 0.8em;">Flagged</th>
+                <th style="text-align:right;padding:0.6em 0.8em;">Bias %</th>
+                <th style="text-align:center;padding:0.6em 0.8em;">Details</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for scan in all_scans %}
+            <tr style="border-bottom:1px solid #e0e7ef;">
+                <td style="padding:0.5em 0.8em;">{{ scan.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td style="padding:0.5em 0.8em;max-width:320px;overflow-wrap:anywhere;">{{ scan.url or 'Default' }}</td>
+                <td style="padding:0.5em 0.8em;text-align:right;">{{ scan.scanned_count }}</td>
+                <td style="padding:0.5em 0.8em;text-align:right;">{{ scan.flagged_count }}</td>
+                <td style="padding:0.5em 0.8em;text-align:right;">{{ scan.percent_flagged|round(1) }}%</td>
+                <td style="padding:0.5em 0.8em;text-align:center;">
+                    <a href="/scan/{{ scan.id }}" style="color:#2563eb;font-weight:600;">View</a>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
     <form method="post" action="/scan">
         <input type="text" name="url" placeholder="Paste Azure doc URL or path (optional)" autocomplete="off">
         <button type="submit" {% if scan_status is true %}disabled{% endif %}>Start Scan</button>
     </form>
+    {% if scan_id and scan_status %}
+        <div id="progress">
+            <span>Scan in progress...<br>
+            Stage: <b>{{ scan_stage or '' }}</b></span>
+        </div>
+    {% endif %}
     <div id="progress">
         <span>Scan in progress... Please wait. This may take several minutes for large paths.</span>
     </div>

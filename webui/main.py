@@ -40,24 +40,78 @@ def run_orchestrator_sync(url=None):
     env["PYTHONUNBUFFERED"] = "1"  # Ensure immediate file writes
     subprocess.Popen(cmd, cwd=project_root, env=env)
 
+@app.get("/scan/{scan_id}", response_class=HTMLResponse)
+async def scan_detail(request: Request, scan_id: int):
+    db = SessionLocal()
+    scan = db.query(Scan).filter(Scan.id == scan_id).first()
+    if not scan:
+        db.close()
+        return HTMLResponse("<h2>Scan not found.</h2>", status_code=404)
+    # Get all snippets for this scan
+    snippets = (
+        db.query(Snippet)
+        .join(Page)
+        .filter(Page.scan_id == scan.id)
+        .all()
+    )
+    last_result = [
+        {
+            "url": snip.page.url,
+            "context": snip.context,
+            "code": snip.code,
+            "llm_score": snip.llm_score
+        }
+        for snip in snippets
+    ]
+    db.close()
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "last_result": last_result,
+        "scan_status": scan.status != "done",
+        "last_url": scan.url,
+        "scan_id": scan.id,
+        "all_scans": None,  # Hide scan list on detail page
+        "scan_stage": scan.status  # Pass scan status string to template
+    })
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     db = SessionLocal()
-    # Get the most recent completed scan
-    scan = db.query(Scan).order_by(Scan.started_at.desc()).first()
+    # List all scans, most recent first
+    scans = db.query(Scan).order_by(Scan.started_at.desc()).all()
+    scan_summaries = []
+    for scan in scans:
+        # Get all pages for this scan
+        pages = db.query(Page).filter(Page.scan_id == scan.id).all()
+        scanned_count = len(pages)
+        flagged_count = 0
+        if scanned_count > 0:
+            flagged_count = db.query(Page).join(Snippet).filter(Page.scan_id == scan.id, Snippet.llm_score["windows_biased"].as_boolean() == True).distinct(Page.id).count()
+        percent_flagged = (flagged_count / scanned_count * 100) if scanned_count else 0
+        scan_summaries.append({
+            "id": scan.id,
+            "url": scan.url,
+            "started_at": scan.started_at,
+            "status": scan.status,
+            "percent_flagged": round(percent_flagged, 1),
+            "scanned_count": scanned_count,
+            "flagged_count": flagged_count
+        })
+    # Show the most recent completed scan's results by default
+    scan = next((s for s in scans if s.status == "done"), None)
     last_result = None
     scan_status = False
+    last_url = None
     if scan:
         scan_status = scan.status != "done"
+        last_url = scan.url
         if scan.status == "done":
-            # Get all snippets for this scan
             snippets = (
                 db.query(Snippet)
                 .join(Page)
                 .filter(Page.scan_id == scan.id)
                 .all()
             )
-            # Serialize for template
             last_result = [
                 {
                     "url": snip.page.url,
@@ -67,20 +121,33 @@ async def index(request: Request):
                 }
                 for snip in snippets
             ]
-        else:
-            last_result = None  # Hide results if scan is running
     db.close()
     return templates.TemplateResponse("index.html", {
         "request": request,
         "last_result": last_result,
-        "scan_status": scan_status
+        "scan_status": scan_status,
+        "last_url": last_url,
+        "all_scans": scan_summaries,
+        "scan_id": scan.id if scan else None
     })
 
 @app.post("/scan")
-async def scan(url: str = Form("")):
+async def scan(request: Request, url: str = Form("")):
     url = url.strip()
+    # Start orchestrator and get the new scan's ID
+    db = SessionLocal()
+    # Create a new Scan row (status 'running')
+    from datetime import datetime
+    new_scan = Scan(url=url or None, started_at=datetime.utcnow(), status="running")
+    db.add(new_scan)
+    db.commit()
+    db.refresh(new_scan)
+    scan_id = new_scan.id
+    db.close()
+    # Start orchestrator in background (it will update this scan)
     run_orchestrator_sync(url if url else None)
-    return HTMLResponse('<meta http-equiv="refresh" content="0; url=/">')
+    # Redirect to the scan details page
+    return HTMLResponse(f'<meta http-equiv="refresh" content="0; url=/scan/{scan_id}">')
 
 @app.get("/status")
 async def status():
