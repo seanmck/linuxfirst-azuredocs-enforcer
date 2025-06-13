@@ -35,6 +35,9 @@ async def main(url=None):
         page_url = await worker.to_visit.get()
         if page_url in worker.seen:
             continue
+        # Skip any page where 'windows' appears anywhere in the URL (substring match)
+        if 'windows' in page_url.lower():
+            continue
         worker.seen.add(page_url)
         html = await worker.fetcher.fetch(page_url, worker.session)
         if html:

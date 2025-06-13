@@ -133,6 +133,17 @@
             .container { padding: 1em; }
             input[type="text"] { width: 100%; }
         }
+        .indent-0 { margin-left: 0px; }
+.indent-1 { margin-left: 24px; }
+.indent-2 { margin-left: 48px; }
+.indent-3 { margin-left: 72px; }
+.indent-4 { margin-left: 96px; }
+.indent-5 { margin-left: 120px; }
+.indent-6 { margin-left: 144px; }
+.indent-7 { margin-left: 168px; }
+.indent-8 { margin-left: 192px; }
+.indent-9 { margin-left: 216px; }
+.indent-10 { margin-left: 240px; }
     </style>
     <script>
         function pollStatus() {
@@ -160,7 +171,6 @@
                         let scannedUrls = data.scanned_urls || [];
                         let flaggedUrls = new Set();
                         flaggedSnippets.forEach(snip => flaggedUrls.add(snip.url));
-                        // Do NOT merge flaggedUrls into scannedUrls!
                         let flaggedCount = flaggedUrls.size;
                         let scannedCount = scannedUrls.length;
                         let percentFlagged = scannedCount > 0 ? Math.min(100, (flaggedCount / scannedCount * 100)) : 0;
@@ -188,10 +198,10 @@
                             Pages flagged as biased: <b>${flaggedCount}</b> (${percentFlagged.toFixed(1)}%)<br>
                             <span style='font-size:0.97em;color:#888;'>Current: ${data.current_url || (scannedUrls.length ? scannedUrls[scannedUrls.length-1] : '')}</span>
                         </span>` + flaggedHtml;
-                        setTimeout(pollProgress, 2000);
+                        setTimeout(pollProgress, 5000); // Slow down polling to every 5 seconds
                     } else {
                         document.getElementById('progress').style.display = 'none';
-                        location.reload();
+                        // Do not reload or clear the page after scan is done; leave results visible
                     }
                 });
         }
@@ -249,6 +259,10 @@
             <span>Scan in progress...<br>
             Stage: <b>{{ scan_stage or '' }}</b></span>
         </div>
+        <script>
+            // Only poll progress if scan is running
+            pollProgress();
+        </script>
     {% endif %}
     <div id="progress">
         <span>Scan in progress... Please wait. This may take several minutes for large paths.</span>
@@ -257,34 +271,61 @@
         <p style="margin-bottom:1.2em;">Last scan target: <b>{{ last_url if last_url else 'Default path' }}</b></p>
     {% endif %}
     {% if last_result %}
-        {% set total_pages = last_result|map(attribute='url')|unique|list|length %}
-        {% set flagged = last_result|selectattr('llm_score.windows_biased')|list %}
-        {% set flagged_pages = flagged|map(attribute='url')|unique|list|length %}
-        {% set percent_flagged = (flagged_pages / total_pages * 100) if total_pages > 0 %}
-        <div class="summary">
-            <b>Summary:</b><br>
-            Pages evaluated: {{ total_pages }}<br>
-            Pages flagged as biased: {{ flagged_pages }} ({{ percent_flagged|round(1) }}%)
-        </div>
-        <h2 style="margin-top:2em;">Problematic Pages</h2>
-        {% if flagged_pages == 0 %}
-            <p>No biased pages detected.</p>
-        {% else %}
-            {% for page in flagged|groupby('url') %}
-                <div class="flagged">
-                    <div class="url">URL: <a href="{{ page.grouper }}" target="_blank">{{ page.grouper }}</a></div>
-                    {% for snip in page.list %}
-                        <div class="context">Context: {{ snip['context'] }}</div>
-                        <div class="snippet">{{ snip['code'] }}</div>
-                        <div class="reason">Reason: {{ snip['llm_score']['explanation'] if snip['llm_score'] and snip['llm_score']['windows_biased'] else '' }}</div>
-                        <hr style="border:none;border-top:1px solid #eee;">
+            {% set total_pages = last_result|map(attribute='url')|unique|list|length %}
+            {% set flagged = last_result|selectattr('llm_score.windows_biased')|list %}
+            {% set flagged_pages = flagged|map(attribute='url')|unique|list|length %}
+            {% set percent_flagged = (flagged_pages / total_pages * 100) if total_pages > 0 %}
+            <div class="summary">
+                <b>Summary:</b><br>
+                Pages evaluated: {{ total_pages }}<br>
+                Pages flagged as biased: {{ flagged_pages }} ({{ percent_flagged|round(1) }}%)
+            </div>
+            <h2 style="margin-top:2em;">Problematic Pages</h2>
+            {% if flagged_pages == 0 %}
+                <p>No biased pages detected.</p>
+            {% else %}
+                <style>
+                .indent-0 { margin-left: 0px; }
+.indent-1 { margin-left: 24px; }
+.indent-2 { margin-left: 48px; }
+.indent-3 { margin-left: 72px; }
+.indent-4 { margin-left: 96px; }
+.indent-5 { margin-left: 120px; }
+.indent-6 { margin-left: 144px; }
+.indent-7 { margin-left: 168px; }
+.indent-8 { margin-left: 192px; }
+.indent-9 { margin-left: 216px; }
+.indent-10 { margin-left: 240px; }
+                </style>
+
+                {% macro render_tree(node, level=0) %}
+                    {% for key, value in node.items() if key != '__snippets__' %}
+                        <div class="indent-{{level}}">
+                            <details style="margin-bottom:0.7em;">
+                                <summary style="font-size:1.08em;font-weight:600;cursor:pointer;">{{ key }}</summary>
+                                {{ render_tree(value, level+1) }}
+                            </details>
+                        </div>
                     {% endfor %}
-                </div>
-            {% endfor %}
+                    {% if node['__snippets__'] is defined %}
+                        {% for snip in node['__snippets__'] %}
+                            <div class="indent-{{level}}">
+                                <div class="flagged">
+                                    <div class="url">URL: <a href="{{ snip['url'] }}" target="_blank">{{ snip['url'] }}</a></div>
+                                    <div class="context">Context: {{ snip['context'] }}</div>
+                                    <div class="snippet">{{ snip['code'] }}</div>
+                                    <div class="reason">Reason: {{ snip['llm_score']['explanation'] if snip['llm_score'] and snip['llm_score']['windows_biased'] else '' }}</div>
+                                    <hr style="border:none;border-top:1px solid #eee;">
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endmacro %}
+                {{ render_tree(flagged_tree, 0) }}
+            {% endif %}
+        {% else %}
+            <p>No results yet.</p>
         {% endif %}
-    {% else %}
-        <p>No results yet.</p>
-    {% endif %}
 </div>
 </body>
 </html>

@@ -10,6 +10,7 @@ import asyncio
 import json
 import subprocess
 import sys
+from collections import defaultdict
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="webui/static"), name="static")
@@ -40,6 +41,20 @@ def run_orchestrator_sync(url=None):
     env["PYTHONUNBUFFERED"] = "1"  # Ensure immediate file writes
     subprocess.Popen(cmd, cwd=project_root, env=env)
 
+def build_flagged_tree(flagged):
+    tree = {}
+    for snip in flagged:
+        url = snip['url']
+        relpath = url.replace('https://learn.microsoft.com/en-us/azure/', '')
+        path_parts = relpath.split('/')
+        node = tree
+        for i, segment in enumerate(path_parts):
+            if i == len(path_parts) - 1:
+                node.setdefault('__snippets__', []).append(snip)
+            else:
+                node = node.setdefault(segment, {})
+    return tree
+
 @app.get("/scan/{scan_id}", response_class=HTMLResponse)
 async def scan_detail(request: Request, scan_id: int):
     db = SessionLocal()
@@ -63,15 +78,19 @@ async def scan_detail(request: Request, scan_id: int):
         }
         for snip in snippets
     ]
+    flagged = [snip for snip in last_result if snip.get('llm_score') and snip['llm_score'].get('windows_biased')]
+    flagged_tree = build_flagged_tree(flagged)
+    scan_status = scan.status != "done"
     db.close()
     return templates.TemplateResponse("index.html", {
         "request": request,
         "last_result": last_result,
-        "scan_status": scan.status != "done",
+        "scan_status": scan_status,
         "last_url": scan.url,
         "scan_id": scan.id,
         "all_scans": None,  # Hide scan list on detail page
-        "scan_stage": scan.status  # Pass scan status string to template
+        "scan_stage": scan.status,  # Pass scan status string to template
+        "flagged_tree": flagged_tree
     })
 
 @app.get("/", response_class=HTMLResponse)
