@@ -4,9 +4,14 @@
 import re
 
 def is_windows_biased(snippet):
-    # If the page or context is clearly Windows-focused, do not flag as biased
+    # If the snippet is under an Azure PowerShell tab, do not flag as biased
+    if snippet.get('under_az_powershell_tab'):
+        return False
+    # If the snippet is under a Windows header, do not flag as biased
+    if snippet.get('windows_header'):
+        return False
     context = snippet.get('context', '').lower()
-    url = snippet.get('url', '').lower()
+    url = snippet.get('url', '').lower() if 'url' in snippet else ''
     if (
         'windows' in context or
         'powershell' in context or
@@ -52,7 +57,7 @@ def is_windows_biased(snippet):
         if re.search(pat, snippet['code'], re.IGNORECASE|re.MULTILINE):
             return True
     return False
-
+    
 # Example usage:
 # for snip in snippets:
 #     if is_windows_biased(snip):
