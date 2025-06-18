@@ -1,331 +1,445 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Linux-first Docs for Azure</title>
+    <title>Linux-first Docs for Azure - Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            margin: 0;
-            background: #f7fafd;
-            color: #222;
-        }
-        .container {
-            max-width: 900px;
-            margin: 2em auto;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
-            padding: 2em 2.5em 2.5em 2.5em;
-        }
-        h1 {
-            font-size: 2.2em;
-            font-weight: 700;
-            margin-bottom: 0.2em;
-            color: #2563eb;
-            letter-spacing: -1px;
-        }
-        form {
-            margin-bottom: 2em;
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.7em;
-        }
-        input[type="text"] {
-            padding: 0.6em 1em;
-            border: 1px solid #cfd8dc;
-            border-radius: 6px;
-            font-size: 1em;
-            width: 350px;
-            background: #f4f8fb;
-            transition: border 0.2s;
-        }
-        input[type="text"]:focus {
-            border: 1.5px solid #2563eb;
-            outline: none;
-        }
-        button {
-            background: #2563eb;
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            padding: 0.6em 1.5em;
-            font-size: 1em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        button:disabled {
-            background: #b3c6f7;
-            cursor: not-allowed;
-        }
-        .summary {
-            background: #eaf6ff;
-            border-left: 5px solid #3498db;
-            margin: 1.5em 0 2em 0;
-            padding: 1.2em 1.5em;
-            border-radius: 8px;
-            font-size: 1.08em;
-        }
-        .flagged {
-            background: #fff3f3;
-            border-left: 5px solid #e74c3c;
-            margin: 1.2em 0;
-            padding: 1.2em 1.5em;
-            border-radius: 8px;
-            box-shadow: 0 1px 6px rgba(231,76,60,0.04);
-        }
-        .ok {
-            background: #eafaf1;
-            border-left: 5px solid #27ae60;
-            margin: 1em 0;
-            padding: 1em;
-        }
-        .snippet {
-            font-family: 'JetBrains Mono', 'Fira Mono', 'Consolas', monospace;
-            background: #f4f4f4;
-            padding: 0.7em 1em;
-            display: block;
-            white-space: pre-wrap;
-            border-radius: 5px;
-            margin: 0.5em 0 0.7em 0;
-            font-size: 1em;
-        }
-        .context {
-            color: #888;
-            font-size: 0.97em;
-            margin-bottom: 0.2em;
-        }
-        .llm {
-            font-size: 0.97em;
-            color: #555;
-        }
-        .url {
-            font-size: 1em;
-            color: #2563eb;
-            margin-bottom: 0.3em;
-            word-break: break-all;
-        }
-        #progress {
-            background: #fffbe6;
-            border: 1px solid #ffe066;
-            color: #b59f00;
-            padding: 1em 1.5em;
-            margin: 1.5em 0 1em 0;
-            font-weight: bold;
-            font-size: 1.1em;
-            border-radius: 8px;
-            display: none;
-        }
-        .reason {
-            color: #b30000;
-            font-weight: bold;
-            margin-bottom: 0.5em;
-        }
-        .tux-logo {
-            display: block;
-            margin: 0;
-            max-width: 100px;
-            flex-shrink: 0;
-        }
-        @media (max-width: 600px) {
-            .container { padding: 1em; }
-            input[type="text"] { width: 100%; }
-        }
-        .indent-0 { margin-left: 0px; }
-.indent-1 { margin-left: 24px; }
-.indent-2 { margin-left: 48px; }
-.indent-3 { margin-left: 72px; }
-.indent-4 { margin-left: 96px; }
-.indent-5 { margin-left: 120px; }
-.indent-6 { margin-left: 144px; }
-.indent-7 { margin-left: 168px; }
-.indent-8 { margin-left: 192px; }
-.indent-9 { margin-left: 216px; }
-.indent-10 { margin-left: 240px; }
-    </style>
+    <link rel="stylesheet" href="/static/dashboard.css">
     <script>
-        function pollStatus() {
-            fetch('/status')
-                .then(r => r.json())
-                .then data => {
-                    if (data.running) {
-                        document.getElementById('progress').style.display = 'block';
-                        setTimeout(pollStatus, 2000);
-                    } else {
-                        document.getElementById('progress').style.display = 'none';
-                        location.reload();
-                    }
-                });
+        let pollInterval = null;
+        let pollCount = 0;
+        const MAX_POLL_COUNT = 1000;
+        const POLL_INTERVAL = 3000; // Reduced to 3 seconds for faster updates
+
+        // Store the last progress data
+        let lastProgressData = null;
+
+        function renderProgress(data) {
+            let prog = document.getElementById('progress');
+            prog.style.display = 'block';
+
+            let scannedCount = data.scanned || 0;
+            let totalSnippets = data.total_snippets || 0;
+            let flaggedCount = data.flagged || 0;
+            let flaggedPages = data.flagged_pages || 0;
+            let percentFlagged = data.percent_flagged || 0;
+
+            prog.innerHTML = `
+                <div class="progress-header">
+                    <div class="progress-title">Scan in Progress</div>
+                    <div class="progress-stage">${data.stage || 'Processing...'}</div>
+                </div>
+                <div class="progress-stats">
+                    <div class="progress-stat">
+                        <div class="progress-stat-value">${scannedCount}</div>
+                        <div class="progress-stat-label">Pages Scanned</div>
+                    </div>
+                    <div class="progress-stat">
+                        <div class="progress-stat-value">${totalSnippets}</div>
+                        <div class="progress-stat-label">Snippets Found</div>
+                    </div>
+                    <div class="progress-stat">
+                        <div class="progress-stat-value">${flaggedCount}</div>
+                        <div class="progress-stat-label">Flagged Snippets</div>
+                    </div>
+                    <div class="progress-stat">
+                        <div class="progress-stat-value">${percentFlagged.toFixed(1)}%</div>
+                        <div class="progress-stat-label">Bias Rate</div>
+                    </div>
+                </div>
+                <div style="font-size:0.9em;color:#6b7280;">
+                    Current: ${data.current_url || 'Processing...'}
+                </div>
+            `;
         }
-        function pollProgress() {
+
+        function renderFinalProgress() {
+            if (lastProgressData) {
+                let prog = document.getElementById('progress');
+                prog.style.display = 'block';
+
+                let scannedCount = lastProgressData.scanned || 0;
+                let totalSnippets = lastProgressData.total_snippets || 0;
+                let flaggedCount = lastProgressData.flagged || 0;
+                let flaggedPages = lastProgressData.flagged_pages || 0;
+                let percentFlagged = lastProgressData.percent_flagged || 0;
+
+                prog.innerHTML = `
+                    <div class="progress-header">
+                        <div class="progress-title">Scan Complete</div>
+                        <div class="progress-stage">Done</div>
+                    </div>
+                    <div class="progress-stats">
+                        <div class="progress-stat">
+                            <div class="progress-stat-value">${scannedCount}</div>
+                            <div class="progress-stat-label">Pages Scanned</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-value">${totalSnippets}</div>
+                            <div class="progress-stat-label">Snippets Found</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-value">${flaggedCount}</div>
+                            <div class="progress-stat-label">Flagged Snippets</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-value">${percentFlagged.toFixed(1)}%</div>
+                            <div class="progress-stat-label">Bias Rate</div>
+                        </div>
+                    </div>
+                    <div style="font-size:0.9em;color:#6b7280;">
+                        Scan finished.
+                    </div>
+                `;
+            }
+        }
+
+        function fetchFinalResults() {
             fetch('/progress')
-                .then(r => r.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
+                    lastProgressData = data;
+                    renderFinalProgress();
+                })
+                .catch(error => {
+                    console.error('Error fetching final results:', error);
+                });
+        }
+
+        function pollProgress() {
+            if (pollCount >= MAX_POLL_COUNT) {
+                console.warn('Max poll count reached, stopping polling');
+                clearInterval(pollInterval);
+                fetchFinalResults();
+                return;
+            }
+
+            pollCount++;
+
+            fetch('/progress')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    lastProgressData = data;
                     if (data.running) {
-                        let prog = document.getElementById('progress');
-                        prog.style.display = 'block';
-                        let flaggedSnippets = data.flagged_snippets || [];
-                        let flaggedHtml = '';
-                        let scannedUrls = data.scanned_urls || [];
-                        let flaggedUrls = new Set();
-                        flaggedSnippets.forEach(snip => flaggedUrls.add(snip.url));
-                        let flaggedCount = flaggedUrls.size;
-                        let scannedCount = scannedUrls.length;
-                        let percentFlagged = scannedCount > 0 ? Math.min(100, (flaggedCount / scannedCount * 100)) : 0;
-                        if (flaggedSnippets.length > 0) {
-                            let byUrl = {};
-                            flaggedSnippets.forEach(snip => {
-                                if (!snip.llm_score || !snip.llm_score.windows_biased) return;
-                                if (!byUrl[snip.url]) byUrl[snip.url] = [];
-                                byUrl[snip.url].push(snip);
-                            });
-                            flaggedHtml = '<h3 style="margin-top:1.5em;">Problematic Pages (Live)</h3>';
-                            Object.keys(byUrl).forEach(function(url) {
-                                flaggedHtml += `<div class='flagged'><div class='url'>URL: <a href='${url}' target='_blank'>${url}</a></div>`;
-                                byUrl[url].forEach(function(snip) {
-                                    flaggedHtml += `<div class='context'>Context: ${snip.context}</div>`;
-                                    flaggedHtml += `<div class='snippet'>${snip.code}</div>`;
-                                    flaggedHtml += `<div class='reason'>Reason: ${snip.llm_score && snip.llm_score.explanation ? snip.llm_score.explanation : ''}</div><hr style='border:none;border-top:1px solid #eee;'>`;
-                                });
-                                flaggedHtml += `</div>`;
-                            });
-                        }
-                        prog.innerHTML = `<span>Scan in progress...<br>
-                            Stage: <b>${data.stage || ''}</b><br>
-                            Pages scanned: <b>${scannedCount}</b><br>
-                            Pages flagged as biased: <b>${flaggedCount}</b> (${percentFlagged.toFixed(1)}%)<br>
-                            <span style='font-size:0.97em;color:#888;'>Current: ${data.current_url || (scannedUrls.length ? scannedUrls[scannedUrls.length-1] : '')}</span>
-                        </span>` + flaggedHtml;
-                        setTimeout(pollProgress, 5000); // Slow down polling to every 5 seconds
+                        renderProgress(data);
                     } else {
-                        document.getElementById('progress').style.display = 'none';
-                        // Do not reload or clear the page after scan is done; leave results visible
+                        clearInterval(pollInterval);
+                        renderFinalProgress();
+                        fetchFinalResults();
+                        // window.location.reload(); // Removed to preserve styling
+                    }
+                })
+                .catch(error => {
+                    console.error('Error polling progress:', error);
+                    if (pollCount > 10) {
+                        clearInterval(pollInterval);
+                        fetchFinalResults();
                     }
                 });
         }
+
+        function startPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+            pollCount = 0;
+            pollInterval = setInterval(pollProgress, POLL_INTERVAL);
+            // Initial poll
+            pollProgress();
+        }
+
+        function stopPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }
+
         window.onload = function() {
             var scanRunning = "{{ 'true' if scan_status is sameas true else 'false' }}";
             if (scanRunning === "true") {
-                pollProgress();
-            } else {
-                document.getElementById('progress').style.display = 'none';
+                startPolling();
             }
+        };
+
+        // Clean up on page unload
+        window.onbeforeunload = function() {
+            stopPolling();
         };
     </script>
 </head>
 <body>
 <div class="container">
-    <div style="display: flex; align-items: center; gap: 1.5em; margin-bottom: 1.2em;">
-        <img class="tux-logo" src="/static/tux_reading.png" alt="Tux the Linux penguin reading a book with glasses" style="margin: 0; max-width: 100px; flex-shrink: 0;">
-        <h1 style="margin: 0;">Linux-first Docs for Azure</h1>
-    </div>
-    <h2 style="margin-top:2em;">Scan History</h2>
-    {% if all_scans %}
-    <table style="width:100%;border-collapse:collapse;margin-bottom:2em;">
-        <thead>
-            <tr style="background:#f4f8fb;">
-                <th style="text-align:left;padding:0.6em 0.8em;">Started</th>
-                <th style="text-align:left;padding:0.6em 0.8em;">Root URL</th>
-                <th style="text-align:right;padding:0.6em 0.8em;">Pages</th>
-                <th style="text-align:right;padding:0.6em 0.8em;">Flagged</th>
-                <th style="text-align:right;padding:0.6em 0.8em;">Bias %</th>
-                <th style="text-align:center;padding:0.6em 0.8em;">Details</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for scan in all_scans %}
-            <tr style="border-bottom:1px solid #e0e7ef;">
-                <td style="padding:0.5em 0.8em;">{{ scan.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                <td style="padding:0.5em 0.8em;max-width:320px;overflow-wrap:anywhere;">{{ scan.url or 'Default' }}</td>
-                <td style="padding:0.5em 0.8em;text-align:right;">{{ scan.scanned_count }}</td>
-                <td style="padding:0.5em 0.8em;text-align:right;">{{ scan.flagged_count }}</td>
-                <td style="padding:0.5em 0.8em;text-align:right;">{{ scan.percent_flagged|round(1) }}%</td>
-                <td style="padding:0.5em 0.8em;text-align:center;">
-                    <a href="/scan/{{ scan.id }}" style="color:#2563eb;font-weight:600;">View</a>
-                </td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-    {% endif %}
-    <form method="post" action="/scan">
-        <input type="text" name="url" placeholder="Paste Azure doc URL or path (optional)" autocomplete="off">
-        <button type="submit" {% if scan_status is true %}disabled{% endif %}>Start Scan</button>
-    </form>
-    {% if scan_id and scan_status %}
-        <div id="progress">
-            <span>Scan in progress...<br>
-            Stage: <b>{{ scan_stage or '' }}</b></span>
+    <!-- Header -->
+    <div class="header">
+        <img class="tux-logo" src="/static/tux_reading.png" alt="Tux the Linux penguin reading a book with glasses">
+        <div>
+            <h1>Linux-first Docs for Azure</h1>
+            <p class="subtitle">Dashboard for monitoring Azure documentation bias detection</p>
         </div>
-        <script>
-            // Only poll progress if scan is running
-            pollProgress();
-        </script>
-    {% endif %}
-    <div id="progress">
-        <span>Scan in progress... Please wait. This may take several minutes for large paths.</span>
     </div>
-    {% if last_url %}
-        <p style="margin-bottom:1.2em;">Last scan target: <b>{{ last_url if last_url else 'Default path' }}</b></p>
-    {% endif %}
-    {% if last_result %}
-            {% set total_pages = last_result|map(attribute='url')|unique|list|length %}
-            {% set flagged = last_result|selectattr('llm_score.windows_biased')|list %}
-            {% set flagged_pages = flagged|map(attribute='url')|unique|list|length %}
-            {% set percent_flagged = (flagged_pages / total_pages * 100) if total_pages > 0 %}
-            <div class="summary">
-                <b>Summary:</b><br>
-                Pages evaluated: {{ total_pages }}<br>
-                Pages flagged as biased: {{ flagged_pages }} ({{ percent_flagged|round(1) }}%)
-            </div>
-            <h2 style="margin-top:2em;">Problematic Pages</h2>
-            {% if flagged_pages == 0 %}
-                <p>No biased pages detected.</p>
-            {% else %}
-                <style>
-                .indent-0 { margin-left: 0px; }
-.indent-1 { margin-left: 24px; }
-.indent-2 { margin-left: 48px; }
-.indent-3 { margin-left: 72px; }
-.indent-4 { margin-left: 96px; }
-.indent-5 { margin-left: 120px; }
-.indent-6 { margin-left: 144px; }
-.indent-7 { margin-left: 168px; }
-.indent-8 { margin-left: 192px; }
-.indent-9 { margin-left: 216px; }
-.indent-10 { margin-left: 240px; }
-                </style>
 
-                {% macro render_tree(node, level=0) %}
-                    {% for key, value in node.items() if key != '__snippets__' %}
-                        <div class="indent-{{level}}">
-                            <details style="margin-bottom:0.7em;">
-                                <summary style="font-size:1.08em;font-weight:600;cursor:pointer;">{{ key }}</summary>
-                                {{ render_tree(value, level+1) }}
-                            </details>
-                        </div>
-                    {% endfor %}
-                    {% if node['__snippets__'] is defined %}
-                        {% for snip in node['__snippets__'] %}
-                            <div class="indent-{{level}}">
-                                <div class="flagged">
-                                    <div class="url">URL: <a href="{{ snip['url'] }}" target="_blank">{{ snip['url'] }}</a></div>
-                                    <div class="context">Context: {{ snip['context'] }}</div>
-                                    <div class="snippet">{{ snip['code'] }}</div>
-                                    <div class="reason">Reason: {{ snip['llm_score']['explanation'] if snip['llm_score'] and snip['llm_score']['windows_biased'] else '' }}</div>
-                                    <hr style="border:none;border-top:1px solid #eee;">
-                                </div>
-                            </div>
-                        {% endfor %}
-                    {% endif %}
-                {% endmacro %}
-                {{ render_tree(flagged_tree, 0) }}
-            {% endif %}
+    <!-- Progress Bar (shown during scans) -->
+    <div id="progress"></div>
+
+    <!-- Dashboard Metrics -->
+    <div class="dashboard-grid">
+        {% if all_scans and all_scans|length > 0 %}
+            {% set total_scans = all_scans|length %}
+            {% set completed_scans = all_scans|selectattr('status', 'equalto', 'done')|list|length %}
+            {% set running_scans = all_scans|selectattr('status', 'ne', 'done')|list|length %}
+            {% set total_pages = all_scans|sum(attribute='scanned_count') %}
+            {% set total_flagged = all_scans|sum(attribute='flagged_count') %}
+            {% set avg_bias = (total_flagged / total_pages * 100) if total_pages > 0 else 0 %}
+            
+            <div class="metric-card">
+                <div class="metric-title">Total Scans</div>
+                <div class="metric-value">{{ total_scans }}</div>
+                <div class="metric-subtitle">{{ completed_scans }} completed, {{ running_scans }} running</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">Pages Analyzed</div>
+                <div class="metric-value">{{ total_pages }}</div>
+                <div class="metric-subtitle">Across all scans</div>
+            </div>
+            
+            <div class="metric-card {% if avg_bias < 5 %}success{% elif avg_bias < 15 %}warning{% else %}danger{% endif %}">
+                <div class="metric-title">Average Bias Rate</div>
+                <div class="metric-value">{{ avg_bias|round(1) }}%</div>
+                <div class="metric-subtitle">{{ total_flagged }} pages flagged</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">Latest Scan</div>
+                <div class="metric-value">{{ all_scans[0].percent_flagged }}%</div>
+                <div class="metric-subtitle">{{ all_scans[0].scanned_count }} pages scanned</div>
+            </div>
         {% else %}
-            <p>No results yet.</p>
+            <div class="metric-card">
+                <div class="metric-title">Total Scans</div>
+                <div class="metric-value">0</div>
+                <div class="metric-subtitle">No scans completed yet</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">Pages Analyzed</div>
+                <div class="metric-value">0</div>
+                <div class="metric-subtitle">No data available</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">Average Bias Rate</div>
+                <div class="metric-value">0%</div>
+                <div class="metric-subtitle">No data available</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">Latest Scan</div>
+                <div class="metric-value">-</div>
+                <div class="metric-subtitle">No scans yet</div>
+            </div>
         {% endif %}
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="recent-activity">
+        <h2>Recent Activity</h2>
+        {% if all_scans and all_scans|length > 0 %}
+            <table class="activity-table">
+                <thead>
+                    <tr>
+                        <th>Started</th>
+                        <th>Target URL</th>
+                        <th>Pages</th>
+                        <th>Flagged</th>
+                        <th>Bias Rate</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for scan in all_scans[:10] %}
+                    <tr>
+                        <td>{{ scan.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">
+                            {{ scan.url or 'Default path' }}
+                        </td>
+                        <td>{{ scan.scanned_count }}</td>
+                        <td>{{ scan.flagged_count }}</td>
+                        <td>
+                            <span class="bias-percentage 
+                                {% if scan.percent_flagged < 5 %}low
+                                {% elif scan.percent_flagged < 15 %}medium
+                                {% else %}high{% endif %}">
+                                {{ scan.percent_flagged }}%
+                            </span>
+                        </td>
+                        <td>
+                            <span class="status-badge 
+                                {% if scan.status == 'done' %}completed
+                                {% elif scan.status == 'running' %}running
+                                {% else %}failed{% endif %}">
+                                {{ scan.status }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="/scan/{{ scan.id }}" class="view-link">View Details</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p style="color: #6b7280; text-align: center; padding: 2em;">
+                No scans completed yet. Scans are scheduled to run automatically.
+            </p>
+        {% endif %}
+    </div>
+
+    <!-- Recent Flagged Snippets -->
+    {% if recent_flagged_snippets and recent_flagged_snippets|length > 0 %}
+    <div class="recent-activity">
+        <h2>Recent Issues Found</h2>
+        <p style="color: #64748b; margin-bottom: 1.5em;">Latest Windows-biased content detected across all scans</p>
+        
+        {% for snippet in recent_flagged_snippets %}
+        <div class="snippet-card">
+            <div class="snippet-header">
+                <div class="snippet-meta">
+                    <div class="snippet-url">{{ snippet.page_url }}</div>
+                    <div class="snippet-scan-info">
+                        Scan #{{ snippet.scan_id }} • {{ snippet.scan_started.strftime('%Y-%m-%d %H:%M') }}
+                    </div>
+                </div>
+                <div class="snippet-score">Windows Biased</div>
+            </div>
+            
+            {% if snippet.context %}
+            <div class="snippet-content">
+                <div class="snippet-label">Context:</div>
+                <div class="snippet-text">{{ snippet.context[:200] }}{% if snippet.context|length > 200 %}...{% endif %}</div>
+            </div>
+            {% endif %}
+            
+            {% if snippet.code %}
+            <div class="snippet-content">
+                <div class="snippet-label">Code Snippet:</div>
+                <div class="snippet-text">{{ snippet.code[:300] }}{% if snippet.code|length > 300 %}...{% endif %}</div>
+            </div>
+            {% endif %}
+            
+            {% if snippet.llm_score %}
+            <div class="snippet-content">
+                <div class="snippet-label">Analysis:</div>
+                <div class="analysis-content">
+                    {% if snippet.llm_score.windows_biased %}
+                        <div class="analysis-item">
+                            <span class="analysis-icon">⚠️</span>
+                            <span class="analysis-text"><strong>Windows Bias Detected:</strong> This content appears to be Windows-specific or lacks Linux alternatives.</span>
+                        </div>
+                    {% endif %}
+                    
+                    {% if snippet.llm_score.bias_types %}
+                        {% set bias_types = snippet.llm_score.bias_types %}
+                        {% if bias_types.powershell_only %}
+                            <div class="analysis-item">
+                                <span class="analysis-icon">💻</span>
+                                <span class="analysis-text"><strong>PowerShell Only:</strong> Uses PowerShell cmdlets or syntax specific to Windows.</span>
+                            </div>
+                        {% endif %}
+                        
+                        {% if bias_types.windows_paths %}
+                            <div class="analysis-item">
+                                <span class="analysis-icon">📁</span>
+                                <span class="analysis-text"><strong>Windows Paths:</strong> Uses Windows-style paths with backslashes or C:\ drive references.</span>
+                            </div>
+                        {% endif %}
+                        
+                        {% if bias_types.windows_commands %}
+                            <div class="analysis-item">
+                                <span class="analysis-icon">⚡</span>
+                                <span class="analysis-text"><strong>Windows Commands:</strong> Uses Windows-specific commands (dir, copy, del, etc.).</span>
+                            </div>
+                        {% endif %}
+                        
+                        {% if bias_types.windows_tools %}
+                            <div class="analysis-item">
+                                <span class="analysis-icon">🔧</span>
+                                <span class="analysis-text"><strong>Windows Tools:</strong> Uses Windows-only tools (regedit, msiexec, etc.).</span>
+                            </div>
+                        {% endif %}
+                        
+                        {% if bias_types.windows_specific_syntax %}
+                            <div class="analysis-item">
+                                <span class="analysis-icon">📝</span>
+                                <span class="analysis-text"><strong>Windows Syntax:</strong> Uses Windows-specific syntax (backticks, etc.).</span>
+                            </div>
+                        {% endif %}
+                        
+                        {% if bias_types.windows_registry %}
+                            <div class="analysis-item">
+                                <span class="analysis-icon">🗄️</span>
+                                <span class="analysis-text"><strong>Windows Registry:</strong> References Windows registry keys or values.</span>
+                            </div>
+                        {% endif %}
+                        
+                        {% if bias_types.windows_services %}
+                            <div class="analysis-item">
+                                <span class="analysis-icon">⚙️</span>
+                                <span class="analysis-text"><strong>Windows Services:</strong> Uses Windows service management commands.</span>
+                            </div>
+                        {% endif %}
+                        
+                        {% if bias_types.missing_linux_example %}
+                            <div class="analysis-item">
+                                <span class="analysis-icon">🐧</span>
+                                <span class="analysis-text"><strong>Missing Linux Example:</strong> The documentation does not provide equivalent examples for Linux systems.</span>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <!-- Fallback for old data format -->
+                        {% if snippet.llm_score.missing_linux_example %}
+                            <div class="analysis-item">
+                                <span class="analysis-icon">🐧</span>
+                                <span class="analysis-text"><strong>Missing Linux Example:</strong> The documentation does not provide equivalent examples for Linux systems.</span>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                    
+                    {% if snippet.llm_score.explanation %}
+                        <div class="analysis-explanation">
+                            <div class="explanation-label">Explanation:</div>
+                            <div class="explanation-text">{{ snippet.llm_score.explanation[:150] }}{% if snippet.llm_score.explanation|length > 150 %}...{% endif %}</div>
+                        </div>
+                    {% endif %}
+                    
+                    {% if snippet.llm_score.suggested_linux_alternative %}
+                        <div class="analysis-explanation">
+                            <div class="explanation-label">Linux Alternative:</div>
+                            <div class="explanation-text">{{ snippet.llm_score.suggested_linux_alternative[:100] }}{% if snippet.llm_score.suggested_linux_alternative|length > 100 %}...{% endif %}</div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="snippet-actions">
+                <a href="/scan/{{ snippet.scan_id }}" class="view-link">View Full Scan Details</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 </div>
 </body>
 </html>

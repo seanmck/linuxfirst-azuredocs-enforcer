@@ -12,6 +12,8 @@ class Scan(Base):
     started_at = Column(DateTime, default=datetime.datetime.utcnow)
     finished_at = Column(DateTime, nullable=True)
     status = Column(String, default='running')
+    biased_pages_count = Column(Integer, default=0)
+    flagged_snippets_count = Column(Integer, default=0)
     pages = relationship("Page", back_populates="scan")
 
 class Page(Base):

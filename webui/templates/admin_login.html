@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Login - Linux-first Docs for Azure</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            background: #f7fafd;
+            color: #222;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .login-container {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            padding: 3em;
+            width: 100%;
+            max-width: 400px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 2em;
+        }
+        .tux-logo {
+            max-width: 80px;
+            margin-bottom: 1em;
+        }
+        h1 {
+            font-size: 1.8em;
+            font-weight: 700;
+            margin: 0;
+            color: #2563eb;
+        }
+        .subtitle {
+            color: #666;
+            font-size: 1em;
+            margin: 0.5em 0 0 0;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 1em;
+        }
+        input[type="password"] {
+            padding: 0.8em 1em;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 1em;
+            background: #f9fafb;
+            transition: all 0.2s;
+        }
+        input[type="password"]:focus {
+            border-color: #2563eb;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        button {
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 0.8em 1.5em;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+        .error {
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            padding: 0.8em;
+            border-radius: 8px;
+            font-size: 0.9em;
+        }
+        .back-link {
+            text-align: center;
+            margin-top: 1.5em;
+        }
+        .back-link a {
+            color: #6b7280;
+            text-decoration: none;
+        }
+        .back-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="header">
+            <img class="tux-logo" src="/static/tux_reading.png" alt="Tux the Linux penguin reading a book with glasses">
+            <h1>Admin Login</h1>
+            <p class="subtitle">Linux-first Docs for Azure</p>
+        </div>
+        
+        {% if error %}
+        <div class="error">
+            {{ error }}
+        </div>
+        {% endif %}
+        
+        <form method="post" action="/admin/login">
+            <input type="password" name="password" placeholder="Enter admin password" required>
+            <button type="submit">Login</button>
+        </form>
+        
+        <div class="back-link">
+            <a href="/">← Back to Dashboard</a>
+        </div>
+    </div>
+</body>
+</html> 

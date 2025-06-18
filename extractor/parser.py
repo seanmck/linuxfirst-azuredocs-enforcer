@@ -20,6 +20,19 @@ def extract_code_snippets(html):
             if prev:
                 context = prev.get_text(strip=True)
         code = pre.get_text('\n', strip=True)
+        # Get a broader context excerpt (up to 25 lines around the <pre> block)
+        lines = pre.parent.get_text('\n', strip=True).split('\n') if pre.parent else []
+        pre_text = pre.get_text('\n', strip=True)
+        if lines and pre_text in lines:
+            idx = lines.index(pre_text)
+            start = max(0, idx - 12)
+            end = min(len(lines), idx + 13)
+            excerpt = '\n'.join(lines[start:end])
+        else:
+            excerpt = pre_text
+        # Truncate excerpt if too long
+        if excerpt.count('\n') > 25:
+            excerpt = '\n'.join(excerpt.split('\n')[:25]) + '\n...'
         # Check if under Azure PowerShell tab
         under_az_powershell_tab = False
         tab_parent = pre.find_parent(attrs={"data-tab": True})
@@ -32,6 +45,7 @@ def extract_code_snippets(html):
         snippets.append({
             'code': code,
             'context': context,
+            'excerpt': excerpt,
             'under_az_powershell_tab': under_az_powershell_tab,
             'windows_header': windows_header
         })

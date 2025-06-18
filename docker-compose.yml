@@ -11,5 +11,32 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+  scanner:
+    build:
+      context: ./crawler
+    depends_on:
+      - rabbitmq
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+    restart: always
+  webui:
+    build:
+      context: ./webui
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://azuredocs_user:azuredocs_pass@db:5432/azuredocs
+    ports:
+      - "8000:8000"
+    restart: always
 volumes:
   pgdata:

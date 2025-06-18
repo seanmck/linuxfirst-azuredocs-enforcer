@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard - Linux-first Docs for Azure</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <!-- Removed inline <style> block, now using external CSS -->
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <img class="tux-logo" src="/static/tux_reading.png" alt="Tux the Linux penguin reading a book with glasses">
+                <div>
+                    <h1>Admin Dashboard</h1>
+                    <p class="subtitle">Linux-first Docs for Azure</p>
+                </div>
+            </div>
+            <div class="admin-actions">
+                <a href="/" class="btn btn-secondary">View Dashboard</a>
+                <a href="/admin/logout" class="btn btn-secondary">Logout</a>
+            </div>
+        </div>
+
+        <!-- Admin Controls -->
+        <div class="admin-controls">
+            <h2>Admin Controls</h2>
+            <div class="control-grid">
+                <!-- Manual Scan -->
+                <div class="control-card">
+                    <h3>Manual Scan</h3>
+                    <form method="post" action="/admin/scan">
+                        <div class="form-group">
+                            <label for="url">Target URL (optional)</label>
+                            <input type="text" id="url" name="url" placeholder="https://learn.microsoft.com/en-us/azure/...">
+                            <small style="color: #6b7280; font-size: 0.85em;">
+                                Leave empty to use default paths based on scan type
+                            </small>
+                        </div>
+                        <div class="form-group">
+                            <label for="scan_type">Scan Type</label>
+                            <select id="scan_type" name="scan_type">
+                                <option value="manual">Manual Test (starts from Virtual Machines)</option>
+                                <option value="targeted">Targeted Scan (starts from App Service)</option>
+                                <option value="full">Full Scan (starts from Azure root)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Scan Source</label>
+                            <div>
+                                <input type="radio" id="source_web" name="source" value="web" checked>
+                                <label for="source_web">Public Docs</label>
+                                <input type="radio" id="source_github" name="source" value="github">
+                                <label for="source_github">GitHub Repo</label>
+                            </div>
+                        </div>
+                        <button type="submit">Start Scan</button>
+                    </form>
+                </div>
+
+                <!-- Scheduled Scans -->
+                <div class="control-card">
+                    <h3>Scheduled Scans</h3>
+                    <form method="post" action="/admin/schedule">
+                        <div class="form-group">
+                            <label for="schedule_type">Schedule Type</label>
+                            <select id="schedule_type" name="schedule_type">
+                                <option value="daily">Daily (2 AM UTC)</option>
+                                <option value="weekly">Weekly (Sunday 2 AM UTC)</option>
+                                <option value="monthly">Monthly (1st of month 2 AM UTC)</option>
+                            </select>
+                        </div>
+                        <button type="submit">Update Schedule</button>
+                    </form>
+                    <p style="margin-top: 1em; font-size: 0.9em; color: #6b7280;">
+                        Current schedule: Daily at 2:00 AM UTC
+                    </p>
+                </div>
+
+                <!-- System Status -->
+                <div class="control-card">
+                    <h3>System Status</h3>
+                    <div style="margin-bottom: 1em;">
+                        <strong>Database:</strong> <span style="color: #10b981;">Connected</span>
+                    </div>
+                    <div style="margin-bottom: 1em;">
+                        <strong>Scheduler:</strong> <span style="color: #10b981;">Active</span>
+                    </div>
+                    <div style="margin-bottom: 1em;">
+                        <strong>Last Scan:</strong> 
+                        {% if scans and scans|length > 0 %}
+                            {{ scans[0].started_at.strftime('%Y-%m-%d %H:%M') }}
+                        {% else %}
+                            Never
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scan History -->
+        <div class="scan-history">
+            <h2>Recent Scans</h2>
+            {% if scans and scans|length > 0 %}
+                <table class="scan-table">
+                    <thead>
+                        <tr>
+                            <th>Started</th>
+                            <th>Target URL</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for scan in scans[:20] %}
+                        <tr>
+                            <td>{{ scan.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">
+                                {{ scan.url or 'Default path' }}
+                            </td>
+                            <td>
+                                <span class="status-badge 
+                                    {% if scan.status == 'done' %}completed
+                                    {% elif scan.status == 'running' %}running
+                                    {% else %}failed{% endif %}">
+                                    {{ scan.status }}
+                                </span>
+                            </td>
+                            <td>
+                                <a href="/scan/{{ scan.id }}" class="view-link">View Details</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p style="color: #6b7280; text-align: center; padding: 2em;">
+                    No scans completed yet. Start your first scan to see history here.
+                </p>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

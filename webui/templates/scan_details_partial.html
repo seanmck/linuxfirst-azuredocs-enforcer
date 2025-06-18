@@ -1,0 +1,158 @@
+{# This partial renders only the scan details section for AJAX polling #}
+<div class="scan-details">
+    <h2>Scan Information</h2>
+    <div class="scan-summary">
+        <div class="summary-card">
+            <div class="summary-value">{{ scanned_count }}</div>
+            <div class="summary-label">Pages Scanned</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-value">{{ flagged_pages }}</div>
+            <div class="summary-label">Pages Flagged</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-value">{{ flagged_count }}</div>
+            <div class="summary-label">Flagged Snippets</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-value">{{ percent_flagged }}%</div>
+            <div class="summary-label">% Pages Flagged</div>
+        </div>
+    </div>
+    <p><strong>Started At:</strong> {{ scan.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+    <p><strong>Finished At:</strong> {{ scan.finished_at.strftime('%Y-%m-%d %H:%M:%S') if scan.finished_at else 'In Progress' }}</p>
+    <p><strong>Status:</strong> 
+        <span class="status-badge 
+            {% if scan.status == 'done' %}completed
+            {% elif scan.status == 'running' %}running
+            {% else %}failed{% endif %}">
+            {{ scan.status }}
+        </span>
+    </p>
+    <p><strong>Target URL:</strong> {{ scan.url or 'Default path' }}</p>
+</div>
+
+<!-- Problematic Pages -->
+<div class="scan-details">
+    <h2>Problematic Pages</h2>
+    {% if pages and pages|length > 0 %}
+        {% set has_flagged = false %}
+        {% for page in pages %}
+            {% if page.has_flagged %}
+                {% set has_flagged = true %}
+                <div class="page-section">
+                    <div class="page-header">
+                        <div class="page-url">{{ page.url }}</div>
+                        <div class="page-status">{{ page.status }}</div>
+                    </div>
+                    {% for snippet in page.flagged_snippets %}
+                        <div class="snippet-card">
+                            <div class="snippet-header">
+                                <div class="snippet-score">Windows Biased</div>
+                            </div>
+                            {% if snippet.excerpt %}
+                            <div class="snippet-content">
+                                <div class="snippet-label">Relevant Section:</div>
+                                <div class="snippet-text">{{ snippet.excerpt }}</div>
+                            </div>
+                            {% endif %}
+                            {% if snippet.llm_score %}
+                            <div class="snippet-content">
+                                <div class="snippet-label">Analysis:</div>
+                                <div class="analysis-content">
+                                    {% if snippet.llm_score.windows_biased %}
+                                        <div class="analysis-item">
+                                            <span class="analysis-icon">⚠️</span>
+                                            <span class="analysis-text"><strong>Windows Bias Detected:</strong> This content appears to be Windows-specific or lacks Linux alternatives.</span>
+                                        </div>
+                                    {% endif %}
+                                    {% if snippet.llm_score.bias_types %}
+                                        {% set bias_types = snippet.llm_score.bias_types %}
+                                        {% if bias_types.powershell_only %}
+                                            <div class="analysis-item">
+                                                <span class="analysis-icon">💻</span>
+                                                <span class="analysis-text"><strong>PowerShell Only:</strong> Uses PowerShell cmdlets or syntax specific to Windows.</span>
+                                            </div>
+                                        {% endif %}
+                                        {% if bias_types.windows_paths %}
+                                            <div class="analysis-item">
+                                                <span class="analysis-icon">📁</span>
+                                                <span class="analysis-text"><strong>Windows Paths:</strong> Uses Windows-style paths with backslashes or C:\ drive references.</span>
+                                            </div>
+                                        {% endif %}
+                                        {% if bias_types.windows_commands %}
+                                            <div class="analysis-item">
+                                                <span class="analysis-icon">⚡</span>
+                                                <span class="analysis-text"><strong>Windows Commands:</strong> Uses Windows-specific commands (dir, copy, del, etc.).</span>
+                                            </div>
+                                        {% endif %}
+                                        {% if bias_types.windows_tools %}
+                                            <div class="analysis-item">
+                                                <span class="analysis-icon">🔧</span>
+                                                <span class="analysis-text"><strong>Windows Tools:</strong> Uses Windows-only tools (regedit, msiexec, etc.).</span>
+                                            </div>
+                                        {% endif %}
+                                        {% if bias_types.windows_specific_syntax %}
+                                            <div class="analysis-item">
+                                                <span class="analysis-icon">📝</span>
+                                                <span class="analysis-text"><strong>Windows Syntax:</strong> Uses Windows-specific syntax (backticks, etc.).</span>
+                                            </div>
+                                        {% endif %}
+                                        {% if bias_types.windows_registry %}
+                                            <div class="analysis-item">
+                                                <span class="analysis-icon">🗄️</span>
+                                                <span class="analysis-text"><strong>Windows Registry:</strong> References Windows registry keys or values.</span>
+                                            </div>
+                                        {% endif %}
+                                        {% if bias_types.windows_services %}
+                                            <div class="analysis-item">
+                                                <span class="analysis-icon">⚙️</span>
+                                                <span class="analysis-text"><strong>Windows Services:</strong> Uses Windows service management commands.</span>
+                                            </div>
+                                        {% endif %}
+                                        {% if bias_types.missing_linux_example %}
+                                            <div class="analysis-item">
+                                                <span class="analysis-icon">🐧</span>
+                                                <span class="analysis-text"><strong>Missing Linux Example:</strong> The documentation does not provide equivalent examples for Linux systems.</span>
+                                            </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <!-- Fallback for old data format -->
+                                        {% if snippet.llm_score.missing_linux_example %}
+                                            <div class="analysis-item">
+                                                <span class="analysis-icon">🐧</span>
+                                                <span class="analysis-text"><strong>Missing Linux Example:</strong> The documentation does not provide equivalent examples for Linux systems.</span>
+                                            </div>
+                                        {% endif %}
+                                    {% endif %}
+                                    {% if snippet.llm_score.explanation %}
+                                        <div class="analysis-explanation">
+                                            <div class="explanation-label">Detailed Explanation:</div>
+                                            <div class="explanation-text">{{ snippet.llm_score.explanation }}</div>
+                                        </div>
+                                    {% endif %}
+                                    {% if snippet.llm_score.suggested_linux_alternative %}
+                                        <div class="analysis-explanation">
+                                            <div class="explanation-label">Suggested Linux Alternative:</div>
+                                            <div class="explanation-text">{{ snippet.llm_score.suggested_linux_alternative }}</div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endfor %}
+        {% if not has_flagged %}
+            <div class="no-flagged">
+                <p>No problematic pages found in this scan. All pages appear to be Linux-friendly! 🐧</p>
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="no-flagged">
+            <p>No pages were scanned in this run.</p>
+        </div>
+    {% endif %}
+</div>
