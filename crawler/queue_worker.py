@@ -333,13 +333,19 @@ class QueueWorker:
         db.commit()
         page_objs = {}
         for md_file in md_file_dicts:
+            page_url = f"https://github.com/{repo_full_name}/blob/{branch}/{md_file['path']}"
+            if self.is_windows_focused_url(page_url):
+                print(f"[DEBUG] Skipping Windows-focused file: {page_url}")
+                continue
             try:
                 file_content_obj = repo.get_contents(md_file['path'], ref=branch)
                 file_content = file_content_obj.decoded_content.decode()
+                h1_match = re.search(r'^# (.+)$', file_content, re.MULTILINE)
+                if h1_match and 'powershell' in h1_match.group(1).lower():
+                    continue
             except Exception as e:
                 print(f"[ERROR] Could not fetch file {md_file['path']}: {e}")
                 continue
-            page_url = f"https://github.com/{repo_full_name}/blob/{branch}/{md_file['path']}"
             page_obj = Page(scan_id=scan.id, url=page_url, status='crawled')
             db.add(page_obj)
             db.commit()
@@ -352,7 +358,26 @@ class QueueWorker:
                 db.add(snippet)
             db.commit()
         print(f"[DEBUG] Finished writing all pages and snippets for scan_id {scan_id}")
+
+        # LLM phase (added for GitHub scan)
+        print("[INFO] Scoring GitHub snippets with LLM...")
+        from scorer.llm_client import LLMClient
+        llm = LLMClient()
+        all_snippets = db.query(Snippet).join(Page).filter(Page.scan_id == scan.id).all()
+        flagged = all_snippets  # Optionally, you could add heuristics here
+        for i, snip in enumerate(flagged):
+            print(f"[LLM] Scoring snippet {i+1}/{len(flagged)} from {snip.page.url}")
+            snip.llm_score = llm.score_snippet({
+                'code': snip.code,
+                'context': snip.context,
+                'url': snip.page.url
+            })
+            db.commit()
         scan.status = 'done'
+        import datetime
+        scan.finished_at = datetime.datetime.utcnow()
+        scan.biased_pages_count = len(set([s.page.url for s in flagged if s.llm_score and s.llm_score.get('windows_biased')]))
+        scan.flagged_snippets_count = len([s for s in flagged if s.llm_score and s.llm_score.get('windows_biased')])
         db.commit()
         db.close()
         print(f"[INFO] GitHub scan for scan_id {scan_id} complete.")

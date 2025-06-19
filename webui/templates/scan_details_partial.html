@@ -42,7 +42,7 @@
                 {% set has_flagged = true %}
                 <div class="page-section">
                     <div class="page-header">
-                        <div class="page-url">{{ page.url }}</div>
+                        <div class="page-url"><a href="{{ page.url }}" target="_blank" rel="noopener noreferrer">{{ page.url }}</a></div>
                         <div class="page-status">{{ page.status }}</div>
                     </div>
                     {% for snippet in page.flagged_snippets %}
@@ -140,6 +140,10 @@
                                 </div>
                             </div>
                             {% endif %}
+                            <div class="snippet-content">
+                                <div class="snippet-label">Flagged Code Snippet:</div>
+                                <div class="snippet-text">{{ snippet.code }}</div>
+                            </div>
                         </div>
                     {% endfor %}
                 </div>
