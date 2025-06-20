@@ -45,6 +45,8 @@
                         <div class="page-url"><a href="{{ page.url }}" target="_blank" rel="noopener noreferrer">{{ page.url }}</a></div>
                         <div class="page-status">{{ page.status }}</div>
                     </div>
+                    <button class="btn btn-sm btn-outline-primary suggest-pr-btn" data-url="{{ page.url }}">Suggest Linux-First PR (Full Page)</button>
+                    <div class="linux-pr-suggestion" id="linux-pr-suggestion-{{ loop.index0 }}"></div>
                     {% for snippet in page.flagged_snippets %}
                         <div class="snippet-card">
                             <div class="snippet-header">
@@ -160,3 +162,42 @@
         </div>
     {% endif %}
 </div>
+
+<script>
+// Use event delegation for .suggest-pr-btn clicks
+function handleSuggestPRClick(e) {
+    const btn = e.target.closest('.suggest-pr-btn');
+    if (!btn) return;
+    if (btn.disabled) return;
+    const pageUrl = btn.getAttribute('data-url');
+    btn.disabled = true;
+    btn.textContent = 'Requesting suggestion...';
+    const idx = Array.from(document.querySelectorAll('.suggest-pr-btn')).indexOf(btn);
+    const outDiv = document.getElementById('linux-pr-suggestion-' + idx);
+    outDiv.innerHTML = '';
+    fetch('/suggest_linux_pr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: pageUrl })
+    })
+    .then(resp => {
+        if (resp.ok) return resp.json();
+        throw new Error('Failed to get suggestion.');
+    })
+    .then(data => {
+        localStorage.setItem('linux_pr_original', data.original);
+        localStorage.setItem('linux_pr_proposed', data.proposed);
+        localStorage.setItem('linux_pr_url', pageUrl);
+        window.location.href = '/proposed_change';
+    })
+    .catch(e => {
+        outDiv.innerHTML = '<span style="color:red;">Error: ' + e + '</span>';
+        btn.disabled = false;
+        btn.textContent = 'Suggest Linux-First PR (Full Page)';
+    });
+}
+document.addEventListener('click', handleSuggestPRClick);
+</script>
+
+<!-- Placeholder for the new diff view page -->
+{# In webui/main.py, add a /proposed_change route to render the diff #}

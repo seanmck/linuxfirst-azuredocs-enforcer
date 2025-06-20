@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Form, BackgroundTasks, HTTPException, Depends, Cookie
+from fastapi import FastAPI, Request, Form, BackgroundTasks, HTTPException, Depends, Cookie, Body
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.concurrency import run_in_threadpool
@@ -18,6 +18,9 @@ import schedule
 import threading
 import time
 import pika
+from scorer.llm_client import LLMClient
+import requests
+import re
 
 app = FastAPI()
 
@@ -465,3 +468,106 @@ async def scan_details_json(scan_id: int, request: Request):
         "html": html,
         "status": scan.status
     })
+
+@app.post("/suggest_linux_pr")
+async def suggest_linux_pr(request: Request, body: dict = Body(...)):
+    url = body.get('url')
+    print(f"[DEBUG] /suggest_linux_pr called with url: {url}")
+    if not url:
+        print("[DEBUG] No URL provided in request body.")
+        return JSONResponse({"error": "Missing URL"}, status_code=400)
+    # Fetch the full doc content
+    doc_content = None
+    try:
+        if 'github.com' in url and '/blob/' in url:
+            raw_url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/')
+            print(f"[DEBUG] Fetching raw markdown from: {raw_url}")
+            resp = requests.get(raw_url)
+            if resp.status_code == 200:
+                doc_content = resp.text
+            else:
+                print(f"[DEBUG] Failed to fetch raw markdown: {resp.status_code}")
+        else:
+            print(f"[DEBUG] Fetching HTML from: {url}")
+            resp = requests.get(url)
+            if resp.status_code == 200:
+                doc_content = resp.text
+            else:
+                print(f"[DEBUG] Failed to fetch HTML: {resp.status_code}")
+    except Exception as e:
+        print(f"[DEBUG] Exception during doc fetch: {e}")
+    if not doc_content:
+        return JSONResponse({"error": "Failed to fetch document content."}, status_code=500)
+
+    # Preprocess: Move YAML frontmatter to the end (if present)
+    frontmatter_match = re.match(r'(?s)^---\n(.*?)\n---\n(.*)', doc_content)
+    if frontmatter_match:
+        frontmatter = frontmatter_match.group(1)
+        markdown_body = frontmatter_match.group(2)
+        processed_content = f"# The following is the full markdown page (YAML frontmatter moved to end):\n\n{markdown_body}\n\n---\n{frontmatter}\n---"
+        print("[DEBUG] YAML frontmatter detected and moved to end.")
+    else:
+        processed_content = f"# The following is the full markdown page:\n\n{doc_content}"
+        print("[DEBUG] No YAML frontmatter detected.")
+
+    # Stricter, longer prompt with realistic example
+    prompt = (
+        "You are an expert in cross-platform technical documentation.\n"
+        "\n"
+        "TASK: Rewrite the following documentation page to make it Linux-first.\n"
+        "- Add or improve Linux/az CLI/bash examples.\n"
+        "- Clarify platform-specific instructions.\n"
+        "- Ensure parity between Windows and Linux instructions.\n"
+        "- DO NOT provide any advice, explanation, or summary.\n"
+        "- DO NOT output anything except the full revised page in markdown.\n"
+        "- DO NOT output analysis or meta-comments.\n"
+        "- Output ONLY the full revised page, wrapped in triple backticks (```).\n"
+        "\n"
+        "EXAMPLE:\n"
+        "Original:\n"
+        "---\n"
+        "title: 'Create a resource group'\n"
+        "ms.date: 01/01/2024\n"
+        "---\n"
+        "\n"
+        "# Create a resource group (PowerShell)\n"
+        "$rg = New-AzResourceGroup -Name 'myResourceGroup' -Location 'eastus'\n"
+        "\n"
+        "Revised:\n"
+        "```\n"
+        "---\n"
+        "title: 'Create a resource group'\n"
+        "ms.date: 01/01/2024\n"
+        "---\n"
+        "\n"
+        "# Create a resource group (PowerShell)\n"
+        "$rg = New-AzResourceGroup -Name 'myResourceGroup' -Location 'eastus'\n"
+        "\n"
+        "# Create a resource group (Azure CLI)\n"
+        "az group create --name myResourceGroup --location eastus\n"
+        "```\n"
+        "\n"
+        "Now, here is the page to revise:\n"
+        f"{processed_content}"
+    )
+    llm = LLMClient()
+    try:
+        print(f"[DEBUG] Sending prompt to LLM (length: {len(prompt)} chars)")
+        suggestion = llm.score_snippet({'code': prompt, 'context': ''})
+        raw_response = suggestion.get('suggested_linux_alternative') or suggestion.get('explanation') or str(suggestion)
+        match = re.search(r'```(?:markdown)?\n([\s\S]+?)```', raw_response)
+        if match:
+            proposed = match.group(1).strip()
+            print(f"[DEBUG] Extracted markdown content from LLM response (length: {len(proposed)} chars)")
+        else:
+            proposed = raw_response
+            print(f"[DEBUG] No code block found in LLM response; using full response (length: {len(proposed)} chars)")
+    except Exception as e:
+        proposed = f"Error generating suggestion: {e}"
+        print(f"[DEBUG] Exception during LLM call: {e}")
+    return JSONResponse({"original": doc_content, "proposed": proposed})
+
+@app.get("/proposed_change", response_class=HTMLResponse)
+async def proposed_change(request: Request):
+    """Render the diff view for a proposed Linux-first doc change."""
+    return templates.TemplateResponse("proposed_change.html", {"request": request})
