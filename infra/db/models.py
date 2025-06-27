@@ -1,4 +1,3 @@
-from infra.db.models import Base, Scan, Page, Snippet
 from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, DateTime, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship

@@ -12,7 +12,7 @@
         </div>
         <div class="summary-card">
             <div class="summary-value">{{ flagged_count }}</div>
-            <div class="summary-label">Flagged Snippets</div>
+            <div class="summary-label">Flagged Pages (Holistic)</div>
         </div>
         <div class="summary-card">
             <div class="summary-value">{{ percent_flagged }}%</div>
@@ -32,122 +32,50 @@
     <p><strong>Target URL:</strong> {{ scan.url or 'Default path' }}</p>
 </div>
 
-<!-- Problematic Pages -->
+<!-- Problematic Pages (Holistic MCP) -->
 <div class="scan-details">
     <h2>Problematic Pages</h2>
     {% if pages and pages|length > 0 %}
         {% set has_flagged = false %}
         {% for page in pages %}
-            {% if page.has_flagged %}
+            {% if page.mcp_holistic and page.mcp_holistic.get('bias_types') %}
                 {% set has_flagged = true %}
                 <div class="page-section">
                     <div class="page-header">
                         <div class="page-url"><a href="{{ page.url }}" target="_blank" rel="noopener noreferrer">{{ page.url }}</a></div>
-                        <div class="page-status">{{ page.status }}</div>
+                        
+                        <span class="priority-badge priority-{{ page['priority_label']|lower }}">{{ page['priority_label'] }} Priority</span>
                     </div>
-                    <button class="btn btn-sm btn-outline-primary suggest-pr-btn" data-url="{{ page.url }}">Suggest Linux-First PR (Full Page)</button>
-                    <div class="linux-pr-suggestion" id="linux-pr-suggestion-{{ loop.index0 }}"></div>
-                    {% for snippet in page.flagged_snippets %}
-                        <div class="snippet-card">
-                            <div class="snippet-header">
-                                <div class="snippet-score">Windows Biased</div>
-                            </div>
-                            {% if snippet.excerpt %}
-                            <div class="snippet-content">
-                                <div class="snippet-label">Relevant Section:</div>
-                                <div class="snippet-text">{{ snippet.excerpt }}</div>
-                            </div>
-                            {% endif %}
-                            {% if snippet.llm_score %}
-                            <div class="snippet-content">
-                                <div class="snippet-label">Analysis:</div>
-                                <div class="analysis-content">
-                                    {% if snippet.llm_score.windows_biased %}
-                                        <div class="analysis-item">
-                                            <span class="analysis-icon">⚠️</span>
-                                            <span class="analysis-text"><strong>Windows Bias Detected:</strong> This content appears to be Windows-specific or lacks Linux alternatives.</span>
-                                        </div>
-                                    {% endif %}
-                                    {% if snippet.llm_score.bias_types %}
-                                        {% set bias_types = snippet.llm_score.bias_types %}
-                                        {% if bias_types.powershell_only %}
-                                            <div class="analysis-item">
-                                                <span class="analysis-icon">💻</span>
-                                                <span class="analysis-text"><strong>PowerShell Only:</strong> Uses PowerShell cmdlets or syntax specific to Windows.</span>
-                                            </div>
-                                        {% endif %}
-                                        {% if bias_types.windows_paths %}
-                                            <div class="analysis-item">
-                                                <span class="analysis-icon">📁</span>
-                                                <span class="analysis-text"><strong>Windows Paths:</strong> Uses Windows-style paths with backslashes or C:\ drive references.</span>
-                                            </div>
-                                        {% endif %}
-                                        {% if bias_types.windows_commands %}
-                                            <div class="analysis-item">
-                                                <span class="analysis-icon">⚡</span>
-                                                <span class="analysis-text"><strong>Windows Commands:</strong> Uses Windows-specific commands (dir, copy, del, etc.).</span>
-                                            </div>
-                                        {% endif %}
-                                        {% if bias_types.windows_tools %}
-                                            <div class="analysis-item">
-                                                <span class="analysis-icon">🔧</span>
-                                                <span class="analysis-text"><strong>Windows Tools:</strong> Uses Windows-only tools (regedit, msiexec, etc.).</span>
-                                            </div>
-                                        {% endif %}
-                                        {% if bias_types.windows_specific_syntax %}
-                                            <div class="analysis-item">
-                                                <span class="analysis-icon">📝</span>
-                                                <span class="analysis-text"><strong>Windows Syntax:</strong> Uses Windows-specific syntax (backticks, etc.).</span>
-                                            </div>
-                                        {% endif %}
-                                        {% if bias_types.windows_registry %}
-                                            <div class="analysis-item">
-                                                <span class="analysis-icon">🗄️</span>
-                                                <span class="analysis-text"><strong>Windows Registry:</strong> References Windows registry keys or values.</span>
-                                            </div>
-                                        {% endif %}
-                                        {% if bias_types.windows_services %}
-                                            <div class="analysis-item">
-                                                <span class="analysis-icon">⚙️</span>
-                                                <span class="analysis-text"><strong>Windows Services:</strong> Uses Windows service management commands.</span>
-                                            </div>
-                                        {% endif %}
-                                        {% if bias_types.missing_linux_example %}
-                                            <div class="analysis-item">
-                                                <span class="analysis-icon">🐧</span>
-                                                <span class="analysis-text"><strong>Missing Linux Example:</strong> The documentation does not provide equivalent examples for Linux systems.</span>
-                                            </div>
-                                        {% endif %}
-                                    {% else %}
-                                        <!-- Fallback for old data format -->
-                                        {% if snippet.llm_score.missing_linux_example %}
-                                            <div class="analysis-item">
-                                                <span class="analysis-icon">🐧</span>
-                                                <span class="analysis-text"><strong>Missing Linux Example:</strong> The documentation does not provide equivalent examples for Linux systems.</span>
-                                            </div>
-                                        {% endif %}
-                                    {% endif %}
-                                    {% if snippet.llm_score.explanation %}
-                                        <div class="analysis-explanation">
-                                            <div class="explanation-label">Detailed Explanation:</div>
-                                            <div class="explanation-text">{{ snippet.llm_score.explanation }}</div>
-                                        </div>
-                                    {% endif %}
-                                    {% if snippet.llm_score.suggested_linux_alternative %}
-                                        <div class="analysis-explanation">
-                                            <div class="explanation-label">Suggested Linux Alternative:</div>
-                                            <div class="explanation-text">{{ snippet.llm_score.suggested_linux_alternative }}</div>
-                                        </div>
-                                    {% endif %}
+                    <div class="analysis-content">
+                        <div class="snippet-label">Bias Types:</div>
+                        <div class="bias-types-row">
+                            {% for bias in page.mcp_holistic.get('bias_types') %}
+                                <div class="bias-type-box">
+                                    <span class="bias-type-icon">{{ bias_icon_map.get(bias, '⚠️') }}</span>
+                                    {{ bias }}
                                 </div>
-                            </div>
-                            {% endif %}
-                            <div class="snippet-content">
-                                <div class="snippet-label">Flagged Code Snippet:</div>
-                                <div class="snippet-text">{{ snippet.code }}</div>
-                            </div>
+                            {% endfor %}
                         </div>
-                    {% endfor %}
+                        <div class="snippet-label">Summary:</div>
+                        <div class="explanation-text">{{ page.mcp_holistic.summary }}</div>
+                        <div class="snippet-label">Recommendations:</div>
+                        {% if page.mcp_holistic.get('recommendations') is string %}
+                        <div class="explanation-text">{{ page.mcp_holistic.recommendations }}</div>
+                        {% else %}
+                        <ul class="explanation-text">
+                        {% for rec in page.mcp_holistic.get('recommendations', []) %}
+                            <li>{{ rec }}</li>
+                        {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </div>
+                    <!-- Create Pull Request Button -->
+                    <div style="margin-top: 1em; text-align: right;">
+                        <a href="/proposed_change?page_id={{ page.id }}" class="github-pr-btn" style="display: inline-flex; align-items: center; gap: 0.5em; padding: 0.5em 1em; background: #24292f; color: #fff; border-radius: 5px; text-decoration: none; font-weight: 500;">
+                            <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 20px; height: 20px; vertical-align: middle;">
+                            Create pull request
+                        </a>
+                    </div>
                 </div>
             {% endif %}
         {% endfor %}
@@ -184,7 +112,7 @@ function handleSuggestPRClick(e) {
         if (resp.ok) return resp.json();
         throw new Error('Failed to get suggestion.');
     })
-    .then(data => {
+    .then data => {
         localStorage.setItem('linux_pr_original', data.original);
         localStorage.setItem('linux_pr_proposed', data.proposed);
         localStorage.setItem('linux_pr_url', pageUrl);

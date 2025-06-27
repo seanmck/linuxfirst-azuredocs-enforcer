@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Proposed Change - Pull Request Preview</title>
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+            background: #f4f6fa;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 2em auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            padding: 2.5em 2em 2em 2em;
+        }
+        h1 {
+            text-align: center;
+            color: #2d3a4a;
+            margin-bottom: 2em;
+        }
+        .markdown-box {
+            background: #f8f8fa;
+            border: 1.5px solid #e0e4ea;
+            padding: 1em;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            font-family: 'Fira Mono', 'Consolas', monospace;
+            font-size: 1em;
+            color: #2d3a4a;
+        }
+        .markdown-rendered {
+            background: #fdfdfd;
+            border: 1.5px solid #e0e4ea;
+            padding: 1em;
+            border-radius: 8px;
+            font-size: 1em;
+            color: #2d3a4a;
+            /* Add GitHub-like markdown styles */
+            line-height: 1.7;
+            overflow-x: auto;
+        }
+        .markdown-rendered h1, .markdown-rendered h2, .markdown-rendered h3, .markdown-rendered h4, .markdown-rendered h5, .markdown-rendered h6 {
+            font-weight: 600;
+            margin-top: 1.2em;
+            margin-bottom: 0.6em;
+            color: #1a237e;
+            line-height: 1.2;
+        }
+        .markdown-rendered h1 { font-size: 2em; border-bottom: 1px solid #e0e4ea; padding-bottom: 0.3em; }
+        .markdown-rendered h2 { font-size: 1.5em; border-bottom: 1px solid #e0e4ea; padding-bottom: 0.2em; }
+        .markdown-rendered h3 { font-size: 1.2em; }
+        .markdown-rendered p { margin: 0.7em 0; }
+        .markdown-rendered ul, .markdown-rendered ol { margin: 0.7em 0 0.7em 2em; }
+        .markdown-rendered pre, .markdown-rendered code {
+            background: #f6f8fa;
+            border-radius: 6px;
+            font-family: 'Fira Mono', 'Consolas', monospace;
+            font-size: 0.97em;
+        }
+        .markdown-rendered pre {
+            padding: 0.8em 1em;
+            margin: 1em 0;
+            overflow-x: auto;
+        }
+        .markdown-rendered code {
+            padding: 0.2em 0.4em;
+        }
+        .markdown-rendered blockquote {
+            border-left: 4px solid #b3c0d1;
+            background: #f7fafd;
+            color: #555;
+            margin: 1em 0;
+            padding: 0.7em 1em;
+            border-radius: 4px;
+        }
+        .markdown-rendered table {
+            border-collapse: collapse;
+            margin: 1em 0;
+            width: 100%;
+        }
+        .markdown-rendered th, .markdown-rendered td {
+            border: 1px solid #e0e4ea;
+            padding: 0.5em 1em;
+            text-align: left;
+        }
+        .markdown-rendered th {
+            background: #f4f6fa;
+        }
+        .markdown-rendered a {
+            color: #2563eb;
+            text-decoration: underline;
+        }
+        .markdown-rendered img {
+            max-width: 100%;
+            border-radius: 6px;
+            margin: 0.5em 0;
+        }
+        .section-title {
+            font-weight: 600;
+            margin-bottom: 0.5em;
+            color: #3b82f6;
+            letter-spacing: 0.5px;
+        }
+        .grid2x2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 2em;
+            margin-bottom: 2em;
+            border: 1.5px solid #e0e4ea;
+            border-radius: 10px;
+            background: #f7faff;
+            padding: 2em 1em;
+        }
+        .grid2x2 > div { min-width: 0; }
+        .new-markdown-flex {
+            display: flex;
+            gap: 2em;
+            margin-bottom: 2em;
+            border: 1.5px solid #e0e4ea;
+            border-radius: 10px;
+            background: #f7faff;
+            padding: 2em 1em;
+        }
+        .new-markdown-flex > div { flex: 1 1 0; min-width: 0; }
+        /* Remove grid2x2 whitespace bug */
+        .grid2x2 { display: none !important; }
+        .debug-box {
+            background: #fffbe6;
+            border: 1.5px solid #ffe58f;
+            color: #ad8b00;
+            padding: 1em;
+            border-radius: 8px;
+            margin-bottom: 2em;
+            font-size: 0.97em;
+            box-shadow: 0 2px 8px rgba(255,229,143,0.08);
+        }
+        .debug-box details summary {
+            cursor: pointer;
+            color: #ad8b00;
+        }
+        .github-pr-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5em;
+            padding: 0.7em 1.5em;
+            background: #24292f;
+            color: #fff;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1em;
+            box-shadow: 0 2px 8px rgba(36,41,47,0.08);
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        .github-pr-btn:hover {
+            background: #3b82f6;
+            color: #fff;
+            box-shadow: 0 4px 16px rgba(59,130,246,0.12);
+        }
+        .collapsible-original summary::-webkit-details-marker { display: initial; } /* Show default marker */
+        /* Remove custom arrow to avoid double toggles */
+        /* .collapsible-original summary:after { display: none; } */
+        .collapsible-original[open] summary:after {
+            transform: rotate(0deg);
+        }
+        .collapsible-original:not([open]) summary:after {
+            transform: rotate(-90deg);
+        }
+        @media (max-width: 900px) {
+            .container { padding: 1em; }
+            .grid2x2 { grid-template-columns: 1fr; grid-template-rows: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Proposed Pull Request Change</h1>
+      
+        <!-- YAML header summary table (horizontal, single row) -->
+        {% if yaml_header_orig %}
+        <table class="yaml-header-table" style="width:100%; margin-bottom: 1.5em; border-collapse:collapse;">
+          <tr>
+            {% for key, value in yaml_header_orig.items() %}
+              <th style="padding:0.3em 0.7em; border-bottom:1.5px solid #e0e4ea; background:#f7f7f7; text-align:left; font-weight:600; color:#1a237e;">{{ key }}</th>
+            {% endfor %}
+          </tr>
+          <tr>
+            {% for key, value in yaml_header_orig.items() %}
+              <td style="padding:0.3em 0.7em; border-bottom:1.5px solid #e0e4ea;">{{ value }}</td>
+            {% endfor %}
+          </tr>
+        </table>
+        {% endif %}
+        <details open class="collapsible-original" style="margin-bottom: 1.5em;">
+            <summary style="font-size:1.1em; font-weight:600; color:#3b82f6; cursor:pointer; outline:none; padding:0.5em 0;">Show Original Markdown</summary>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2em; margin-top:1em;">
+                <div>
+                    <div class="section-title">Raw Old Markdown</div>
+                    <div class="markdown-box">{{ original_markdown }}</div>
+                </div>
+                <div>
+                    <div class="section-title">Rendered Old Markdown</div>
+                    <div class="markdown-rendered">{{ original_markdown|markdown|safe }}</div>
+                </div>
+            </div>
+        </details>
+        <div class="new-markdown-flex" style="display: flex; gap: 2em; flex-wrap: wrap; margin-bottom: 2em; align-items: flex-start;">
+            <div style="flex: 1 1 350px; min-width: 0;">
+                <div class="section-title">Raw New Markdown</div>
+                <div class="markdown-box" id="raw-new-markdown">
+                    <span id="raw-new-loading">Generating updated version of doc...</span>
+                </div>
+            </div>
+            <div style="flex: 1 1 350px; min-width: 0;">
+                <div class="section-title">Rendered New Markdown</div>
+                <div class="markdown-rendered" id="rendered-new-markdown">
+                    <span id="rendered-new-loading">Generating updated version of doc...</span>
+                </div>
+            </div>
+        </div>
+        <div style="margin-top:2em; text-align:right;">
+            <a href="https://github.com/<your-org>/<your-repo>/compare" target="_blank" class="github-pr-btn">
+                <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 20px; height: 20px; vertical-align: middle;">
+                Create pull request
+            </a>
+            <button id="regenerate-pr-btn" style="margin-left:1em; padding:0.7em 1.5em; background:#f3f4f6; color:#3b82f6; border:1.5px solid #3b82f6; border-radius:6px; font-weight:600; font-size:1.1em; cursor:pointer;">Regenerate PR</button>
+        </div>
+    </div>
+    <!-- Use CDN for marked.js to guarantee availability -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            function waitForMarked(cb, tries=0) {
+                if (window.marked && typeof window.marked.parse === 'function') {
+                    cb();
+                } else if (tries < 20) {
+                    setTimeout(() => waitForMarked(cb, tries+1), 200);
+                } else {
+                    document.getElementById('rendered-new-markdown').innerHTML = '<span style="color:red">Error: marked.js not loaded. Cannot render markdown.</span>';
+                }
+            }
+            const pageId = new URLSearchParams(window.location.search).get('page_id');
+            if (!pageId) return;
+            function fetchUpdatedMarkdown(force) {
+                let url = `/generate_updated_markdown?page_id=${pageId}`;
+                if (force) url += '&force=true';
+                document.getElementById('raw-new-markdown').textContent = 'Generating updated version of doc...';
+                document.getElementById('rendered-new-markdown').textContent = 'Generating updated version of doc...';
+                fetch(url)
+                    .then(resp => resp.json())
+                    .then(data => {
+                        if (data.updated_markdown !== undefined) {
+                            document.getElementById('raw-new-markdown').textContent = data.updated_markdown;
+                            // Use YAML-stripped body for rendered preview if available
+                            let md = (data.yaml_body || data.updated_markdown || '').trim();
+                            if (!md.includes('\n')) {
+                                md = md.replace(/(#+\s.*?)(?=\s[A-Z#]|$)/g, '$1\n');
+                            }
+                            waitForMarked(() => {
+                                document.getElementById('rendered-new-markdown').innerHTML = window.marked.parse(md);
+                            });
+                        } else {
+                            document.getElementById('raw-new-markdown').textContent = '[Error generating updated markdown]';
+                            document.getElementById('rendered-new-markdown').textContent = '[Error generating updated markdown]';
+                        }
+                        if (data.debug_info && document.querySelector('.debug-box')) {
+                            document.querySelector('.debug-box').innerHTML =
+                                `<summary><strong>Debug Info</strong></summary>` +
+                                `LLM API available: ${data.debug_info.llm_api_available}<br>` +
+                                `Recommendations: ${data.debug_info.recommendations?.length || 0}<br>` +
+                                `LLM Status: ${data.debug_info.llm_status}<br>` +
+                                (data.cached ? '<span style="color:#22c55e;">(Loaded from cache)</span>' : '');
+                        }
+                    })
+                    .catch(() => {
+                        document.getElementById('raw-new-markdown').textContent = '[Error generating updated markdown]';
+                        document.getElementById('rendered-new-markdown').textContent = '[Error generating updated markdown]';
+                    });
+            }
+            fetchUpdatedMarkdown(false);
+            document.getElementById('regenerate-pr-btn').addEventListener('click', function() {
+                fetchUpdatedMarkdown(true);
+            });
+        });
+    </script>
+</body>
+</html>

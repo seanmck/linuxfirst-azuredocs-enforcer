@@ -24,6 +24,7 @@ from bs4 import BeautifulSoup
 from scorer.llm_client import LLMClient
 import json
 from github import Github
+import httpx
 
 class QueueWorker:
     def __init__(self, base_url, rate_per_sec=2, user_agent='linuxfirst-crawler'):
@@ -62,10 +63,14 @@ class QueueWorker:
         soup = BeautifulSoup(html, 'html.parser')
         for a in soup.find_all('a', href=True):
             href = a['href']
+            if '/media/' in href or href.strip('/').endswith('/media'):
+                continue  # Skip links to any media directory
             if href.startswith('http'):
                 url = href
             else:
                 url = urljoin(current_url, href)
+            if '/media/' in url or url.strip('/').endswith('/media'):
+                continue  # Skip links to any media directory
             if self.is_valid_url(url):
                 # Skip non-HTML resources by extension
                 if re.search(r'\.(png|jpg|jpeg|gif|svg|pdf|zip|tar|gz|mp4|mp3|webm|ico|css|js)(\?|$)', url, re.IGNORECASE):
@@ -172,6 +177,30 @@ class QueueWorker:
             if snippet_obj:
                 snippet_obj.llm_score = snip['llm_score']
                 db.commit()
+
+        # MCP holistic scoring phase
+        print("[INFO] Scoring full pages holistically with MCP server...")
+        mcp_url = os.getenv("MCP_SERVER_URL", "http://localhost:8001/score_page")
+        for page_url, page_obj in page_objs.items():
+            html = crawled_results.get(page_url)
+            if not html:
+                continue
+            page_content = html
+            try:
+                print(f"[MCP] Sending page to MCP server: {page_url}")
+                resp = httpx.post(mcp_url, json={"page_content": page_content, "metadata": {"url": page_url}}, timeout=60)
+                print(f"[MCP] MCP server response status: {resp.status_code}")
+                if resp.status_code == 200:
+                    mcp_result = resp.json()
+                    print(f"[MCP] Holistic score for {page_url}: {mcp_result}")
+                    # Store holistic MCP result in the Page object
+                    if page_obj:
+                        page_obj.mcp_holistic = mcp_result
+                        db.commit()
+                else:
+                    print(f"[MCP] Error from MCP server for {page_url}: {resp.status_code} {resp.text}")
+            except Exception as e:
+                print(f"[MCP] Exception contacting MCP server for {page_url}: {e}")
         scan.status = 'done'
         import datetime
         scan.finished_at = datetime.datetime.utcnow()
@@ -272,9 +301,11 @@ class QueueWorker:
                     print(f"[DEBUG] Resuming from progress file: {progress_file}")
                 except Exception as e:
                     print(f"[ERROR] Failed to load progress file: {e}")
-            while dirs_to_process and len(files) < max_files and dirs_seen < max_dirs:
-                current_dir = dirs_to_process.pop()
+            while dirs_to_process and len(files) < max_files:
+                current_dir = dirs_to_process.pop(0)
                 if current_dir in processed_dirs:
+                    print(f"[DEBUG] Skipping already processed directory: {current_dir}")
+                    dirs_seen += 1
                     continue
                 print(f"[DEBUG] Fetching contents of: {current_dir}")
                 try:
@@ -373,9 +404,37 @@ class QueueWorker:
                 'url': snip.page.url
             })
             db.commit()
+
+        # MCP holistic scoring phase for GitHub scan
+        print("[INFO] Scoring GitHub pages holistically with MCP server...")
+        mcp_url = os.getenv("MCP_SERVER_URL", "http://localhost:8001/score_page")
+        for md_file in md_file_dicts:
+            page_url = f"https://github.com/{repo_full_name}/blob/{branch}/{md_file['path']}"
+            page_obj = page_objs.get(md_file['path'])
+            try:
+                file_content_obj = repo.get_contents(md_file['path'], ref=branch)
+                file_content = file_content_obj.decoded_content.decode()
+            except Exception as e:
+                print(f"[MCP] Could not fetch file for MCP scoring: {md_file['path']}: {e}")
+                continue
+            try:
+                print(f"[MCP] Sending GitHub page to MCP server: {page_url}")
+                resp = httpx.post(mcp_url, json={"page_content": file_content, "metadata": {"url": page_url}}, timeout=60)
+                print(f"[MCP] MCP server response status: {resp.status_code}")
+                if resp.status_code == 200:
+                    mcp_result = resp.json()
+                    print(f"[MCP] Holistic score for {page_url}: {mcp_result}")
+                    # Store holistic MCP result in the Page object
+                    if page_obj:
+                        page_obj.mcp_holistic = mcp_result
+                        db.commit()
+                else:
+                    print(f"[MCP] Error from MCP server for {page_url}: {resp.status_code} {resp.text}")
+            except Exception as e:
+                print(f"[MCP] Exception contacting MCP server for {page_url}: {e}")
         scan.status = 'done'
         import datetime
-        scan.finished_at = datetime.datetime.utcnow()
+        scan.finished_at = datetime.datetime.now(datetime.UTC)
         scan.biased_pages_count = len(set([s.page.url for s in flagged if s.llm_score and s.llm_score.get('windows_biased')]))
         scan.flagged_snippets_count = len([s for s in flagged if s.llm_score and s.llm_score.get('windows_biased')])
         db.commit()

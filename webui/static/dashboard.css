@@ -177,6 +177,7 @@ h1 {
     font-weight: 600;
     color: #374151;
     margin-bottom: 0.2em;
+    margin-top: 1.2em;
 }
 .snippet-text {
     background: #fff;
@@ -189,7 +190,8 @@ h1 {
     word-break: break-all;
 }
 .analysis-content {
-    margin-top: 0.5em;
+    margin-top: 1em;
+    padding: 0.5em 0.5em 0.5em 0.5em;
 }
 .analysis-item {
     display: flex;
@@ -254,6 +256,16 @@ h1 {
 .progress-stat-label {
     color: #6b7280;
     font-size: 0.95em;
+}
+.page-section {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    margin-bottom: 2em;
+    padding: 1.5em 2em 1.5em 2em;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
 }
 /* --- Admin Dashboard Styles: Improved for Modern Card Layout --- */
 .admin-controls {
@@ -395,6 +407,63 @@ button:disabled, .btn:disabled {
 .status-badge.failed {
     background: #fee2e2;
     color: #991b1b;
+}
+.explanation-text {
+    margin-bottom: 1.2em;
+    margin-top: 0.8em;
+}
+.explanation-text ul, ul.explanation-text {
+    margin-top: 0.5em;
+    margin-bottom: 1em;
+    margin-left: 0;
+    padding-left: 1.2em;
+}
+.explanation-text li {
+    margin-bottom: 0.5em;
+    line-height: 1.5;
+}
+.bias-types-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7em;
+    margin: 0.7em 0 1.2em 0;
+}
+.bias-type-box {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    background: #f1f5fb;
+    border-radius: 8px;
+    padding: 0.4em 1em 0.4em 0.8em;
+    font-weight: 600;
+    color: #2563eb;
+    font-size: 1em;
+    box-shadow: 0 2px 8px rgba(37,99,235,0.07);
+    border: 1px solid #dbeafe;
+    white-space: nowrap;
+}
+.bias-type-icon {
+    font-size: 1.2em;
+}
+.priority-badge {
+    display: inline-block;
+    font-size: 0.95em;
+    font-weight: 700;
+    padding: 0.3em 1em;
+    border-radius: 16px;
+    margin-left: 1em;
+    margin-top: 0.2em;
+    color: #fff;
+}
+.priority-high {
+    background: #dc2626;
+}
+.priority-medium {
+    background: #f59e42;
+    color: #222;
+}
+.priority-low {
+    background: #10b981;
 }
 @media (max-width: 1100px) {
     .control-grid { flex-direction: column; gap: 1em; }

@@ -1,6 +1,5 @@
-from fastapi import FastAPI, Request, Form, BackgroundTasks, HTTPException, Depends, Cookie, Body
+from fastapi import FastAPI, Request, Form, BackgroundTasks, HTTPException, Depends, Cookie, Body, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from fastapi.concurrency import run_in_threadpool
 from webui.db import SessionLocal
 from webui.models import Scan, Page, Snippet
@@ -21,6 +20,11 @@ import pika
 from scorer.llm_client import LLMClient
 import requests
 import re
+import httpx
+from markdown import markdown as md_lib
+from webui.routes import admin, scan, llm
+from webui.routes.scan import enqueue_scan_task
+from webui.jinja_env import templates
 
 app = FastAPI()
 
@@ -28,9 +32,12 @@ app = FastAPI()
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# Ensure the templates directory path is absolute
-TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
+# Register markdown filter for Jinja2
+
+def markdown_filter(text):
+    return md_lib(text or "")
+
+templates.env.filters['markdown'] = markdown_filter
 
 # Simple admin authentication
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")  # Change this in production
@@ -67,25 +74,6 @@ def get_db():
     finally:
         db.close()
 
-def enqueue_scan_task(url, scan_id, source):
-    RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
-    print(f"[DEBUG] main.py using RABBITMQ_HOST={RABBITMQ_HOST} for scan_tasks queue")
-    connection = pika.BlockingConnection(pika.ConnectionParameters(RABBITMQ_HOST))
-    channel = connection.channel()
-    channel.queue_declare(queue='scan_tasks')
-    task_data = {
-        "url": url,
-        "scan_id": scan_id,
-        "source": source
-    }
-    message = json.dumps(task_data)
-    print(f"[DEBUG] Enqueuing scan task: url={url}, scan_id={scan_id}, source={source}")
-    channel.basic_publish(exchange='', routing_key='scan_tasks', body=message)
-    # Debug: show number of messages in the queue after publish
-    queue_state = channel.queue_declare(queue='scan_tasks', passive=True)
-    print(f"[DEBUG] scan_tasks queue message count after publish: {queue_state.method.message_count}")
-    connection.close()
-
 def build_flagged_tree(flagged):
     tree = {}
     for snip in flagged:
@@ -99,73 +87,6 @@ def build_flagged_tree(flagged):
             else:
                 node = node.setdefault(segment, {})
     return tree
-
-# Admin authentication endpoints
-@app.get("/admin/login")
-async def admin_login_page(request: Request):
-    return templates.TemplateResponse("admin_login.html", {"request": request})
-
-@app.post("/admin/login")
-async def admin_login(request: Request, password: str = Form(...)):
-    if hash_password(password) == hash_password(ADMIN_PASSWORD):
-        session_token = create_admin_session()
-        response = RedirectResponse(url="/admin", status_code=302)
-        response.set_cookie(key="session_token", value=session_token, httponly=True, max_age=86400)
-        return response
-    else:
-        return templates.TemplateResponse("admin_login.html", {
-            "request": request, 
-            "error": "Invalid password"
-        })
-
-@app.get("/admin/logout")
-async def admin_logout():
-    response = RedirectResponse(url="/", status_code=302)
-    response.delete_cookie(key="session_token")
-    return response
-
-@app.get("/admin")
-async def admin_dashboard(request: Request, session_token: str = Cookie(None)):
-    if not verify_admin_session(session_token):
-        return RedirectResponse(url="/admin/login", status_code=302)
-    
-    cleanup_expired_sessions()
-    
-    db = SessionLocal()
-    scans = db.query(Scan).order_by(Scan.started_at.desc()).limit(20).all()
-    db.close()
-    
-    return templates.TemplateResponse("admin_dashboard.html", {
-        "request": request,
-        "scans": scans
-    })
-
-@app.post("/admin/scan")
-async def admin_start_scan(request: Request, url: str = Form(""), scan_type: str = Form("manual"), source: str = Form("web"), session_token: str = Cookie(None)):
-    print(f"[DEBUG] TEST_MODE={os.environ.get('TEST_MODE')}")
-    # Allow unauthenticated access if TEST_MODE is set
-    if not os.environ.get("TEST_MODE") and not verify_admin_session(session_token):
-        raise HTTPException(status_code=403, detail="Admin access required")
-    print(f"[DEBUG] /admin/scan API called: url={url}, scan_type={scan_type}, source={source}")
-    url = url.strip()
-    db = SessionLocal()
-    new_scan = Scan(url=url or None, started_at=datetime.utcnow(), status="running")
-    db.add(new_scan)
-    db.commit()
-    db.refresh(new_scan)
-    scan_id = new_scan.id
-    db.close()
-    enqueue_scan_task(url if url else None, scan_id, source)
-    return RedirectResponse(url=f"/scan/{scan_id}", status_code=302)
-
-@app.post("/admin/schedule")
-async def admin_schedule_scan(request: Request, schedule_type: str = Form(...), session_token: str = Cookie(None)):
-    if not verify_admin_session(session_token):
-        raise HTTPException(status_code=403, detail="Admin access required")
-    
-    # This would integrate with your scheduling system
-    # For now, we'll just acknowledge the request
-    return JSONResponse({"message": f"Scheduled {schedule_type} scan"})
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -239,14 +160,72 @@ async def index(request: Request):
                 for snip in snippets
             ]
     db.close()
+    # Prepare data for bias rate chart
+    try:
+        import jinja2
+    except ImportError:
+        jinja2 = None
+    bias_chart_data = []
+    for scan in reversed(scan_summaries):
+        started_at = scan.get("started_at")
+        percent_flagged = scan.get("percent_flagged")
+        scanned_count = scan.get("scanned_count")
+        status = scan.get("status")
+        if status == "done" and scanned_count and started_at is not None and percent_flagged is not None:
+            if jinja2 and (isinstance(started_at, getattr(jinja2, 'Undefined', type(None))) or isinstance(percent_flagged, getattr(jinja2, 'Undefined', type(None)))):
+                print(f"[DEBUG] Skipping scan {scan.get('id')} due to Undefined value.")
+                continue
+            if not hasattr(started_at, 'strftime'):
+                print(f"[DEBUG] Skipping scan {scan.get('id')} due to started_at not being datetime.")
+                continue
+            try:
+                bias_chart_data.append({
+                    "date": started_at.strftime("%Y-%m-%d %H:%M"),
+                    "percent_flagged": float(percent_flagged)
+                })
+            except Exception as e:
+                print(f"[WARN] Skipping scan {scan.get('id')} in chart data due to error: {e}")
+        else:
+            print(f"[DEBUG] Skipping scan {scan.get('id')} for chart: status={status}, scanned_count={scanned_count}, started_at={started_at}, percent_flagged={percent_flagged}")
+    if not bias_chart_data or any([d is None for d in bias_chart_data]):
+        bias_chart_data = []
+    # Use the Scan ORM object for scan_id and last_url, not the dict
+    scan_obj = next((s for s in scans if hasattr(s, 'status') and s.status == "done"), None)
+    
+    # Fetch Azure Docs directories from GitHub API
+    azure_dirs = []
+    try:
+        resp = requests.get(
+            "https://api.github.com/repos/MicrosoftDocs/azure-docs/contents/articles",
+            headers={"User-Agent": "linuxfirst-azuredocs-enforcer-dashboard"}
+        )
+        print(f"[DEBUG] GitHub API status: {resp.status_code}")
+        if resp.status_code == 200:
+            data = resp.json()
+            print(f"[DEBUG] GitHub API returned {len(data)} items")
+            # Only include directories
+            azure_dirs = [item for item in data if item.get('type') == 'dir']
+            print(f"[DEBUG] azure_dirs: {[d['name'] for d in azure_dirs]}")
+        else:
+            print(f"[WARN] Failed to fetch Azure Docs directories: {resp.status_code} {resp.text}")
+    except Exception as e:
+        print(f"[WARN] Exception fetching Azure Docs directories: {e}")
+        # Fallback for testing
+        azure_dirs = [
+            {"name": "test-dir-1", "html_url": "https://github.com/MicrosoftDocs/azure-docs/tree/main/articles/test-dir-1"},
+            {"name": "test-dir-2", "html_url": "https://github.com/MicrosoftDocs/azure-docs/tree/main/articles/test-dir-2"}
+        ]
+
     return templates.TemplateResponse("index.html", {
         "request": request,
         "last_result": last_result,
         "scan_status": scan_status,
-        "last_url": last_url,
+        "last_url": getattr(scan_obj, 'url', None) if scan_obj else None,
         "all_scans": scan_summaries,
-        "scan_id": scan.id if scan else None,
-        "recent_flagged_snippets": formatted_snippets
+        "scan_id": getattr(scan_obj, 'id', None) if scan_obj else None,
+        "recent_flagged_snippets": formatted_snippets,
+        "bias_chart_data": bias_chart_data,
+        "azure_dirs": azure_dirs
     })
 
 @app.get("/status")
@@ -340,7 +319,7 @@ def run_scheduled_scan():
     db.refresh(new_scan)
     scan_id = new_scan.id
     db.close()
-    enqueue_scan_task(None, scan_id)
+    enqueue_scan_task(None, scan_id, "scheduler")
 
 def start_scheduler():
     """Start the background scheduler"""
@@ -355,219 +334,6 @@ def start_scheduler():
 scheduler_thread = threading.Thread(target=start_scheduler, daemon=True)
 scheduler_thread.start()
 
-@app.get("/scan/{scan_id}")
-async def scan_details(scan_id: int, request: Request):
-    """Endpoint to display details of a specific scan."""
-    db = SessionLocal()
-    scan = db.query(Scan).filter(Scan.id == scan_id).first()
-    
-    if not scan:
-        db.close()
-        raise HTTPException(status_code=404, detail="Scan not found")
-
-    # Get all snippets for this scan
-    snippets = (
-        db.query(Snippet)
-        .join(Page)
-        .filter(Page.scan_id == scan.id)
-        .all()
-    )
-    
-    # Get flagged snippets (windows_biased==True)
-    flagged_snippets = (
-        db.query(Snippet)
-        .join(Page)
-        .filter(Page.scan_id == scan.id)
-        .filter(Snippet.llm_score["windows_biased"].as_boolean() == True)
-        .all()
-    )
-    
-    # Get all pages for this scan
-    pages = db.query(Page).filter(Page.scan_id == scan.id).all()
-    scanned_count = len(pages)
-    flagged_count = len(flagged_snippets)
-    flagged_pages = len(set(s.page.url for s in flagged_snippets))
-    percent_flagged = (flagged_pages / scanned_count * 100) if scanned_count else 0
-    
-    # Organize snippets by page for the template
-    pages_with_snippets = []
-    for page in pages:
-        page_snippets = [s for s in snippets if s.page_id == page.id]
-        flagged_page_snippets = [s for s in flagged_snippets if s.page_id == page.id]
-        pages_with_snippets.append({
-            'url': page.url,
-            'status': page.status,
-            'snippets': page_snippets,
-            'flagged_snippets': flagged_page_snippets,
-            'has_flagged': len(flagged_page_snippets) > 0
-        })
-    
-    db.close()
-    
-    return templates.TemplateResponse("scan_details.html", {
-        "request": request,
-        "scan": scan,
-        "pages": pages_with_snippets,
-        "flagged_snippets": flagged_snippets,
-        "scanned_count": scanned_count,
-        "flagged_count": flagged_count,
-        "flagged_pages": flagged_pages,
-        "percent_flagged": round(percent_flagged, 1)
-    })
-
-@app.get("/scan/{scan_id}/json")
-async def scan_details_json(scan_id: int, request: Request):
-    """Endpoint to provide scan details as HTML partial for AJAX polling."""
-    db = SessionLocal()
-    scan = db.query(Scan).filter(Scan.id == scan_id).first()
-    if not scan:
-        db.close()
-        raise HTTPException(status_code=404, detail="Scan not found")
-
-    snippets = (
-        db.query(Snippet)
-        .join(Page)
-        .filter(Page.scan_id == scan.id)
-        .all()
-    )
-    flagged_snippets = (
-        db.query(Snippet)
-        .join(Page)
-        .filter(Page.scan_id == scan.id)
-        .filter(Snippet.llm_score["windows_biased"].as_boolean() == True)
-        .all()
-    )
-    pages = db.query(Page).filter(Page.scan_id == scan.id).all()
-    scanned_count = len(pages)
-    flagged_count = len(flagged_snippets)
-    flagged_pages = len(set(s.page.url for s in flagged_snippets))
-    percent_flagged = (flagged_pages / scanned_count * 100) if scanned_count else 0
-    pages_with_snippets = []
-    for page in pages:
-        page_snippets = [s for s in snippets if s.page_id == page.id]
-        flagged_page_snippets = [s for s in flagged_snippets if s.page_id == page.id]
-        pages_with_snippets.append({
-            'url': page.url,
-            'status': page.status,
-            'snippets': page_snippets,
-            'flagged_snippets': flagged_page_snippets,
-            'has_flagged': len(flagged_page_snippets) > 0
-        })
-    db.close()
-    html = templates.get_template("scan_details_partial.html").render({
-        "request": request,
-        "scan": scan,
-        "pages": pages_with_snippets,
-        "flagged_snippets": flagged_snippets,
-        "scanned_count": scanned_count,
-        "flagged_count": flagged_count,
-        "flagged_pages": flagged_pages,
-        "percent_flagged": round(percent_flagged, 1)
-    })
-    return JSONResponse({
-        "html": html,
-        "status": scan.status
-    })
-
-@app.post("/suggest_linux_pr")
-async def suggest_linux_pr(request: Request, body: dict = Body(...)):
-    url = body.get('url')
-    print(f"[DEBUG] /suggest_linux_pr called with url: {url}")
-    if not url:
-        print("[DEBUG] No URL provided in request body.")
-        return JSONResponse({"error": "Missing URL"}, status_code=400)
-    # Fetch the full doc content
-    doc_content = None
-    try:
-        if 'github.com' in url and '/blob/' in url:
-            raw_url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/')
-            print(f"[DEBUG] Fetching raw markdown from: {raw_url}")
-            resp = requests.get(raw_url)
-            if resp.status_code == 200:
-                doc_content = resp.text
-            else:
-                print(f"[DEBUG] Failed to fetch raw markdown: {resp.status_code}")
-        else:
-            print(f"[DEBUG] Fetching HTML from: {url}")
-            resp = requests.get(url)
-            if resp.status_code == 200:
-                doc_content = resp.text
-            else:
-                print(f"[DEBUG] Failed to fetch HTML: {resp.status_code}")
-    except Exception as e:
-        print(f"[DEBUG] Exception during doc fetch: {e}")
-    if not doc_content:
-        return JSONResponse({"error": "Failed to fetch document content."}, status_code=500)
-
-    # Preprocess: Move YAML frontmatter to the end (if present)
-    frontmatter_match = re.match(r'(?s)^---\n(.*?)\n---\n(.*)', doc_content)
-    if frontmatter_match:
-        frontmatter = frontmatter_match.group(1)
-        markdown_body = frontmatter_match.group(2)
-        processed_content = f"# The following is the full markdown page (YAML frontmatter moved to end):\n\n{markdown_body}\n\n---\n{frontmatter}\n---"
-        print("[DEBUG] YAML frontmatter detected and moved to end.")
-    else:
-        processed_content = f"# The following is the full markdown page:\n\n{doc_content}"
-        print("[DEBUG] No YAML frontmatter detected.")
-
-    # Stricter, longer prompt with realistic example
-    prompt = (
-        "You are an expert in cross-platform technical documentation.\n"
-        "\n"
-        "TASK: Rewrite the following documentation page to make it Linux-first.\n"
-        "- Add or improve Linux/az CLI/bash examples.\n"
-        "- Clarify platform-specific instructions.\n"
-        "- Ensure parity between Windows and Linux instructions.\n"
-        "- DO NOT provide any advice, explanation, or summary.\n"
-        "- DO NOT output anything except the full revised page in markdown.\n"
-        "- DO NOT output analysis or meta-comments.\n"
-        "- Output ONLY the full revised page, wrapped in triple backticks (```).\n"
-        "\n"
-        "EXAMPLE:\n"
-        "Original:\n"
-        "---\n"
-        "title: 'Create a resource group'\n"
-        "ms.date: 01/01/2024\n"
-        "---\n"
-        "\n"
-        "# Create a resource group (PowerShell)\n"
-        "$rg = New-AzResourceGroup -Name 'myResourceGroup' -Location 'eastus'\n"
-        "\n"
-        "Revised:\n"
-        "```\n"
-        "---\n"
-        "title: 'Create a resource group'\n"
-        "ms.date: 01/01/2024\n"
-        "---\n"
-        "\n"
-        "# Create a resource group (PowerShell)\n"
-        "$rg = New-AzResourceGroup -Name 'myResourceGroup' -Location 'eastus'\n"
-        "\n"
-        "# Create a resource group (Azure CLI)\n"
-        "az group create --name myResourceGroup --location eastus\n"
-        "```\n"
-        "\n"
-        "Now, here is the page to revise:\n"
-        f"{processed_content}"
-    )
-    llm = LLMClient()
-    try:
-        print(f"[DEBUG] Sending prompt to LLM (length: {len(prompt)} chars)")
-        suggestion = llm.score_snippet({'code': prompt, 'context': ''})
-        raw_response = suggestion.get('suggested_linux_alternative') or suggestion.get('explanation') or str(suggestion)
-        match = re.search(r'```(?:markdown)?\n([\s\S]+?)```', raw_response)
-        if match:
-            proposed = match.group(1).strip()
-            print(f"[DEBUG] Extracted markdown content from LLM response (length: {len(proposed)} chars)")
-        else:
-            proposed = raw_response
-            print(f"[DEBUG] No code block found in LLM response; using full response (length: {len(proposed)} chars)")
-    except Exception as e:
-        proposed = f"Error generating suggestion: {e}"
-        print(f"[DEBUG] Exception during LLM call: {e}")
-    return JSONResponse({"original": doc_content, "proposed": proposed})
-
-@app.get("/proposed_change", response_class=HTMLResponse)
-async def proposed_change(request: Request):
-    """Render the diff view for a proposed Linux-first doc change."""
-    return templates.TemplateResponse("proposed_change.html", {"request": request})
+app.include_router(admin.router)
+app.include_router(scan.router)
+app.include_router(llm.router)

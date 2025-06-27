@@ -4,6 +4,7 @@
     <title>Linux-first Docs for Azure - Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         let pollInterval = null;
         let pollCount = 0;
@@ -179,8 +180,16 @@
 </head>
 <body>
 <div class="container">
+    <div class="left-nav">
+        <h3>Azure Docs Sections</h3>
+        <ul>
+            {% for d in azure_dirs %}
+                <li><a href="{{ d.html_url }}" target="_blank">{{ d.name }}</a></li>
+            {% endfor %}
+        </ul>
+    </div>
     <!-- Header -->
-    <div class="header">
+    <div class="header" style="margin-left:220px">
         <img class="tux-logo" src="/static/tux_reading.png" alt="Tux the Linux penguin reading a book with glasses">
         <div>
             <h1>Linux-first Docs for Azure</h1>
@@ -189,10 +198,10 @@
     </div>
 
     <!-- Progress Bar (shown during scans) -->
-    <div id="progress"></div>
+    <div id="progress" style="margin-left:220px"></div>
 
     <!-- Dashboard Metrics -->
-    <div class="dashboard-grid">
+    <div class="dashboard-grid" style="margin-left:220px">
         {% if all_scans and all_scans|length > 0 %}
             {% set total_scans = all_scans|length %}
             {% set completed_scans = all_scans|selectattr('status', 'equalto', 'done')|list|length %}
@@ -251,8 +260,61 @@
         {% endif %}
     </div>
 
+    <!-- Bias Rate Chart (moved up) -->
+    <div style="margin:2em 0 2em 220px;">
+        <h2>Bias Rate Over Time</h2>
+        <canvas id="biasChart" width="800" height="300"></canvas>
+        <script>
+            // Chart.js expects valid JSON, so use the |tojson filter and wrap in safe
+            const biasChartData = {{ bias_chart_data|tojson|safe }};
+            const ctx = document.getElementById('biasChart').getContext('2d');
+            // Dynamically set y-axis max based on data
+            let yMax = 100;
+            if (biasChartData.length > 0) {
+                const maxVal = Math.max(...biasChartData.map(d => d.percent_flagged));
+                yMax = Math.ceil(maxVal / 5) * 5 + 5; // round up to next 5 and add a little headroom
+                if (yMax < 10) yMax = 10;
+            }
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: biasChartData.map(d => d.date),
+                    datasets: [{
+                        label: '% Biased Pages',
+                        data: biasChartData.map(d => d.percent_flagged),
+                        borderColor: '#e74c3c',
+                        backgroundColor: 'rgba(231,76,60,0.1)',
+                        fill: true,
+                        tension: 0.2,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#e74c3c',
+                        pointBorderColor: '#fff',
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: yMax,
+                            title: { display: true, text: '% Biased Pages' }
+                        },
+                        x: {
+                            title: { display: true, text: 'Scan Date' }
+                        }
+                    }
+                }
+            });
+        </script>
+    </div>
+
     <!-- Recent Activity -->
-    <div class="recent-activity">
+    <div class="recent-activity" style="margin-left:220px">
         <h2>Recent Activity</h2>
         {% if all_scans and all_scans|length > 0 %}
             <table class="activity-table">
@@ -308,7 +370,7 @@
 
     <!-- Recent Flagged Snippets -->
     {% if recent_flagged_snippets and recent_flagged_snippets|length > 0 %}
-    <div class="recent-activity">
+    <div class="recent-activity" style="margin-left:220px">
         <h2>Recent Issues Found</h2>
         <p style="color: #64748b; margin-bottom: 1.5em;">Latest Windows-biased content detected across all scans</p>
         
@@ -440,6 +502,93 @@
         {% endfor %}
     </div>
     {% endif %}
+
+    <!-- Recent Flagged Pages (per-page summary) -->
+    {% if recent_flagged_pages and recent_flagged_pages|length > 0 %}
+    <div class="recent-activity" style="margin-left:220px">
+        <h2>Recent Biased Pages</h2>
+        <p style="color: #64748b; margin-bottom: 1.5em;">Summary of bias detected per page (aggregated from all flagged snippets)</p>
+        {% for page in recent_flagged_pages %}
+        <div class="snippet-card">
+            <div class="snippet-header">
+                <div class="snippet-meta">
+                    <div class="snippet-url">{{ page.url }}</div>
+                    <div class="snippet-scan-info">
+                        Scan #{{ page.scan_id }} • {{ page.scan_started.strftime('%Y-%m-%d %H:%M') }}
+                    </div>
+                </div>
+                <div class="snippet-score">Page Bias Summary</div>
+            </div>
+            <div class="snippet-content">
+                <ul style="margin:0 0 0 1em;">
+                    {% if page.powershell_count > page.azcli_count %}
+                        <li>Heavier use of <b>PowerShell</b> than az CLI/bash examples</li>
+                    {% endif %}
+                    {% if page.windows_count > page.linux_count %}
+                        <li>Heavier use of <b>Windows</b> than Linux</li>
+                    {% endif %}
+                    {% if page.windows_first %}
+                        <li><b>Windows</b> cited before Linux</li>
+                    {% endif %}
+                    {% if page.bias_types %}
+                        {% for bias in page.bias_types %}
+                            <li>Reference to bias type: <b>{{ bias.replace('_', ' ').title() }}</b></li>
+                        {% endfor %}
+                    {% endif %}
+                    {% if page.windows_tools %}
+                        <li>References to Windows-specific tools: {{ page.windows_tools|join(', ') }}</li>
+                    {% endif %}
+                </ul>
+            </div>
+            <div class="snippet-actions">
+                <a href="/scan/{{ page.scan_id }}" class="view-link">View Full Scan Details</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 </div>
 </body>
-</html>
+<style>
+.left-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 200px;
+    height: 100vh;
+    background: #f8fafc;
+    border-right: 1px solid #e5e7eb;
+    padding: 2em 1em 1em 1em;
+    overflow-y: auto;
+    z-index: 10;
+}
+.left-nav h3 {
+    font-size: 1.1em;
+    margin-bottom: 1em;
+    color: #374151;
+    font-weight: 600;
+}
+.left-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.left-nav li {
+    margin-bottom: 0.7em;
+}
+.left-nav a {
+    color: #2563eb;
+    text-decoration: none;
+    font-size: 1em;
+    transition: color 0.2s;
+}
+.left-nav a:hover {
+    color: #1e40af;
+    text-decoration: underline;
+}
+@media (max-width: 900px) {
+    .left-nav { display: none; }
+    .header, .dashboard-grid, #progress, .recent-activity, .biasChart { margin-left: 0 !important; }
+}
+</style>
+<!-- ...rest of file... -->

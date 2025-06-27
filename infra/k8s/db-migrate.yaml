@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrate
+  namespace: azuredocs-app
+spec:
+  template:
+    spec:
+      containers:
+      - name: migrate
+        image: seanmckdemo.azurecr.io/db-migrate:0.0.1
+        command: ["/bin/sh", "-c"]
+        args: ["cd /app/infra/db && ./migrate.sh"]
+        envFrom:
+        - secretRef:
+            name: sc-azuredocsdbconnection-secret
+        # Add any other env or volume mounts needed
+      restartPolicy: Never
+  backoffLimit: 1
