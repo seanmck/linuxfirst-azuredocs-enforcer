@@ -5,15 +5,18 @@ metadata:
   namespace: azuredocs-app
 spec:
   template:
+    metadata:
+      labels:
+        azure.workload.identity/use: "true"
     spec:
+      serviceAccountName: sc-account-fefa7dd8-f9d3-4524-8a35-c1123a838df0
       containers:
       - name: migrate
-        image: seanmckdemo.azurecr.io/db-migrate:0.0.1
+        image: seanmckdemo.azurecr.io/db-migrate:0.0.26
         command: ["/bin/sh", "-c"]
         args: ["cd /app/infra/db && ./migrate.sh"]
         envFrom:
         - secretRef:
             name: sc-azuredocsdbconnection-secret
-        # Add any other env or volume mounts needed
       restartPolicy: Never
   backoffLimit: 1

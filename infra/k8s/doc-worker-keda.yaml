@@ -1,0 +1,145 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: doc-worker
+  namespace: azuredocs-app
+  labels:
+    app: doc-worker
+    component: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: doc-worker
+  template:
+    metadata:
+      labels:
+        app: doc-worker
+        component: worker
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: sc-account-fefa7dd8-f9d3-4524-8a35-c1123a838df0
+      containers:
+      - name: doc-worker
+        image: seanmckdemo.azurecr.io/queue-worker:0.0.20
+        imagePullPolicy: Always
+        command: ["python", "src/application/document_worker.py"]
+        env:
+        - name: ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: azuredocs-secrets
+              key: ADMIN_PASSWORD
+        - name: ADMIN_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: azuredocs-secrets
+              key: ADMIN_USERNAME
+        - name: APP_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: azuredocs-secrets
+              key: APP_SECRET_KEY
+        - name: PYTHONPATH
+          value: "/app"
+        - name: RABBITMQ_HOST
+          value: "rabbitmq"
+        - name: RABBITMQ_PORT
+          value: "5672"
+        - name: RABBITMQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: azuredocs-secrets
+              key: RABBITMQ_USERNAME
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: azuredocs-secrets
+              key: RABBITMQ_PASSWORD
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: azuredocs-secrets
+              key: GITHUB_TOKEN
+        - name: AZURE_OPENAI_DEPLOYMENT
+          valueFrom:
+            secretKeyRef:
+              name: azuredocs-secrets
+              key: AZURE_OPENAI_DEPLOYMENT
+        - name: MCP_SERVER_URL
+          value: "http://mcp-server:9000/score_page"
+        envFrom:
+        - secretRef:
+            name: sc-azuredocsdbconnection-secret
+        - secretRef:
+            name: sc-linuxdocsazureopenai-secret
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0)"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0)"
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: secrets-store
+          mountPath: "/mnt/secrets-store"
+          readOnly: true
+      volumes:
+      - name: secrets-store
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "azuredocs-secrets"
+      restartPolicy: Always
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: doc-worker-scaler
+  namespace: azuredocs-app
+spec:
+  scaleTargetRef:
+    name: doc-worker
+  minReplicaCount: 1
+  maxReplicaCount: 50
+  cooldownPeriod: 300
+  triggers:
+  - type: rabbitmq
+    metadata:
+      queueName: doc_processing
+      mode: QueueLength
+      value: "10"
+    authenticationRef:
+      name: rabbitmq-trigger-auth
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: rabbitmq-trigger-auth
+  namespace: azuredocs-app
+spec:
+  secretTargetRef:
+  - parameter: host
+    name: azuredocs-secrets
+    key: RABBITMQ_CONNECTION_STRING

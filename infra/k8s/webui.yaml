@@ -17,7 +17,7 @@ metadata:
   name: webui
   namespace: azuredocs-app
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: webui
@@ -25,12 +25,63 @@ spec:
     metadata:
       labels:
         app: webui
+        azure.workload.identity/use: "true"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
     spec:
+      serviceAccountName: sc-account-fefa7dd8-f9d3-4524-8a35-c1123a838df0
       containers:
         - name: webui
-          image: seanmckdemo.azurecr.io/linuxfirstdocs-webui:0.0.10
+          image: seanmckdemo.azurecr.io/webui:0.0.27
+          env:
+          - name: ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: azuredocs-secrets
+                key: ADMIN_PASSWORD
+          - name: ADMIN_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: azuredocs-secrets
+                key: ADMIN_USERNAME
+          - name: APP_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: azuredocs-secrets
+                key: APP_SECRET_KEY
+          - name: RABBITMQ_HOST
+            value: "rabbitmq"
+          - name: RABBITMQ_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: azuredocs-secrets
+                key: RABBITMQ_USERNAME
+          - name: RABBITMQ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: azuredocs-secrets
+                key: RABBITMQ_PASSWORD
+          - name: REDIS_HOST
+            value: "redis"
+          - name: REDIS_PORT
+            value: "6379"
           envFrom:
-            - secretRef:
-                name: sc-azuredocsdbconnection-secret
+          - secretRef:
+              name: sc-azuredocsdbconnection-secret
+          - secretRef:
+              name: sc-linuxdocsazureopenai-secret
           ports:
             - containerPort: 8000
+          volumeMounts:
+          - name: secrets-store
+            mountPath: "/mnt/secrets-store"
+            readOnly: true
+      volumes:
+      - name: secrets-store
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "azuredocs-secrets"

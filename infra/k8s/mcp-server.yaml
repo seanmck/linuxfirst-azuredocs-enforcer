@@ -28,14 +28,15 @@ spec:
     spec:
       containers:
         - name: mcp-server
-          image: <your-dockerhub-username>/mcp-server:latest
-          env:
-            - name: DATABASE_URL
+          image: seanmckdemo.azurecr.io/mcp-server:0.0.6
+          env:            
+            - name: AZURE_OPENAI_DEPLOYMENT
               valueFrom:
                 secretKeyRef:
-                  name: db-credentials
-                  key: DATABASE_URL
-            - name: RABBITMQ_HOST
-              value: "rabbitmq"
+                  name: azuredocs-secrets
+                  key: AZURE_OPENAI_DEPLOYMENT
+          envFrom:
+            - secretRef:
+                name: sc-linuxdocsazureopenai-secret
           ports:
             - containerPort: 9000

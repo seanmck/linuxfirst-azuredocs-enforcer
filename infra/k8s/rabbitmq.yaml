@@ -1,4 +1,13 @@
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+  namespace: azuredocs-app
+data:
+  rabbitmq.conf: |
+    loopback_users = none
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: rabbitmq
@@ -30,14 +39,37 @@ spec:
       labels:
         app: rabbitmq
     spec:
+      serviceAccountName: sc-account-fefa7dd8-f9d3-4524-8a35-c1123a838df0
       containers:
         - name: rabbitmq
-          image: mcr.microsoft.com/cbl-mariner/base/rabbitmq-server
+          image: mcr.microsoft.com/cbl-mariner/base/rabbitmq-server:3.11
           env:
             - name: RABBITMQ_DEFAULT_USER
-              value: guest
+              valueFrom:
+                secretKeyRef:
+                  name: azuredocs-secrets
+                  key: RABBITMQ_USERNAME
             - name: RABBITMQ_DEFAULT_PASS
-              value: guest
+              valueFrom:
+                secretKeyRef:
+                  name: azuredocs-secrets
+                  key: RABBITMQ_PASSWORD
           ports:
             - containerPort: 5672
             - containerPort: 15672
+          volumeMounts:
+            - name: rabbitmq-config
+              mountPath: /etc/rabbitmq
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      volumes:
+        - name: rabbitmq-config
+          configMap:
+            name: rabbitmq-config
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: azuredocs-secrets
