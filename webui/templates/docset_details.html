@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ display_name }} Bias Analysis - Linux-first Docs for Azure</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            background: #f7fafd;
+            color: #222;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 2em auto;
+            padding: 0 2em;
+        }
+        .header {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            padding: 2em 2.5em;
+            margin-bottom: 2em;
+            display: flex;
+            align-items: center;
+            gap: 2em;
+        }
+        .tux-logo {
+            max-width: 80px;
+            flex-shrink: 0;
+        }
+        h1 {
+            font-size: 2.2em;
+            font-weight: 700;
+            margin: 0;
+            color: #2563eb;
+            letter-spacing: -1px;
+        }
+        .subtitle {
+            color: #666;
+            font-size: 1.1em;
+            margin: 0.5em 0 0 0;
+        }
+        .breadcrumb {
+            background: #fff;
+            border-radius: 8px;
+            padding: 1em 1.5em;
+            margin-bottom: 2em;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            font-size: 0.9em;
+        }
+        .breadcrumb a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5em;
+            margin-bottom: 2em;
+        }
+        .summary-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 1.5em;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+        }
+        .summary-value {
+            font-size: 2em;
+            font-weight: 800;
+            color: #1e293b;
+            margin-bottom: 0.3em;
+        }
+        .summary-label {
+            color: #64748b;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        .section {
+            background: #fff;
+            border-radius: 12px;
+            padding: 2em;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            margin-bottom: 2em;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #1f2937;
+            font-size: 1.5em;
+            margin-bottom: 1em;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin: 1em 0;
+        }
+        .flagged-page {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 1em;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+        .flagged-page:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .page-header {
+            padding: 1.5em;
+            background: #f8fafc;
+            border-bottom: 1px solid #e5e7eb;
+            cursor: pointer;
+            display: flex;
+            justify-content: between;
+            align-items: center;
+        }
+        .page-header:hover {
+            background: #f1f5f9;
+        }
+        .page-url {
+            color: #2563eb;
+            font-weight: 500;
+            font-size: 0.95em;
+            flex: 1;
+            word-break: break-all;
+        }
+        .page-summary {
+            color: #64748b;
+            font-size: 0.85em;
+            margin-top: 0.5em;
+        }
+        .expand-icon {
+            color: #6b7280;
+            font-size: 1.2em;
+            transition: transform 0.2s ease;
+            margin-left: 1em;
+        }
+        .flagged-page.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        .page-details {
+            display: none;
+            padding: 1.5em;
+        }
+        .flagged-page.expanded .page-details {
+            display: block;
+        }
+        .bias-type-badge {
+            display: inline-block;
+            padding: 0.25em 0.75em;
+            border-radius: 1em;
+            font-size: 0.8em;
+            font-weight: 500;
+            margin: 0.25em 0.25em 0.25em 0;
+        }
+        .bias-type-powershell { background: #fef3c7; color: #92400e; }
+        .bias-type-windows-paths { background: #dbeafe; color: #1e40af; }
+        .bias-type-windows-commands { background: #fee2e2; color: #dc2626; }
+        .bias-type-windows-tools { background: #f3e8ff; color: #7c3aed; }
+        .bias-type-windows-syntax { background: #ecfdf5; color: #059669; }
+        .bias-type-missing-linux { background: #fdf2f8; color: #be185d; }
+        .snippet-card {
+            background: #f8fafc;
+            border-radius: 6px;
+            padding: 1em;
+            margin: 1em 0;
+            border-left: 4px solid #e74c3c;
+        }
+        .snippet-code {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 1em;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.85em;
+            overflow-x: auto;
+            margin: 0.5em 0;
+        }
+        .snippet-explanation {
+            color: #374151;
+            font-size: 0.9em;
+            line-height: 1.5;
+            margin-top: 0.5em;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 3em 2em;
+            color: #6b7280;
+        }
+        .empty-state-icon {
+            font-size: 3em;
+            margin-bottom: 0.5em;
+            opacity: 0.5;
+        }
+        .success {
+            color: #166534;
+        }
+        .warning {
+            color: #92400e;
+        }
+        .danger {
+            color: #dc2626;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Breadcrumb Navigation -->
+        <div class="breadcrumb">
+            <a href="/">Dashboard</a> &gt; {{ display_name }} Bias Analysis
+        </div>
+
+        <!-- Header -->
+        <div class="header">
+            <img class="tux-logo" src="/static/tux_reading.png" alt="Tux the Linux penguin reading a book with glasses">
+            <div>
+                <h1>{{ display_name }}</h1>
+                <p class="subtitle">Comprehensive bias analysis and Linux-first recommendations</p>
+            </div>
+        </div>
+
+        <!-- Summary Statistics -->
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="summary-value">{{ summary_stats.total_pages }}</div>
+                <div class="summary-label">Total Pages</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value success">{{ summary_stats.clean_pages }}</div>
+                <div class="summary-label">Linux-Friendly Pages</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value danger">{{ summary_stats.biased_pages }}</div>
+                <div class="summary-label">Pages with Bias</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value 
+                    {% if summary_stats.bias_percentage < 5 %}success
+                    {% elif summary_stats.bias_percentage < 15 %}warning
+                    {% else %}danger{% endif %}">
+                    {{ summary_stats.bias_percentage }}%
+                </div>
+                <div class="summary-label">Bias Rate</div>
+            </div>
+        </div>
+
+        <!-- No Data Message -->
+        {% if summary_stats.total_pages == 0 %}
+        <div class="section">
+            <div class="empty-state">
+                <div class="empty-state-icon">📊</div>
+                <h3>No Scan Data Available</h3>
+                <p>This documentation area hasn't been scanned yet. Bias analysis will be available after the next scan.</p>
+                <div style="margin-top: 2em;">
+                    <a href="/" style="color: #2563eb; text-decoration: none;">← Back to Dashboard</a>
+                </div>
+            </div>
+        </div>
+        {% else %}
+
+        <!-- Bias Trend Chart -->
+        {% if bias_history and bias_history|length > 1 %}
+        <div class="section">
+            <h2>Bias Trend Over Time</h2>
+            <div class="chart-container">
+                <canvas id="biasChart"></canvas>
+            </div>
+            <script>
+                const biasData = {{ bias_history|tojson|safe }};
+                const ctx = document.getElementById('biasChart').getContext('2d');
+                
+                // Calculate dynamic y-axis max
+                let yMax = 100;
+                if (biasData.length > 0) {
+                    const maxVal = Math.max(...biasData.map(d => d.bias_percentage));
+                    yMax = Math.ceil(maxVal / 5) * 5 + 5;
+                    if (yMax < 10) yMax = 10;
+                }
+                
+                const chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: biasData.map(d => d.date),
+                        datasets: [{
+                            label: '% Pages with Bias',
+                            data: biasData.map(d => d.bias_percentage),
+                            borderColor: '#e74c3c',
+                            backgroundColor: 'rgba(231,76,60,0.1)',
+                            fill: true,
+                            tension: 0.2,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#e74c3c',
+                            pointBorderColor: '#fff',
+                            pointHoverRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            title: { display: false }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: yMax,
+                                title: { display: true, text: '% Pages with Bias' }
+                            },
+                            x: {
+                                title: { display: true, text: 'Scan Date' }
+                            }
+                        }
+                    }
+                });
+            </script>
+        </div>
+        {% endif %}
+
+        <!-- Flagged Pages -->
+        <div class="section">
+            <h2>Pages with Bias Issues ({{ flagged_pages|length }})</h2>
+            
+            {% if flagged_pages and flagged_pages|length > 0 %}
+                {% for page in flagged_pages %}
+                <div class="flagged-page" data-page-index="{{ loop.index0 }}">
+                    <div class="page-header" onclick="togglePageDetails({{ loop.index0 }})">
+                        <div>
+                            <div class="page-url">{{ page.url }}</div>
+                            <div class="page-summary">
+                                Scanned: {{ page.scan_date.strftime('%Y-%m-%d %H:%M') }} •
+                                {% if page.bias_details.mcp_holistic %}
+                                    Page-level bias detected
+                                {% endif %}
+                                {% if page.bias_details.snippets %}
+                                    {{ page.bias_details.snippets|length }} biased snippet(s)
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="expand-icon">▼</div>
+                    </div>
+                    
+                    <div class="page-details">
+                        {% if page.bias_details.mcp_holistic %}
+                        <div>
+                            <h4>Page-Level Analysis</h4>
+                            {% if page.bias_details.mcp_holistic.bias_types %}
+                                <div style="margin-bottom: 1em;">
+                                    {% for bias_type in page.bias_details.mcp_holistic.bias_types %}
+                                        <span class="bias-type-badge bias-type-{{ bias_type.replace('_', '-') }}">
+                                            {{ bias_type.replace('_', ' ').title() }}
+                                        </span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            {% if page.bias_details.mcp_holistic.explanation %}
+                                <p class="snippet-explanation">
+                                    <strong>Analysis:</strong> {{ page.bias_details.mcp_holistic.explanation }}
+                                </p>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        
+                        {% if page.bias_details.snippets %}
+                        <div>
+                            <h4>Code Snippet Issues</h4>
+                            {% for snippet in page.bias_details.snippets %}
+                            <div class="snippet-card">
+                                {% if snippet.context %}
+                                    <div><strong>Context:</strong> {{ snippet.context[:200] }}{% if snippet.context|length > 200 %}...{% endif %}</div>
+                                {% endif %}
+                                
+                                {% if snippet.code %}
+                                    <div class="snippet-code">{{ snippet.code[:500] }}{% if snippet.code|length > 500 %}...{% endif %}</div>
+                                {% endif %}
+                                
+                                {% if snippet.llm_score %}
+                                    {% if snippet.llm_score.bias_types %}
+                                        <div style="margin: 0.5em 0;">
+                                            {% for bias_type, detected in snippet.llm_score.bias_types.items() %}
+                                                {% if detected %}
+                                                    <span class="bias-type-badge bias-type-{{ bias_type.replace('_', '-') }}">
+                                                        {{ bias_type.replace('_', ' ').title() }}
+                                                    </span>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    
+                                    {% if snippet.llm_score.explanation %}
+                                        <div class="snippet-explanation">
+                                            <strong>Issue:</strong> {{ snippet.llm_score.explanation }}
+                                        </div>
+                                    {% endif %}
+                                    
+                                    {% if snippet.llm_score.suggested_linux_alternative %}
+                                        <div class="snippet-explanation">
+                                            <strong>Linux Alternative:</strong> {{ snippet.llm_score.suggested_linux_alternative }}
+                                        </div>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">🎉</div>
+                    <h3>No Bias Issues Found!</h3>
+                    <p>All pages in this documentation set are Linux-friendly or haven't been scanned yet.</p>
+                </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        function togglePageDetails(index) {
+            const page = document.querySelector(`[data-page-index="${index}"]`);
+            if (page) {
+                page.classList.toggle('expanded');
+            }
+        }
+        
+        // Initialize all pages as collapsed
+        document.addEventListener('DOMContentLoaded', function() {
+            const pages = document.querySelectorAll('.flagged-page');
+            pages.forEach(page => {
+                page.classList.remove('expanded');
+            });
+        });
+    </script>
+</body>
+</html>

@@ -278,6 +278,36 @@
             transform: translateY(-1px);
             box-shadow: 0 4px 8px rgba(59, 130, 246, 0.2);
         }
+        
+        .stop-scan-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5em;
+            color: #dc2626;
+            background: rgba(239, 68, 68, 0.1);
+            text-decoration: none;
+            font-weight: 600;
+            padding: 0.6em 1.2em;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-left: 1em;
+        }
+        
+        .stop-scan-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(239, 68, 68, 0.2);
+        }
+        
+        .stop-scan-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
     </style>
 </head>
 <body>
@@ -296,26 +326,287 @@
         {% include "scan_details_partial.html" %}
         </div>
         <script>
-        // Poll for scan progress every 3 seconds
+        // Real-time scan progress with WebSocket and HTTP fallback
         const scanId = window.location.pathname.split("/").pop();
+        let websocket = null;
+        let fallbackTimer = null;
+        let isConnected = false;
+        
+        // Progress tracking
+        let currentProgress = {
+            overall: 0,
+            phase: '',
+            phase_progress: 0,
+            current_item: '',
+            eta: null,
+            activity_log: []
+        };
+        
+        // Try WebSocket connection first
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/scan/${scanId}`;
+            
+            websocket = new WebSocket(wsUrl);
+            
+            websocket.onopen = function() {
+                console.log('[WebSocket] Connected to scan progress updates');
+                isConnected = true;
+                clearInterval(fallbackTimer);
+                updateConnectionStatus(true);
+            };
+            
+            websocket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                handleProgressUpdate(data);
+            };
+            
+            websocket.onclose = function() {
+                console.log('[WebSocket] Connection closed, falling back to HTTP polling');
+                isConnected = false;
+                updateConnectionStatus(false);
+                startHttpFallback();
+            };
+            
+            websocket.onerror = function(error) {
+                console.log('[WebSocket] Error, falling back to HTTP polling:', error);
+                isConnected = false;
+                updateConnectionStatus(false);
+                startHttpFallback();
+            };
+        }
+        
+        // HTTP polling fallback
+        function startHttpFallback() {
+            if (!isConnected) {
+                pollScanDetails();
+                fallbackTimer = setInterval(pollScanDetails, 3000);
+            }
+        }
+        
         async function pollScanDetails() {
+            // Always poll for now since WebSocket messages might not be working
+            // TODO: Re-enable WebSocket-only mode once WebSocket broadcasting is fixed
+            
             try {
                 const resp = await fetch(`/scan/${scanId}/json`);
                 if (resp.ok) {
                     const data = await resp.json();
-                    // Replace the scan details section with new HTML
                     document.getElementById('scan-details-root').innerHTML = data.html;
-                    if (data.status !== 'done') {
-                        setTimeout(pollScanDetails, 3000);
+                    
+                    // Also fetch detailed progress
+                    const progressResp = await fetch(`/api/scan/${scanId}/progress`);
+                    if (progressResp.ok) {
+                        const progressData = await progressResp.json();
+                        handleProgressUpdate({
+                            type: 'progress_update',
+                            ...progressData
+                        });
                     }
-                } else {
-                    setTimeout(pollScanDetails, 5000);
+                    
+                    if (data.status === 'done') {
+                        clearInterval(fallbackTimer);
+                    }
                 }
             } catch (e) {
-                setTimeout(pollScanDetails, 5000);
+                console.error('[Polling] Error:', e);
             }
         }
-        window.addEventListener('DOMContentLoaded', pollScanDetails);
+        
+        function handleProgressUpdate(data) {
+            console.log('[Progress Update]', data);
+            
+            switch(data.type) {
+                case 'connected':
+                    addActivityLog('Connected to real-time updates');
+                    break;
+                    
+                case 'phase_start':
+                    currentProgress.phase = data.phase;
+                    addActivityLog(`Starting ${data.phase} phase: ${data.details?.description || ''}`);
+                    updateProgressDisplay();
+                    break;
+                    
+                case 'progress_update':
+                    // Handle cancellation status in progress updates
+                    if (data.cancellation_requested) {
+                        currentProgress.phase = 'Cancelled';
+                        currentProgress.current_item = data.cancellation_reason || 'Scan was stopped by admin';
+                        addActivityLog(`🛑 Scan cancelled: ${data.cancellation_reason || 'Manually stopped by admin'}`, 'error');
+                        
+                        // Hide the stop button if it's visible
+                        const stopBtn = document.querySelector('.stop-scan-btn');
+                        if (stopBtn) {
+                            stopBtn.style.display = 'none';
+                        }
+                    } else {
+                        currentProgress.overall = data.overall_progress || 0;
+                        currentProgress.phase = data.phase;
+                        currentProgress.phase_progress = data.progress_percentage || 0;
+                        currentProgress.current_item = data.current_item;
+                        currentProgress.eta = data.estimated_completion;
+                        
+                        if (data.current_item) {
+                            addActivityLog(`Processing: ${data.current_item}`);
+                        }
+                    }
+                    
+                    updateProgressDisplay();
+                    break;
+                    
+                case 'phase_complete':
+                    addActivityLog(`Completed ${data.phase} phase`);
+                    if (data.summary) {
+                        addActivityLog(`Summary: ${JSON.stringify(data.summary)}`);
+                    }
+                    break;
+                    
+                case 'page_result':
+                    if (data.has_bias) {
+                        addActivityLog(`⚠️ Bias detected on: ${data.page_url}`);
+                        // Could add live results here
+                    }
+                    break;
+                    
+                case 'error':
+                    addActivityLog(`❌ Error: ${data.message}`, 'error');
+                    break;
+                    
+                default:
+                    // Handle scan completion (done, cancelled, error)
+                    if (data.status === 'done' || data.status === 'error' || data.status === 'cancelled') {
+                        clearInterval(fallbackTimer);
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000); // Give a moment to see the final status
+                    }
+                    break;
+            }
+        }
+        
+        function addActivityLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            currentProgress.activity_log.unshift({
+                timestamp,
+                message,
+                type
+            });
+            
+            // Keep only last 50 entries
+            if (currentProgress.activity_log.length > 50) {
+                currentProgress.activity_log = currentProgress.activity_log.slice(0, 50);
+            }
+            
+            updateActivityDisplay();
+        }
+        
+        function updateProgressDisplay() {
+            // Update progress bar
+            const progressBar = document.getElementById('overall-progress-bar');
+            if (progressBar) {
+                progressBar.style.width = `${currentProgress.overall}%`;
+                progressBar.textContent = `${Math.round(currentProgress.overall)}%`;
+            }
+            
+            // Update phase display
+            const phaseDisplay = document.getElementById('current-phase-display');
+            if (phaseDisplay) {
+                phaseDisplay.textContent = currentProgress.phase || 'Starting...';
+            }
+            
+            // Update current item
+            const currentItemDisplay = document.getElementById('current-item-display');
+            if (currentItemDisplay && currentProgress.current_item) {
+                currentItemDisplay.textContent = currentProgress.current_item;
+            }
+            
+            // Update ETA
+            const etaDisplay = document.getElementById('eta-display');
+            if (etaDisplay && currentProgress.eta) {
+                const eta = new Date(currentProgress.eta);
+                etaDisplay.textContent = `ETA: ${eta.toLocaleTimeString()}`;
+            }
+        }
+        
+        function updateActivityDisplay() {
+            const activityFeed = document.getElementById('activity-feed');
+            if (activityFeed) {
+                activityFeed.innerHTML = currentProgress.activity_log
+                    .slice(0, 10) // Show only last 10 items
+                    .map(item => `
+                        <div class="activity-item ${item.type}">
+                            <span class="activity-time">${item.timestamp}</span>
+                            <span class="activity-message">${item.message}</span>
+                        </div>
+                    `).join('');
+            }
+        }
+        
+        function updateConnectionStatus(connected) {
+            const statusIndicator = document.getElementById('connection-status');
+            if (statusIndicator) {
+                statusIndicator.className = connected ? 'connected' : 'disconnected';
+                statusIndicator.textContent = connected ? '🟢 Live' : '🔴 Polling';
+            }
+        }
+        
+        // Initialize connection when page loads
+        window.addEventListener('DOMContentLoaded', function() {
+            connectWebSocket();
+            // Also start HTTP polling as backup since WebSocket messages may not work
+            startHttpFallback();
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (websocket) {
+                websocket.close();
+            }
+            if (fallbackTimer) {
+                clearInterval(fallbackTimer);
+            }
+        });
+        
+        // Stop scan function
+        async function stopScan(scanId) {
+            if (!confirm('Are you sure you want to stop this scan? This action cannot be undone.')) {
+                return;
+            }
+            
+            const stopBtn = document.querySelector('.stop-scan-btn');
+            if (stopBtn) {
+                stopBtn.disabled = true;
+                stopBtn.textContent = '⏹️ Stopping...';
+            }
+            
+            try {
+                const response = await fetch(`/admin/scan/${scanId}/stop`, {
+                    method: 'POST',
+                    credentials: 'include'  // Include cookies for session authentication
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    alert(result.message);
+                    // Refresh the page to show updated scan status
+                    window.location.reload();
+                } else {
+                    alert(`Failed to stop scan: ${result.message || 'Unknown error'}`);
+                    if (stopBtn) {
+                        stopBtn.disabled = false;
+                        stopBtn.textContent = '⏹️ Stop Scan';
+                    }
+                }
+            } catch (error) {
+                console.error('Error stopping scan:', error);
+                alert('Error stopping scan. Please try again.');
+                if (stopBtn) {
+                    stopBtn.disabled = false;
+                    stopBtn.textContent = '⏹️ Stop Scan';
+                }
+            }
+        }
         </script>
     </div>
 </body>

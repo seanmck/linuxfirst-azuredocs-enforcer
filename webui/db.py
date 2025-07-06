@@ -3,7 +3,7 @@ import re
 import urllib
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from webui.models import Base
+from src.shared.models import Base
 from azure.identity import ManagedIdentityCredential
 
 def parse_pg_kv_connstr(kv_str):
@@ -18,11 +18,15 @@ def parse_pg_kv_connstr(kv_str):
     # If no password and user looks like AAD, fetch token
     if not password and user and user.startswith('aad_'):
         try:
-            # For user-assigned identity.
+            # Use service connector managed identity (not workload identity)
             managed_identity_client_id = os.getenv('AZURE_POSTGRESQL_CLIENTID')
-            cred = ManagedIdentityCredential(client_id=managed_identity_client_id) 
-            token = cred.get_token('https://ossrdbms-aad.database.windows.net/.default').token
-            password = urllib.parse.quote_plus(token)
+            if managed_identity_client_id:
+                from azure.identity import DefaultAzureCredential
+                cred = DefaultAzureCredential()
+                token = cred.get_token('https://ossrdbms-aad.database.windows.net/.default').token
+                password = urllib.parse.quote_plus(token)
+            else:
+                raise RuntimeError("AZURE_POSTGRESQL_CLIENTID not found")
         except Exception as e:
             raise RuntimeError(f'Failed to get Azure AD token: {e}')
     pw_part = f':{password}' if password else ''

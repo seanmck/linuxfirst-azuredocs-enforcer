@@ -55,6 +55,15 @@
                                 <label for="source_github">GitHub Repo</label>
                             </div>
                         </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="force_rescan" name="force_rescan" value="true">
+                                Force rescan all documents (ignore change detection)
+                            </label>
+                            <small style="color: #6b7280; font-size: 0.85em; display: block; margin-top: 0.25em;">
+                                Check this to rescan all documents regardless of whether they've changed since the last scan. Use when assessment logic has been updated.
+                            </small>
+                        </div>
                         <button type="submit">Start Scan</button>
                     </form>
                 </div>
@@ -96,6 +105,25 @@
                         {% endif %}
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="danger-zone">
+            <h2>⚠️ Danger Zone</h2>
+            <p class="danger-warning">
+                The actions in this section are irreversible and will permanently delete data. 
+                Use with extreme caution.
+            </p>
+            <div class="danger-card">
+                <h3>🗑️ Wipe Database</h3>
+                <p>
+                    This will permanently delete <strong>all scans, pages, and snippets</strong> from the database 
+                    while preserving the schema structure. This action cannot be undone.
+                </p>
+                <button type="button" class="btn-danger" onclick="confirmDatabaseWipe()">
+                    Wipe All Database Data
+                </button>
             </div>
         </div>
 
@@ -141,5 +169,68 @@
             {% endif %}
         </div>
     </div>
+
+    <script>
+    function confirmDatabaseWipe() {
+        // First confirmation
+        if (!confirm("⚠️ Are you sure you want to permanently delete ALL data from the database?\n\nThis will remove:\n• All scans and their history\n• All pages and snippets\n• All analysis results\n\nThis action CANNOT be undone!")) {
+            return;
+        }
+        
+        // Second confirmation with typed confirmation
+        const confirmationText = prompt("To confirm this destructive action, type exactly: DELETE ALL DATA");
+        
+        if (confirmationText !== "DELETE ALL DATA") {
+            alert("Database wipe cancelled. The confirmation text was incorrect.");
+            return;
+        }
+        
+        // Third and final confirmation
+        if (!confirm("FINAL CONFIRMATION: You are about to permanently delete all data. Are you absolutely sure?")) {
+            return;
+        }
+        
+        // Proceed with database wipe
+        wipeDatabaseData();
+    }
+    
+    function wipeDatabaseData() {
+        const button = document.querySelector('.btn-danger');
+        const originalText = button.textContent;
+        
+        // Show loading state
+        button.disabled = true;
+        button.textContent = 'Wiping Database...';
+        
+        // Create form data
+        const formData = new FormData();
+        formData.append('confirmation', 'DELETE ALL DATA');
+        
+        // Make the request
+        fetch('/admin/wipe-database', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('✅ Database wiped successfully!\n\nAll data has been deleted while preserving the schema structure.');
+                // Refresh the page to show empty state
+                window.location.reload();
+            } else {
+                alert('❌ Database wipe failed: ' + (data.message || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('❌ Database wipe failed: ' + error.message);
+        })
+        .finally(() => {
+            // Restore button state
+            button.disabled = false;
+            button.textContent = originalText;
+        });
+    }
+    </script>
 </body>
 </html>

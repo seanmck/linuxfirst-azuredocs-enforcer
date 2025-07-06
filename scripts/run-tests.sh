@@ -51,7 +51,7 @@ echo "[TEST MODE] Running test_manual_github_scan.py..."
 python3 tests/test_manual_github_scan.py
 
 echo "[TEST MODE] Starting queue worker..."
-python3 crawler/queue_worker.py &
+python3 src/application/queue_worker.py &
 WORKER_PID=$!
 CLEANUP_PIDS+=$WORKER_PID
 echo "[TEST MODE] Queue worker started with PID $WORKER_PID."

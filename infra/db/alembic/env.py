@@ -5,7 +5,7 @@ from alembic import context
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../../'))
-from infra.db.models import Base  # Import your SQLAlchemy Base
+from src.shared.models import Base  # Import your SQLAlchemy Base
 
 config = context.config
 fileConfig(config.config_file_name)
@@ -20,11 +20,15 @@ def run_migrations_offline():
         context.run_migrations()
 
 def run_migrations_online():
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    # Get DATABASE_URL directly from environment instead of using engine_from_config
+    import os
+    from sqlalchemy import create_engine
+    
+    database_url = os.environ.get('DATABASE_URL')
+    if not database_url:
+        raise ValueError("DATABASE_URL environment variable is not set")
+    
+    connectable = create_engine(database_url, poolclass=pool.NullPool)
     with connectable.connect() as connection:
         context.configure(
             connection=connection, target_metadata=target_metadata, compare_type=True

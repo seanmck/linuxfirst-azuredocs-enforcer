@@ -11,8 +11,12 @@ kubectl apply -f k8s/namespace.yaml
 
 # Deploy Postgres only if --local is passed
 if [ "$DEPLOY_POSTGRES" = true ]; then
-  kubectl apply -f k8s/postgres.yaml
+  echo "Note: postgres.yaml has been removed. Use Azure Database for PostgreSQL instead."
 fi
+
+# Deploy Redis configuration and service for shared session storage
+kubectl apply -f k8s/redis-config.yaml
+kubectl apply -f k8s/redis.yaml
 
 # Deploy RabbitMQ
 kubectl apply -f k8s/rabbitmq.yaml
@@ -23,5 +27,5 @@ kubectl apply -f k8s/mcp-server.yaml
 # Deploy the web UI
 kubectl apply -f k8s/webui.yaml
 
-# Expose the web UI via LoadBalancer (for cloud or minikube)
-kubectl apply -f k8s/webui-lb.yaml
+# Deploy ingress for HTTPS access
+kubectl apply -f k8s/webui-ingress.yaml

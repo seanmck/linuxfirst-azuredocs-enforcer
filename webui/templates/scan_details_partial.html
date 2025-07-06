@@ -1,6 +1,50 @@
 {# This partial renders only the scan details section for AJAX polling #}
 <div class="scan-details">
     <h2>Scan Information</h2>
+    
+    <!-- Real-time Progress Section -->
+    {% if scan.status != 'done' %}
+    <div class="progress-section">
+        <div class="progress-header">
+            <h3>Live Progress</h3>
+            <span id="connection-status" class="connection-status">🔴 Connecting...</span>
+        </div>
+        
+        <!-- Overall Progress Bar -->
+        <div class="progress-container">
+            <div class="progress-label">Overall Progress</div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="overall-progress-bar" style="width: 0%">0%</div>
+            </div>
+        </div>
+        
+        <!-- Current Phase and Activity -->
+        <div class="current-activity">
+            <div class="activity-item">
+                <strong>Current Phase:</strong> <span id="current-phase-display">{{ scan.current_phase or 'Starting...' }}</span>
+            </div>
+            <div class="activity-item">
+                <strong>Processing:</strong> <span id="current-item-display">{{ scan.current_page_url or 'Initializing...' }}</span>
+            </div>
+            <div class="activity-item">
+                <strong id="eta-display">Calculating ETA...</strong>
+            </div>
+        </div>
+        
+        <!-- Activity Feed -->
+        <div class="activity-feed-container">
+            <h4>Activity Feed</h4>
+            <div id="activity-feed" class="activity-feed">
+                <div class="activity-item info">
+                    <span class="activity-time">{{ scan.started_at.strftime('%H:%M:%S') }}</span>
+                    <span class="activity-message">Scan started</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Summary Cards -->
     <div class="scan-summary">
         <div class="summary-card">
             <div class="summary-value">{{ scanned_count }}</div>
@@ -11,26 +55,185 @@
             <div class="summary-label">Pages Flagged</div>
         </div>
         <div class="summary-card">
-            <div class="summary-value">{{ flagged_count }}</div>
-            <div class="summary-label">Flagged Pages (Holistic)</div>
+            <div class="summary-value">{{ changed_pages_count or 0 }}</div>
+            <div class="summary-label">Changed Pages</div>
         </div>
         <div class="summary-card">
             <div class="summary-value">{{ percent_flagged }}%</div>
             <div class="summary-label">% Pages Flagged</div>
         </div>
     </div>
-    <p><strong>Started At:</strong> {{ scan.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
-    <p><strong>Finished At:</strong> {{ scan.finished_at.strftime('%Y-%m-%d %H:%M:%S') if scan.finished_at else 'In Progress' }}</p>
-    <p><strong>Status:</strong> 
-        <span class="status-badge 
-            {% if scan.status == 'done' %}completed
-            {% elif scan.status == 'running' %}running
-            {% else %}failed{% endif %}">
-            {{ scan.status }}
-        </span>
-    </p>
-    <p><strong>Target URL:</strong> {{ scan.url or 'Default path' }}</p>
+    
+    <!-- Scan Details -->
+    <div class="scan-info">
+        <p><strong>Started At:</strong> {{ scan.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        <p><strong>Finished At:</strong> {{ scan.finished_at.strftime('%Y-%m-%d %H:%M:%S') if scan.finished_at else 'In Progress' }}</p>
+        <p><strong>Status:</strong> 
+            <span class="status-badge 
+                {% if scan.status == 'done' %}completed
+                {% elif scan.status == 'running' %}running
+                {% elif scan.status == 'cancelled' %}failed
+                {% else %}failed{% endif %}">
+                {{ scan.status }}
+            </span>
+            {% if scan.status in ['running', 'processing'] %}
+            <button class="stop-scan-btn" onclick="stopScan({{ scan.id }})">
+                ⏹️ Stop Scan
+            </button>
+            {% endif %}
+        </p>
+        <p><strong>Target URL:</strong> {{ scan.url or 'Default path' }}</p>
+        
+        {% if scan.current_phase %}
+        <p><strong>Current Phase:</strong> {{ scan.current_phase }}</p>
+        {% endif %}
+        
+        {% if scan.total_pages_found %}
+        <p><strong>Pages Found:</strong> {{ scan.total_pages_found }}</p>
+        {% endif %}
+        
+        {% if scan.pages_processed %}
+        <p><strong>Pages Processed:</strong> {{ scan.pages_processed }}</p>
+        {% endif %}
+        
+        {% if scan.estimated_completion and scan.status != 'done' %}
+        <p><strong>Estimated Completion:</strong> {{ scan.estimated_completion.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        {% endif %}
+    </div>
 </div>
+
+<!-- CSS for new components -->
+<style>
+.progress-section {
+    background: #f8fafc;
+    border-radius: 12px;
+    padding: 1.5em;
+    margin-bottom: 1.5em;
+    border: 1px solid #e2e8f0;
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1em;
+}
+
+.connection-status {
+    font-size: 0.9em;
+    font-weight: 600;
+    padding: 0.3em 0.8em;
+    border-radius: 8px;
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.connection-status.connected {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.progress-container {
+    margin-bottom: 1em;
+}
+
+.progress-label {
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.5em;
+}
+
+.progress-bar-container {
+    background: #e5e7eb;
+    border-radius: 8px;
+    height: 24px;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-bar {
+    background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+    height: 100%;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 0.9em;
+    transition: width 0.3s ease;
+    min-width: 40px;
+}
+
+.current-activity {
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 8px;
+    padding: 1em;
+    margin-bottom: 1em;
+}
+
+.activity-item {
+    margin-bottom: 0.5em;
+    font-size: 0.95em;
+}
+
+.activity-item:last-child {
+    margin-bottom: 0;
+}
+
+.activity-feed-container {
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 8px;
+    padding: 1em;
+}
+
+.activity-feed {
+    max-height: 200px;
+    overflow-y: auto;
+    background: white;
+    border-radius: 6px;
+    padding: 0.8em;
+    border: 1px solid #e5e7eb;
+}
+
+.activity-feed .activity-item {
+    padding: 0.5em 0;
+    border-bottom: 1px solid #f3f4f6;
+    display: flex;
+    gap: 1em;
+    font-size: 0.9em;
+}
+
+.activity-feed .activity-item:last-child {
+    border-bottom: none;
+}
+
+.activity-time {
+    color: #6b7280;
+    font-weight: 500;
+    min-width: 60px;
+}
+
+.activity-message {
+    color: #374151;
+    flex: 1;
+}
+
+.activity-item.error .activity-message {
+    color: #dc2626;
+}
+
+.activity-item.error .activity-time {
+    color: #dc2626;
+}
+
+.scan-info {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    padding: 1em;
+    margin-top: 1em;
+}
+</style>
 
 <!-- Problematic Pages (Holistic MCP) -->
 <div class="scan-details">

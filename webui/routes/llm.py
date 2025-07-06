@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Body, Query, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from webui.db import SessionLocal
-from webui.models import Page
+from src.shared.models import Page
 from scorer.llm_client import LLMClient
 from webui.jinja_env import templates
 import os

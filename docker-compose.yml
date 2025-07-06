@@ -33,7 +33,7 @@ services:
     restart: always
   mcp_server:
     build:
-      context: ./mcp_server
+      context: ./mcp-server
       dockerfile: Dockerfile
     depends_on:
       - db
