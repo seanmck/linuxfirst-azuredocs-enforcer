@@ -10,6 +10,10 @@ if [ -d ".venv" ]; then
   source .venv/bin/activate
 fi
 
+# Install web service dependencies
+echo "Installing web service dependencies..."
+pip install -r services/web/requirements.txt
+
 export PYTHONPATH=$(pwd):$PYTHONPATH
 export RABBITMQ_HOST=localhost
 
@@ -20,4 +24,4 @@ if lsof -i :8000 -t >/dev/null; then
 fi
 
 echo "Starting the web app..."
-uvicorn webui.main:app --host 0.0.0.0 --port 8000 
+cd services/web/src && PYTHONPATH=../../..:$PYTHONPATH uvicorn main:app --host 0.0.0.0 --port 8000 

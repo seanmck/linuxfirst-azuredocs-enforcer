@@ -1,4 +1,0 @@
-# requirements.txt for webui
-fastapi
-uvicorn[standard]
-# Add other dependencies as needed

@@ -12,8 +12,9 @@ from datetime import datetime
 # Add the project root to the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from webui.db import SessionLocal
-from src.shared.models import Scan
+from services.web.src.db import SessionLocal
+from shared.models import Scan
+from shared.utils.url_utils import detect_url_source
 
 
 def enqueue_scan_task(url, scan_id, source, force_rescan=False):
@@ -39,6 +40,7 @@ def enqueue_scan_task(url, scan_id, source, force_rescan=False):
         "force_rescan": force_rescan
     }
     message = json.dumps(task_data)
+    print(f"[DEBUG] Enqueueing message: {message}")
     
     print(f"[INFO] Enqueuing scan task: url={url}, scan_id={scan_id}, source={source}, force_rescan={force_rescan}")
     channel.basic_publish(exchange='', routing_key='scan_tasks', body=message)
@@ -73,7 +75,9 @@ def main():
         print(f"[INFO] Created scan record with ID: {scan_id}")
         
         # Enqueue the scan task with force_rescan=False for change detection
-        enqueue_scan_task(url, scan_id, "scheduler", force_rescan=False)
+        source = detect_url_source(url)
+        print(f"[DEBUG] About to enqueue task with url='{url}', scan_id={scan_id}, source='{source}'")
+        enqueue_scan_task(url, scan_id, source, force_rescan=False)
         
         print(f"[INFO] Successfully enqueued GitHub scan task for scan ID: {scan_id}")
         

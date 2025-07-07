@@ -8,7 +8,7 @@ metadata:
     component: scheduler
 spec:
   # Run every hour at minute 0
-  schedule: "0 * * * *"
+  schedule: "0 0 * * *"
   jobTemplate:
     spec:
       ttlSecondsAfterFinished: 3600  # Auto-delete 1 hour after completion
@@ -23,7 +23,7 @@ spec:
           restartPolicy: Never
           containers:
           - name: doc-collector
-            image: seanmckdemo.azurecr.io/queue-worker:0.0.20
+            image: seanmckdemo.azurecr.io/worker:0.0.24
             imagePullPolicy: Always
             command: ["python", "/app/scripts/enqueue_github_scan.py"]
             env:

@@ -1,1 +1,0 @@
-# application package - use cases and service orchestration

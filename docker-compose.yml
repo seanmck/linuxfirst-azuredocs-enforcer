@@ -20,10 +20,10 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
-  webui:
+  web:
     build:
       context: .
-      dockerfile: webui/Dockerfile
+      dockerfile: services/web/Dockerfile
     depends_on:
       - db
     environment:
@@ -31,9 +31,20 @@ services:
     ports:
       - "8010:8000"
     restart: always
+  worker:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    depends_on:
+      - db
+      - rabbitmq
+    environment:
+      - DATABASE_URL=postgresql://azuredocs_user:azuredocs_pass@db:5432/azuredocs
+      - RABBITMQ_HOST=rabbitmq
+    restart: always
   mcp_server:
     build:
-      context: ./mcp-server
+      context: ./services/mcp-server
       dockerfile: Dockerfile
     depends_on:
       - db

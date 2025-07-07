@@ -5,7 +5,7 @@ from alembic import context
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../../'))
-from src.shared.models import Base  # Import your SQLAlchemy Base
+from shared.models import Base  # Import your SQLAlchemy Base
 
 config = context.config
 fileConfig(config.config_file_name)

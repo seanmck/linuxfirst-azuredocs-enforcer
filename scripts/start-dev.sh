@@ -14,9 +14,11 @@ fi
 # Activate the virtual environment
 source .venv/bin/activate
 
-# Always install dependencies
+# Always install dependencies for all services
 echo "Installing dependencies..."
-pip install -r requirements.txt
+pip install -r services/web/requirements.txt
+pip install -r services/worker/requirements.txt
+pip install -r services/mcp-server/requirements.txt
 
 # Set environment variables
 export PYTHONPATH=$(pwd):$PYTHONPATH

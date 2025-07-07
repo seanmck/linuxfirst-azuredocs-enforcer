@@ -34,7 +34,7 @@ spec:
       serviceAccountName: sc-account-fefa7dd8-f9d3-4524-8a35-c1123a838df0
       containers:
         - name: webui
-          image: seanmckdemo.azurecr.io/webui:0.0.27
+          image: seanmckdemo.azurecr.io/web:0.0.30
           env:
           - name: ADMIN_PASSWORD
             valueFrom:

@@ -21,9 +21,9 @@ spec:
       serviceAccountName: sc-account-fefa7dd8-f9d3-4524-8a35-c1123a838df0
       containers:
       - name: doc-worker
-        image: seanmckdemo.azurecr.io/queue-worker:0.0.20
+        image: seanmckdemo.azurecr.io/worker:0.0.24
         imagePullPolicy: Always
-        command: ["python", "src/application/document_worker.py"]
+        command: ["python", "src/document_worker.py"]
         env:
         - name: ADMIN_PASSWORD
           valueFrom:

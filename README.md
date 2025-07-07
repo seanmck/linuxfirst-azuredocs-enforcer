@@ -15,12 +15,20 @@ This project crawls Azure documentation websites, extracts code snippets, and sc
 
 ## Directory Structure
 
-- `crawler/`: Async site crawler and HTML fetcher with queue-based processing
-- `extractor/`: HTML parsing and snippet extraction
-- `scorer/`: Pre-filtering and LLM-based scoring with heuristic fallback
-- `webui/`: FastAPI-based web interface and dashboard
-- `results/`: Output JSON or CSV files
-- `k8s/`: Kubernetes deployment configurations
+### Service-Based Architecture
+- `services/`: Microservices with clear boundaries
+  - `services/web/`: FastAPI web interface and dashboard
+  - `services/worker/`: Background processing and crawling service
+  - `services/mcp-server/`: AI scoring service
+- `shared/`: Common code shared across services
+  - `shared/models.py`: Database models
+  - `shared/config.py`: Centralized configuration
+  - `shared/utils/`: Shared utilities
+- `packages/`: Legacy packages being phased out
+  - `packages/extractor/`: HTML parsing and snippet extraction
+  - `packages/scorer/`: Pre-filtering and LLM-based scoring
+- `infra/`: Infrastructure code (Azure, K8s, Docker, DB migrations)
+- `scripts/`: Development and deployment scripts
 
 ## Quick Start
 
@@ -86,9 +94,13 @@ See [AZURE_OPENAI_SETUP.md](AZURE_OPENAI_SETUP.md) for detailed setup instructio
 
 ### Command Line
 
-Run the orchestrator directly:
+Run services directly:
 ```sh
-python orchestrator.py [url]
+# Web service
+cd services/web && python src/main.py
+
+# Worker service
+cd services/worker && python src/queue_worker.py
 ```
 
 ## Scan Types
@@ -110,10 +122,12 @@ The system detects various types of Windows bias:
 
 ## Extending
 
-- **Add new extractors**: Extend `extractor/parser.py`
-- **Custom scoring logic**: Modify `scorer/heuristics.py` or `scorer/llm_client.py`
-- **New LLM providers**: Extend `scorer/llm_client.py`
-- **Web UI features**: Add endpoints in `webui/main.py`
+- **New services**: Create new directories in `services/` with their own `src/` and `Dockerfile`
+- **Web UI features**: Add endpoints in `services/web/src/routes/`
+- **Worker functionality**: Extend `services/worker/src/` components
+- **Shared components**: Add to `shared/` for cross-service functionality
+- **Configuration**: Update `shared/config.py` for new settings
+- **Database changes**: Add models to `shared/models.py` and create migrations
 
 ## Troubleshooting
 

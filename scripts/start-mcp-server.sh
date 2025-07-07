@@ -11,14 +11,16 @@ set -a
 source .env
 set +a
 
-# Change to mcp-server directory
-cd mcp-server
-
 # Activate venv if exists
-if [ -d "../.venv" ]; then
-  source ../.venv/bin/activate
+if [ -d ".venv" ]; then
+  source .venv/bin/activate
 fi
 
-pip install -r requirements.txt
+# Install MCP server dependencies
+pip install -r services/mcp-server/requirements.txt
+
+# Change to services/mcp-server directory and start server
+cd services/mcp-server
+export PYTHONPATH=$(pwd):$PYTHONPATH
 
 exec uvicorn main:app --reload --host 0.0.0.0 --port 9000

@@ -27,7 +27,7 @@ export PYTHONPATH=$(pwd):$PYTHONPATH
 export RABBITMQ_HOST=localhost
 
 echo "[TEST MODE] Starting web server in background..."
-TEST_MODE=1 uvicorn webui.main:app --host 0.0.0.0 --port 8000 &
+(cd services/web && TEST_MODE=1 uvicorn src.main:app --host 0.0.0.0 --port 8000) &
 WEB_PID=$!
 CLEANUP_PIDS+=$WEB_PID
 
@@ -51,7 +51,7 @@ echo "[TEST MODE] Running test_manual_github_scan.py..."
 python3 tests/test_manual_github_scan.py
 
 echo "[TEST MODE] Starting queue worker..."
-python3 src/application/queue_worker.py &
+(cd services/worker && python3 src/queue_worker.py) &
 WORKER_PID=$!
 CLEANUP_PIDS+=$WORKER_PID
 echo "[TEST MODE] Queue worker started with PID $WORKER_PID."

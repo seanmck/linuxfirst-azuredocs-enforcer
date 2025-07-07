@@ -85,7 +85,51 @@ echo "Running Alembic migrations against $DATABASE_URL ..."
 table_count=$(PGPASSWORD="$password" psql "$PSQL_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('scans', 'pages', 'snippets');" 2>/dev/null | tr -d ' ')
 
 if [ "$table_count" = "3" ]; then
-    echo "All tables already exist, running Alembic migrations..."
+    echo "All tables already exist, checking migration state..."
+    
+    # Check if any migrations have been applied
+    current_revision=$(alembic -c alembic.ini current 2>&1 | grep -v "INFO" | tail -n1 || echo "")
+    
+    # Check if we have an old migration reference that no longer exists
+    if echo "$current_revision" | grep -q "Can't locate revision"; then
+        echo "Detected old migration reference in database. Cleaning up alembic_version table..."
+        PGPASSWORD="$password" psql "$PSQL_URL" -c "DELETE FROM alembic_version;" 2>/dev/null || true
+        current_revision=""
+    fi
+    
+    if [ -z "$current_revision" ] || [ "$current_revision" = "None" ]; then
+        echo "No Alembic migrations recorded, but tables exist. Checking for manually applied columns..."
+        
+        # Check if ProcessingUrl table exists
+        processing_urls_exists=$(PGPASSWORD="$password" psql "$PSQL_URL" -t -c "
+            SELECT COUNT(*) FROM information_schema.tables 
+            WHERE table_name='processing_urls'
+        " 2>/dev/null | tr -d ' ')
+        
+        if [ "$processing_urls_exists" = "1" ]; then
+            echo "Full schema including ProcessingUrl table already exists. Stamping all migrations as applied..."
+            alembic -c alembic.ini stamp 002_url_processing
+            echo "All migrations marked as applied."
+        else
+            # Check if manual schema updates were applied
+            manual_columns=$(PGPASSWORD="$password" psql "$PSQL_URL" -t -c "
+                SELECT COUNT(*) FROM information_schema.columns 
+                WHERE (table_name='scans' AND column_name='current_phase') 
+                   OR (table_name='pages' AND column_name='mcp_holistic')
+            " 2>/dev/null | tr -d ' ')
+            
+            if [ "$manual_columns" = "2" ]; then
+                echo "Manual schema detected. Stamping initial migration as applied..."
+                alembic -c alembic.ini stamp 001_initial_schema
+                echo "Now running URL processing migration..."
+            else
+                echo "Clean database detected. Running all migrations from the beginning..."
+            fi
+        fi
+    else
+        echo "Current migration state: $current_revision"
+    fi
+    
     alembic -c alembic.ini upgrade head
 else
     echo "Tables missing (found $table_count/3), applying schema.sql first..."
@@ -96,195 +140,5 @@ else
     alembic -c alembic.ini upgrade head
 fi
 
-# Add the mcp_holistic column if it doesn't exist (this is a needed migration)
-echo "Checking for required schema updates..."
-PGPASSWORD="$password" psql "$PSQL_URL" -c "
-DO \$\$ 
-BEGIN
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='pages' AND column_name='mcp_holistic'
-    ) THEN
-        ALTER TABLE pages ADD COLUMN mcp_holistic JSONB;
-        RAISE NOTICE 'Added mcp_holistic column to pages table.';
-    ELSE
-        RAISE NOTICE 'mcp_holistic column already exists.';
-    END IF;
-END \$\$;
-"
+echo "Database migrations completed successfully."
 
-# Add progress tracking columns to scans table
-echo "Adding progress tracking columns to scans table..."
-PGPASSWORD="$password" psql "$PSQL_URL" -c "
-DO \$\$ 
-BEGIN
-    -- Add current_phase column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='scans' AND column_name='current_phase'
-    ) THEN
-        ALTER TABLE scans ADD COLUMN current_phase VARCHAR;
-        RAISE NOTICE 'Added current_phase column to scans table.';
-    END IF;
-
-    -- Add current_page_url column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='scans' AND column_name='current_page_url'
-    ) THEN
-        ALTER TABLE scans ADD COLUMN current_page_url VARCHAR;
-        RAISE NOTICE 'Added current_page_url column to scans table.';
-    END IF;
-
-    -- Add total_pages_found column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='scans' AND column_name='total_pages_found'
-    ) THEN
-        ALTER TABLE scans ADD COLUMN total_pages_found INTEGER DEFAULT 0;
-        RAISE NOTICE 'Added total_pages_found column to scans table.';
-    END IF;
-
-    -- Add pages_processed column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='scans' AND column_name='pages_processed'
-    ) THEN
-        ALTER TABLE scans ADD COLUMN pages_processed INTEGER DEFAULT 0;
-        RAISE NOTICE 'Added pages_processed column to scans table.';
-    END IF;
-
-    -- Add snippets_processed column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='scans' AND column_name='snippets_processed'
-    ) THEN
-        ALTER TABLE scans ADD COLUMN snippets_processed INTEGER DEFAULT 0;
-        RAISE NOTICE 'Added snippets_processed column to scans table.';
-    END IF;
-
-    -- Add phase_progress column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='scans' AND column_name='phase_progress'
-    ) THEN
-        ALTER TABLE scans ADD COLUMN phase_progress JSONB;
-        RAISE NOTICE 'Added phase_progress column to scans table.';
-    END IF;
-
-    -- Add error_log column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='scans' AND column_name='error_log'
-    ) THEN
-        ALTER TABLE scans ADD COLUMN error_log JSONB;
-        RAISE NOTICE 'Added error_log column to scans table.';
-    END IF;
-
-    -- Add phase_timestamps column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='scans' AND column_name='phase_timestamps'
-    ) THEN
-        ALTER TABLE scans ADD COLUMN phase_timestamps JSONB;
-        RAISE NOTICE 'Added phase_timestamps column to scans table.';
-    END IF;
-
-    -- Add estimated_completion column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='scans' AND column_name='estimated_completion'
-    ) THEN
-        ALTER TABLE scans ADD COLUMN estimated_completion TIMESTAMP;
-        RAISE NOTICE 'Added estimated_completion column to scans table.';
-    END IF;
-
-    -- Add performance_metrics column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='scans' AND column_name='performance_metrics'
-    ) THEN
-        ALTER TABLE scans ADD COLUMN performance_metrics JSONB;
-        RAISE NOTICE 'Added performance_metrics column to scans table.';
-    END IF;
-END \$\$;
-"
-
-# Add change detection columns to pages table
-echo "Adding change detection columns to pages table..."
-PGPASSWORD="$password" psql "$PSQL_URL" -c "
-DO \$\$ 
-BEGIN
-    -- Add content_hash column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='pages' AND column_name='content_hash'
-    ) THEN
-        ALTER TABLE pages ADD COLUMN content_hash VARCHAR;
-        RAISE NOTICE 'Added content_hash column to pages table.';
-    END IF;
-
-    -- Add last_modified column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='pages' AND column_name='last_modified'
-    ) THEN
-        ALTER TABLE pages ADD COLUMN last_modified TIMESTAMP;
-        RAISE NOTICE 'Added last_modified column to pages table.';
-    END IF;
-
-    -- Add github_sha column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='pages' AND column_name='github_sha'
-    ) THEN
-        ALTER TABLE pages ADD COLUMN github_sha VARCHAR;
-        RAISE NOTICE 'Added github_sha column to pages table.';
-    END IF;
-
-    -- Add last_scanned_at column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='pages' AND column_name='last_scanned_at'
-    ) THEN
-        ALTER TABLE pages ADD COLUMN last_scanned_at TIMESTAMP;
-        RAISE NOTICE 'Added last_scanned_at column to pages table.';
-    END IF;
-END \$\$;
-"
-
-# Add scan cancellation columns to scans table
-echo "Adding scan cancellation columns to scans table..."
-PGPASSWORD="$password" psql "$PSQL_URL" -c "
-DO \$\$ 
-BEGIN
-    -- Add cancellation_requested column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='scans' AND column_name='cancellation_requested'
-    ) THEN
-        ALTER TABLE scans ADD COLUMN cancellation_requested BOOLEAN DEFAULT FALSE;
-        RAISE NOTICE 'Added cancellation_requested column to scans table.';
-    END IF;
-
-    -- Add cancellation_requested_at column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='scans' AND column_name='cancellation_requested_at'
-    ) THEN
-        ALTER TABLE scans ADD COLUMN cancellation_requested_at TIMESTAMP;
-        RAISE NOTICE 'Added cancellation_requested_at column to scans table.';
-    END IF;
-
-    -- Add cancellation_reason column
-    IF NOT EXISTS (
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name='scans' AND column_name='cancellation_reason'
-    ) THEN
-        ALTER TABLE scans ADD COLUMN cancellation_reason VARCHAR;
-        RAISE NOTICE 'Added cancellation_reason column to scans table.';
-    END IF;
-END \$\$;
-"
-
-echo "Schema updates completed."
