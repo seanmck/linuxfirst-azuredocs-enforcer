@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from db import SessionLocal
 from shared.models import Scan, Page, Snippet
+from sqlalchemy import text
 from datetime import datetime, timedelta
 import os
 import secrets
@@ -421,14 +422,14 @@ async def admin_wipe_database(request: Request, confirmation: str = Form(...), s
         
         # Truncate tables in correct order (respecting foreign key constraints)
         # Start with child tables first, then parent tables
-        db.execute("TRUNCATE TABLE snippets CASCADE")
-        db.execute("TRUNCATE TABLE pages CASCADE") 
-        db.execute("TRUNCATE TABLE scans CASCADE")
+        db.execute(text("TRUNCATE TABLE snippets CASCADE"))
+        db.execute(text("TRUNCATE TABLE pages CASCADE"))
+        db.execute(text("TRUNCATE TABLE scans CASCADE"))
         
         # Reset any auto-increment sequences
-        db.execute("ALTER SEQUENCE snippets_id_seq RESTART WITH 1")
-        db.execute("ALTER SEQUENCE pages_id_seq RESTART WITH 1")
-        db.execute("ALTER SEQUENCE scans_id_seq RESTART WITH 1")
+        db.execute(text("ALTER SEQUENCE snippets_id_seq RESTART WITH 1"))
+        db.execute(text("ALTER SEQUENCE pages_id_seq RESTART WITH 1"))
+        db.execute(text("ALTER SEQUENCE scans_id_seq RESTART WITH 1"))
         
         db.commit()
         
