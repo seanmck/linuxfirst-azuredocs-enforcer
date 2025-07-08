@@ -184,6 +184,50 @@ You are an expert technical writer. Given the following original markdown and a 
         "cached": False
     })
 
+@router.post("/api/compute_diff")
+async def compute_diff(
+    request: Request,
+    body: dict = Body(...)
+):
+    """Compute unified diff between original and updated markdown"""
+    try:
+        original = body.get('original', '')
+        updated = body.get('updated', '')
+        context_lines = body.get('context_lines', 3)
+        
+        if not original or not updated:
+            return JSONResponse({"error": "Missing original or updated content"}, status_code=400)
+        
+        import difflib
+        
+        diff = difflib.unified_diff(
+            original.splitlines(keepends=True),
+            updated.splitlines(keepends=True),
+            fromfile='original.md',
+            tofile='updated.md',
+            n=context_lines
+        )
+        
+        diff_text = ''.join(diff)
+        
+        # Count additions and deletions
+        additions = 0
+        deletions = 0
+        for line in diff_text.split('\n'):
+            if line.startswith('+') and not line.startswith('+++'):
+                additions += 1
+            elif line.startswith('-') and not line.startswith('---'):
+                deletions += 1
+        
+        return JSONResponse({
+            "diff": diff_text,
+            "additions": additions,
+            "deletions": deletions
+        })
+        
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
 @router.post("/score_page_holistic")
 async def score_page_holistic(request: Request, body: dict = Body(...)):
     mcp_url = os.getenv("MCP_SERVER_URL", "http://localhost:9000/score_page")
