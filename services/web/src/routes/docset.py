@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from shared.utils.database import SessionLocal
-from shared.models import Scan, Page, Snippet
+from shared.models import Scan, Page, Snippet, BiasSnapshotByDocset
 from datetime import datetime
 from collections import defaultdict
 import os
@@ -71,6 +71,41 @@ def format_doc_set_name(doc_set):
 
 def get_docset_bias_history(db, doc_set):
     """Get historical bias data for a specific doc set."""
+    import datetime
+    
+    # Get bias snapshots for this docset for the last 90 days
+    end_date = datetime.date.today()
+    start_date = end_date - datetime.timedelta(days=90)
+    
+    try:
+        # Try to get data from bias snapshots first
+        snapshots = (
+            db.query(BiasSnapshotByDocset)
+            .filter(
+                BiasSnapshotByDocset.doc_set == doc_set,
+                BiasSnapshotByDocset.date >= start_date
+            )
+            .order_by(BiasSnapshotByDocset.date)
+            .all()
+        )
+        
+        if snapshots:
+            # Use snapshot data
+            bias_history = []
+            for snapshot in snapshots:
+                bias_history.append({
+                    'date': snapshot.date.strftime('%Y-%m-%d'),
+                    'scan_id': None,  # Snapshots aren't tied to specific scans
+                    'total_pages': snapshot.total_pages,
+                    'biased_pages': snapshot.biased_pages,
+                    'bias_percentage': round(snapshot.bias_percentage, 1)
+                })
+            return bias_history
+    except Exception as e:
+        print(f"[WARN] Failed to load bias snapshots for docset {doc_set}: {e}")
+    
+    # Fallback to calculating from scan data if no snapshots exist
+    print(f"[INFO] No bias snapshots found for docset {doc_set}, calculating from scan data")
     completed_scans = db.query(Scan).filter(Scan.status == 'done').order_by(Scan.started_at.asc()).all()
     
     bias_history = []

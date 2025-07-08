@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, Form, BackgroundTasks, HTTPException, Depe
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.concurrency import run_in_threadpool
 from shared.utils.database import SessionLocal
-from shared.models import Scan, Page, Snippet
+from shared.models import Scan, Page, Snippet, BiasSnapshot
 from fastapi.staticfiles import StaticFiles
 import os
 import asyncio
@@ -369,34 +369,47 @@ async def index(request: Request):
                 for snippet, page_url in snippets_data
             ]
     
-    # Prepare data for bias rate chart
-    try:
-        import jinja2
-    except ImportError:
-        jinja2 = None
+    # Prepare data for bias rate chart using bias snapshots
     bias_chart_data = []
-    for scan in reversed(scan_summaries):
-        started_at = scan.get("started_at")
-        percent_flagged = scan.get("percent_flagged")
-        scanned_count = scan.get("scanned_count")
-        status = scan.get("status")
-        if status == "done" and scanned_count and started_at is not None and percent_flagged is not None:
-            if jinja2 and (isinstance(started_at, getattr(jinja2, 'Undefined', type(None))) or isinstance(percent_flagged, getattr(jinja2, 'Undefined', type(None)))):
-                print(f"[DEBUG] Skipping scan {scan.get('id')} due to Undefined value.")
-                continue
-            if not hasattr(started_at, 'strftime'):
-                print(f"[DEBUG] Skipping scan {scan.get('id')} due to started_at not being datetime.")
-                continue
-            try:
-                bias_chart_data.append({
-                    "date": started_at.strftime("%Y-%m-%d %H:%M"),
-                    "percent_flagged": float(percent_flagged)
-                })
-            except Exception as e:
-                print(f"[WARN] Skipping scan {scan.get('id')} in chart data due to error: {e}")
-        else:
-            print(f"[DEBUG] Skipping scan {scan.get('id')} for chart: status={status}, scanned_count={scanned_count}, started_at={started_at}, percent_flagged={percent_flagged}")
-    if not bias_chart_data or any([d is None for d in bias_chart_data]):
+    
+    # Get bias snapshots for the last 30 days
+    end_date = datetime.date.today()
+    start_date = end_date - datetime.timedelta(days=30)
+    
+    try:
+        snapshots = (
+            db.query(BiasSnapshot)
+            .filter(BiasSnapshot.date >= start_date)
+            .order_by(BiasSnapshot.date)
+            .all()
+        )
+        
+        for snapshot in snapshots:
+            bias_chart_data.append({
+                "date": snapshot.date.strftime("%Y-%m-%d"),
+                "percent_flagged": float(snapshot.bias_percentage)
+            })
+        
+        # If no snapshots exist yet, fall back to calculating from scan data
+        # This ensures the chart still works before snapshots are generated
+        if not bias_chart_data:
+            print("[INFO] No bias snapshots found, using scan data for chart")
+            for scan in reversed(scan_summaries):
+                started_at = scan.get("started_at")
+                percent_flagged = scan.get("percent_flagged")
+                scanned_count = scan.get("scanned_count")
+                status = scan.get("status")
+                if status == "done" and scanned_count and started_at is not None and percent_flagged is not None:
+                    if hasattr(started_at, 'strftime'):
+                        try:
+                            bias_chart_data.append({
+                                "date": started_at.strftime("%Y-%m-%d %H:%M"),
+                                "percent_flagged": float(percent_flagged)
+                            })
+                        except Exception as e:
+                            print(f"[WARN] Skipping scan {scan.get('id')} in chart data due to error: {e}")
+    except Exception as e:
+        print(f"[ERROR] Failed to load bias snapshots: {e}")
         bias_chart_data = []
     # Use the scan dict for scan_id and last_url
     scan_obj = scan

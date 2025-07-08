@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, DateTime, JSON
+from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, DateTime, JSON, Date, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 import datetime
@@ -79,3 +79,20 @@ class Snippet(Base):
     code = Column(Text)
     llm_score = Column(JSON)
     page = relationship("Page", back_populates="snippets")
+
+class BiasSnapshot(Base):
+    __tablename__ = 'bias_snapshots'
+    date = Column(Date, primary_key=True)
+    total_pages = Column(Integer, nullable=False)
+    biased_pages = Column(Integer, nullable=False)
+    bias_percentage = Column(Float, nullable=False)
+    last_calculated_at = Column(DateTime(timezone=True), nullable=False)
+    additional_data = Column(JSON, nullable=True)
+
+class BiasSnapshotByDocset(Base):
+    __tablename__ = 'bias_snapshots_by_docset'
+    date = Column(Date, primary_key=True)
+    doc_set = Column(String, primary_key=True)
+    total_pages = Column(Integer, nullable=False)
+    biased_pages = Column(Integer, nullable=False)
+    bias_percentage = Column(Float, nullable=False)

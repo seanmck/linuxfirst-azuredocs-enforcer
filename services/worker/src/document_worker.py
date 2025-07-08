@@ -413,6 +413,19 @@ class DocumentWorker:
             
             self.logger.info(f"Finalized scan {scan.id}: {processed_pages} processed, {error_pages} errors, {biased_pages_count} biased pages, {flagged_snippets_count} flagged snippets")
             
+            # Update bias snapshots after scan completion
+            try:
+                from shared.application.bias_snapshot_service import BiasSnapshotService
+                snapshot_service = BiasSnapshotService(db_session)
+                overall_snapshot, docset_snapshots = snapshot_service.calculate_and_save_today()
+                if overall_snapshot:
+                    self.logger.info(f"Updated bias snapshot for today: {overall_snapshot.bias_percentage}% bias ({overall_snapshot.biased_pages}/{overall_snapshot.total_pages} pages)")
+                else:
+                    self.logger.warning("Failed to create bias snapshot after scan completion")
+            except Exception as e:
+                self.logger.error(f"Error updating bias snapshot after scan {scan.id}: {e}", exc_info=True)
+                # Don't fail the scan finalization if snapshot update fails
+            
         except Exception as e:
             self.logger.error(f"Error finalizing scan {scan.id}: {e}", exc_info=True)
 

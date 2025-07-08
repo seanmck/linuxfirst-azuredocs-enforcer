@@ -124,6 +124,7 @@ class ScanOrchestrator:
                 print(f"[INFO] All {skipped_count} web documents were skipped (no changes detected). Scan completed successfully.")
                 scan.status = 'done'
                 scan.total_pages_found = skipped_count
+                print(f"[DEBUG] Set total_pages_found to {skipped_count} (all skipped web documents)")
                 scan.finished_at = datetime.datetime.now(datetime.timezone.utc)
                 self.db.commit()
                 
@@ -146,6 +147,7 @@ class ScanOrchestrator:
             print(f"[INFO] Queued {queued_count} documents for processing. Scan will complete when all documents are processed.")
             scan.status = 'processing'
             scan.total_pages_found = queued_count
+            print(f"[DEBUG] Set total_pages_found to {queued_count} (queued web documents)")
             self.db.commit()
             
             # Record successful scan initiation
@@ -246,6 +248,7 @@ class ScanOrchestrator:
                 print(f"[INFO] All {skipped_count} GitHub documents were skipped (no changes detected). Scan completed successfully.")
                 scan.status = 'done'
                 scan.total_pages_found = skipped_count
+                print(f"[DEBUG] Set total_pages_found to {skipped_count} (all skipped GitHub documents)")
                 scan.finished_at = datetime.datetime.now(datetime.timezone.utc)
                 self.db.commit()
                 
@@ -268,6 +271,7 @@ class ScanOrchestrator:
             print(f"[INFO] Queued {queued_count} GitHub documents for processing. Scan will complete when all documents are processed.")
             scan.status = 'processing'
             scan.total_pages_found = queued_count
+            print(f"[DEBUG] Set total_pages_found to {queued_count} (queued GitHub documents)")
             self.db.commit()
             
             # Record successful scan initiation
