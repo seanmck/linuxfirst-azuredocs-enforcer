@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from shared.utils.database import SessionLocal
 from shared.models import Page
 from packages.scorer.llm_client import LLMClient
-from web.jinja_env import templates
+from jinja_env import templates
 import os
 import time
 import re

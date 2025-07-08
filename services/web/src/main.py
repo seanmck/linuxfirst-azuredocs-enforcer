@@ -21,11 +21,11 @@ import re
 import httpx
 from markdown import markdown as md_lib
 from functools import lru_cache
-from web.routes import admin, scan, llm, websocket, docset
-from web.routes.scan import enqueue_scan_task
-from web.jinja_env import templates
-from web.middleware.metrics import PrometheusMiddleware, create_metrics_endpoint
-from web.middleware.security import SecurityMiddleware
+from routes import admin, scan, llm, websocket, docset
+from routes.scan import enqueue_scan_task
+from jinja_env import templates
+from middleware.metrics import PrometheusMiddleware, create_metrics_endpoint
+from middleware.security import SecurityMiddleware
 from shared.utils.metrics import get_metrics
 import logging
 
