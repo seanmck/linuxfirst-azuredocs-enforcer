@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-server
+  namespace: azuredocs-app
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9000
+      targetPort: 9000
+  selector:
+    app: mcp-server
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-server
+  namespace: azuredocs-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-server
+  template:
+    metadata:
+      labels:
+        app: mcp-server
+    spec:
+      containers:
+        - name: mcp-server
+          image: seanmckdemo.azurecr.io/mcp-server:0.0.7
+          env:            
+            - name: AZURE_OPENAI_DEPLOYMENT
+              valueFrom:
+                secretKeyRef:
+                  name: azuredocs-secrets
+                  key: AZURE_OPENAI_DEPLOYMENT
+          envFrom:
+            - secretRef:
+                name: sc-linuxdocsazureopenai-secret
+          ports:
+            - containerPort: 9000

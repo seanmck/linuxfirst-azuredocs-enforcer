@@ -1,0 +1,419 @@
+{# This partial renders only the scan details section for AJAX polling #}
+<!-- Key Metrics (Promoted to top) -->
+<div class="key-metrics">
+    <div class="scan-summary">
+        <div class="summary-card">
+            <div class="summary-value">{{ scanned_count }}</div>
+            <div class="summary-label">Pages Scanned</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-value">{{ flagged_pages }}</div>
+            <div class="summary-label">Pages Flagged</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-value">{{ changed_pages_count or 0 }}</div>
+            <div class="summary-label">Changed Pages</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-value">{{ percent_flagged }}%</div>
+            <div class="summary-label">% Pages Flagged</div>
+        </div>
+    </div>
+</div>
+
+<!-- Real-time Progress Section (Compact for running scans) -->
+{% if scan.status != 'done' %}
+<div class="progress-section-compact">
+    <div class="progress-header-compact">
+        <h3>Live Progress</h3>
+        <span id="connection-status" class="connection-status">🔴 Connecting...</span>
+    </div>
+    
+    <!-- Overall Progress Bar -->
+    <div class="progress-container">
+        <div class="progress-bar-container">
+            <div class="progress-bar" id="overall-progress-bar" style="width: 0%">0%</div>
+        </div>
+    </div>
+    
+    <!-- Current Phase and Activity (Compact) -->
+    <div class="current-activity-compact">
+        <div class="activity-item">
+            <strong>Phase:</strong> <span id="current-phase-display">{{ scan.current_phase or 'Starting...' }}</span>
+        </div>
+        <div class="activity-item">
+            <strong>Processing:</strong> <span id="current-item-display">{{ scan.current_page_url or 'Initializing...' }}</span>
+        </div>
+    </div>
+    
+    <!-- Activity Feed (Collapsible) -->
+    <details class="activity-feed-details">
+        <summary>Activity Feed</summary>
+        <div id="activity-feed" class="activity-feed">
+            <div class="activity-item info">
+                <span class="activity-time">{{ scan.started_at.strftime('%H:%M:%S') }}</span>
+                <span class="activity-message">Scan started</span>
+            </div>
+        </div>
+    </details>
+</div>
+{% endif %}
+
+<div class="scan-details">
+    <h2>Scan Information</h2>
+    
+    <!-- Scan Details -->
+    <div class="scan-info">
+        <p><strong>Started At:</strong> {{ scan.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        <p><strong>Finished At:</strong> {{ scan.finished_at.strftime('%Y-%m-%d %H:%M:%S') if scan.finished_at else 'In Progress' }}</p>
+        <p><strong>Status:</strong> 
+            <span class="status-badge 
+                {% if scan.status == 'done' %}completed
+                {% elif scan.status == 'running' %}running
+                {% elif scan.status == 'cancelled' %}failed
+                {% else %}failed{% endif %}">
+                {{ scan.status }}
+            </span>
+            {% if scan.status in ['running', 'processing'] %}
+            <button class="stop-scan-btn" onclick="stopScan({{ scan.id }})">
+                ⏹️ Stop Scan
+            </button>
+            {% endif %}
+        </p>
+        <p><strong>Target URL:</strong> {{ scan.url or 'Default path' }}</p>
+        
+        {% if scan.current_phase %}
+        <p><strong>Current Phase:</strong> {{ scan.current_phase }}</p>
+        {% endif %}
+        
+        {% if scan.total_pages_found %}
+        <p><strong>Pages Found:</strong> {{ scan.total_pages_found }}</p>
+        {% endif %}
+        
+        {% if scan.pages_processed %}
+        <p><strong>Pages Processed:</strong> {{ scan.pages_processed }}</p>
+        {% endif %}
+        
+        {% if scan.estimated_completion and scan.status != 'done' %}
+        <p><strong>Estimated Completion:</strong> {{ scan.estimated_completion.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- CSS for new components -->
+<style>
+/* Key Metrics - Promoted and Enhanced */
+.key-metrics {
+    margin-bottom: 1.5em;
+}
+
+.scan-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1em;
+    margin-bottom: 1em;
+}
+
+.summary-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border-radius: 12px;
+    padding: 1.5em;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e2e8f0;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.summary-value {
+    font-size: 2.5em;
+    font-weight: 800;
+    color: #1e293b;
+    margin-bottom: 0.3em;
+    line-height: 1;
+}
+
+.summary-label {
+    color: #64748b;
+    font-size: 0.95em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Compact Progress Section */
+.progress-section-compact {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 1em;
+    margin-bottom: 1em;
+    border: 1px solid #e2e8f0;
+}
+
+.progress-header-compact {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75em;
+}
+
+.progress-header-compact h3 {
+    font-size: 1.1em;
+    margin: 0;
+    color: #374151;
+}
+
+.connection-status {
+    font-size: 0.85em;
+    font-weight: 600;
+    padding: 0.2em 0.6em;
+    border-radius: 6px;
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.connection-status.connected {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.progress-container {
+    margin-bottom: 0.75em;
+}
+
+.progress-bar-container {
+    background: #e5e7eb;
+    border-radius: 6px;
+    height: 20px;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-bar {
+    background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+    height: 100%;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 0.85em;
+    transition: width 0.3s ease;
+    min-width: 30px;
+}
+
+.current-activity-compact {
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 6px;
+    padding: 0.75em;
+    margin-bottom: 0.75em;
+    display: flex;
+    gap: 1.5em;
+    flex-wrap: wrap;
+}
+
+.current-activity-compact .activity-item {
+    font-size: 0.9em;
+    margin-bottom: 0;
+}
+
+.activity-feed-details {
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 6px;
+    padding: 0.75em;
+}
+
+.activity-feed-details summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.95em;
+    margin-bottom: 0.5em;
+}
+
+.activity-feed {
+    max-height: 150px;
+    overflow-y: auto;
+    background: white;
+    border-radius: 4px;
+    padding: 0.6em;
+    border: 1px solid #e5e7eb;
+    margin-top: 0.5em;
+}
+
+.activity-feed .activity-item {
+    padding: 0.4em 0;
+    border-bottom: 1px solid #f3f4f6;
+    display: flex;
+    gap: 1em;
+    font-size: 0.85em;
+}
+
+.activity-feed .activity-item:last-child {
+    border-bottom: none;
+}
+
+.activity-time {
+    color: #6b7280;
+    font-weight: 500;
+    min-width: 60px;
+}
+
+.activity-message {
+    color: #374151;
+    flex: 1;
+}
+
+.activity-item.error .activity-message {
+    color: #dc2626;
+}
+
+.activity-item.error .activity-time {
+    color: #dc2626;
+}
+
+.scan-info {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    padding: 1em;
+    margin-top: 1em;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+    .scan-summary {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75em;
+    }
+    
+    .summary-card {
+        padding: 1.25em;
+    }
+    
+    .summary-value {
+        font-size: 2em;
+    }
+    
+    .summary-label {
+        font-size: 0.85em;
+    }
+    
+    .current-activity-compact {
+        flex-direction: column;
+        gap: 0.5em;
+    }
+    
+    .progress-section-compact {
+        padding: 0.75em;
+    }
+}
+
+@media (max-width: 480px) {
+    .scan-summary {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<!-- Problematic Pages (Holistic MCP) -->
+<div class="scan-details">
+    <h2>Problematic Pages</h2>
+    {% if pages and pages|length > 0 %}
+        {% set has_flagged = false %}
+        {% for page in pages %}
+            {% if page.mcp_holistic and page.mcp_holistic.get('bias_types') %}
+                {% set has_flagged = true %}
+                <div class="page-section">
+                    <div class="page-header">
+                        <div class="page-url"><a href="{{ page.url }}" target="_blank" rel="noopener noreferrer">{{ page.url }}</a></div>
+                        
+                        <span class="priority-badge priority-{{ page['priority_label']|lower }}">{{ page['priority_label'] }} Priority</span>
+                    </div>
+                    <div class="analysis-content">
+                        <div class="snippet-label">Bias Types:</div>
+                        <div class="bias-types-row">
+                            {% for bias in page.mcp_holistic.get('bias_types') %}
+                                <div class="bias-type-box">
+                                    <span class="bias-type-icon">{{ bias_icon_map.get(bias, '⚠️') }}</span>
+                                    {{ bias }}
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <div class="snippet-label">Summary:</div>
+                        <div class="explanation-text">{{ page.mcp_holistic.summary }}</div>
+                        <div class="snippet-label">Recommendations:</div>
+                        {% if page.mcp_holistic.get('recommendations') is string %}
+                        <div class="explanation-text">{{ page.mcp_holistic.recommendations }}</div>
+                        {% else %}
+                        <ul class="explanation-text">
+                        {% for rec in page.mcp_holistic.get('recommendations', []) %}
+                            <li>{{ rec }}</li>
+                        {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </div>
+                    <!-- Create Pull Request Button -->
+                    <div style="margin-top: 1em; text-align: right;">
+                        <a href="/proposed_change?page_id={{ page.id }}" class="github-pr-btn" style="display: inline-flex; align-items: center; gap: 0.5em; padding: 0.5em 1em; background: #24292f; color: #fff; border-radius: 5px; text-decoration: none; font-weight: 500;">
+                            <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 20px; height: 20px; vertical-align: middle;">
+                            Create pull request
+                        </a>
+                    </div>
+                </div>
+            {% endif %}
+        {% endfor %}
+        {% if not has_flagged %}
+            <div class="no-flagged">
+                <p>No problematic pages found in this scan. All pages appear to be Linux-friendly! 🐧</p>
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="no-flagged">
+            <p>No pages were scanned in this run.</p>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+// Use event delegation for .suggest-pr-btn clicks
+function handleSuggestPRClick(e) {
+    const btn = e.target.closest('.suggest-pr-btn');
+    if (!btn) return;
+    if (btn.disabled) return;
+    const pageUrl = btn.getAttribute('data-url');
+    btn.disabled = true;
+    btn.textContent = 'Requesting suggestion...';
+    const idx = Array.from(document.querySelectorAll('.suggest-pr-btn')).indexOf(btn);
+    const outDiv = document.getElementById('linux-pr-suggestion-' + idx);
+    outDiv.innerHTML = '';
+    fetch('/suggest_linux_pr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: pageUrl })
+    })
+    .then(resp => {
+        if (resp.ok) return resp.json();
+        throw new Error('Failed to get suggestion.');
+    })
+    .then data => {
+        localStorage.setItem('linux_pr_original', data.original);
+        localStorage.setItem('linux_pr_proposed', data.proposed);
+        localStorage.setItem('linux_pr_url', pageUrl);
+        window.location.href = '/proposed_change';
+    })
+    .catch(e => {
+        outDiv.innerHTML = '<span style="color:red;">Error: ' + e + '</span>';
+        btn.disabled = false;
+        btn.textContent = 'Suggest Linux-First PR (Full Page)';
+    });
+}
+document.addEventListener('click', handleSuggestPRClick);
+</script>
+
+<!-- Placeholder for the new diff view page -->
+{# In webui/main.py, add a /proposed_change route to render the diff #}

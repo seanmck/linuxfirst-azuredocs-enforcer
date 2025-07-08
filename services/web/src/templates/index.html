@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Linux-first Docs for Azure - Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let pollInterval = null;
+        let pollCount = 0;
+        const MAX_POLL_COUNT = 1000;
+        const POLL_INTERVAL = 3000; // Reduced to 3 seconds for faster updates
+
+        // Store the last progress data
+        let lastProgressData = null;
+
+        function renderProgress(data) {
+            let prog = document.getElementById('progress');
+            prog.style.display = 'block';
+
+            let scannedCount = data.scanned || 0;
+            let totalSnippets = data.total_snippets || 0;
+            let flaggedCount = data.flagged || 0;
+            let flaggedPages = data.flagged_pages || 0;
+            let percentFlagged = data.percent_flagged || 0;
+
+            prog.innerHTML = `
+                <div class="progress-header">
+                    <div class="progress-title">Scan in Progress</div>
+                    <div class="progress-stage">${data.stage || 'Processing...'}</div>
+                </div>
+                <div class="progress-stats">
+                    <div class="progress-stat">
+                        <div class="progress-stat-value">${scannedCount}</div>
+                        <div class="progress-stat-label">Pages Scanned</div>
+                    </div>
+                    <div class="progress-stat">
+                        <div class="progress-stat-value">${totalSnippets}</div>
+                        <div class="progress-stat-label">Snippets Found</div>
+                    </div>
+                    <div class="progress-stat">
+                        <div class="progress-stat-value">${flaggedPages}</div>
+                        <div class="progress-stat-label">Pages Flagged</div>
+                    </div>
+                    <div class="progress-stat">
+                        <div class="progress-stat-value">${percentFlagged.toFixed(1)}%</div>
+                        <div class="progress-stat-label">Bias Rate</div>
+                    </div>
+                </div>
+                <div style="font-size:0.9em;color:#6b7280;">
+                    Current: ${data.current_url || 'Processing...'}
+                </div>
+            `;
+        }
+
+        function renderFinalProgress() {
+            if (lastProgressData) {
+                let prog = document.getElementById('progress');
+                prog.style.display = 'block';
+
+                let scannedCount = lastProgressData.scanned || 0;
+                let totalSnippets = lastProgressData.total_snippets || 0;
+                let flaggedCount = lastProgressData.flagged || 0;
+                let flaggedPages = lastProgressData.flagged_pages || 0;
+                let percentFlagged = lastProgressData.percent_flagged || 0;
+
+                prog.innerHTML = `
+                    <div class="progress-header">
+                        <div class="progress-title">Scan Complete</div>
+                        <div class="progress-stage">Done</div>
+                    </div>
+                    <div class="progress-stats">
+                        <div class="progress-stat">
+                            <div class="progress-stat-value">${scannedCount}</div>
+                            <div class="progress-stat-label">Pages Scanned</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-value">${totalSnippets}</div>
+                            <div class="progress-stat-label">Snippets Found</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-value">${flaggedPages}</div>
+                            <div class="progress-stat-label">Pages Flagged</div>
+                        </div>
+                        <div class="progress-stat">
+                            <div class="progress-stat-value">${percentFlagged.toFixed(1)}%</div>
+                            <div class="progress-stat-label">Bias Rate</div>
+                        </div>
+                    </div>
+                    <div style="font-size:0.9em;color:#6b7280;">
+                        Scan finished.
+                    </div>
+                `;
+            }
+        }
+
+        function fetchFinalResults() {
+            fetch('/progress')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    lastProgressData = data;
+                    renderFinalProgress();
+                })
+                .catch(error => {
+                    console.error('Error fetching final results:', error);
+                });
+        }
+
+        function pollProgress() {
+            if (pollCount >= MAX_POLL_COUNT) {
+                console.warn('Max poll count reached, stopping polling');
+                clearInterval(pollInterval);
+                fetchFinalResults();
+                return;
+            }
+
+            pollCount++;
+
+            fetch('/progress')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    lastProgressData = data;
+                    if (data.running) {
+                        renderProgress(data);
+                    } else {
+                        clearInterval(pollInterval);
+                        renderFinalProgress();
+                        fetchFinalResults();
+                        // window.location.reload(); // Removed to preserve styling
+                    }
+                })
+                .catch(error => {
+                    console.error('Error polling progress:', error);
+                    if (pollCount > 10) {
+                        clearInterval(pollInterval);
+                        fetchFinalResults();
+                    }
+                });
+        }
+
+        function startPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+            pollCount = 0;
+            pollInterval = setInterval(pollProgress, POLL_INTERVAL);
+            // Initial poll
+            pollProgress();
+        }
+
+        function stopPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }
+
+        // Leaderboard sorting functionality
+        function sortLeaderboard(column, ascending = true) {
+            const table = document.getElementById('leaderboardTable');
+            if (!table) return;
+            
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            rows.sort((a, b) => {
+                let aVal, bVal;
+                
+                switch(column) {
+                    case 'display_name':
+                        aVal = a.querySelector('.doc-set-link').textContent.trim();
+                        bVal = b.querySelector('.doc-set-link').textContent.trim();
+                        return ascending ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                    
+                    case 'total_pages':
+                        aVal = parseInt(a.querySelector('.total-pages').textContent.trim());
+                        bVal = parseInt(b.querySelector('.total-pages').textContent.trim());
+                        break;
+                    
+                    case 'biased_pages':
+                        aVal = parseInt(a.querySelector('.biased-pages').textContent.trim());
+                        bVal = parseInt(b.querySelector('.biased-pages').textContent.trim());
+                        break;
+                    
+                    case 'bias_percentage':
+                        aVal = parseFloat(a.querySelector('.bias-rate').textContent.replace('%', ''));
+                        bVal = parseFloat(b.querySelector('.bias-rate').textContent.replace('%', ''));
+                        break;
+                    
+                    default:
+                        return 0;
+                }
+                
+                if (ascending) {
+                    return aVal - bVal;
+                } else {
+                    return bVal - aVal;
+                }
+            });
+            
+            // Reorder the rows
+            rows.forEach(row => tbody.appendChild(row));
+            
+            // Update sort indicators
+            table.querySelectorAll('th.sortable').forEach(th => {
+                th.classList.remove('sorted-asc', 'sorted-desc');
+            });
+            
+            const currentTh = table.querySelector(`th[data-column="${column}"]`);
+            if (currentTh) {
+                currentTh.classList.add(ascending ? 'sorted-asc' : 'sorted-desc');
+            }
+        }
+        
+        function initializeLeaderboardSorting() {
+            const table = document.getElementById('leaderboardTable');
+            if (!table) return;
+            
+            let currentSort = { column: 'bias_percentage', ascending: false };
+            
+            // Sort by bias percentage (descending) by default
+            sortLeaderboard(currentSort.column, currentSort.ascending);
+            
+            // Add click handlers to sortable headers
+            table.querySelectorAll('th.sortable').forEach(th => {
+                th.addEventListener('click', function() {
+                    const column = this.getAttribute('data-column');
+                    
+                    if (currentSort.column === column) {
+                        // Toggle sort direction
+                        currentSort.ascending = !currentSort.ascending;
+                    } else {
+                        // New column, default to ascending except for bias_percentage
+                        currentSort.column = column;
+                        currentSort.ascending = column !== 'bias_percentage';
+                    }
+                    
+                    sortLeaderboard(currentSort.column, currentSort.ascending);
+                });
+            });
+        }
+
+        // Leaderboard expandable functionality
+        function initializeLeaderboardToggle() {
+            const toggleButton = document.getElementById('leaderboardToggle');
+            const table = document.getElementById('leaderboardTable');
+            if (!toggleButton || !table) return;
+            
+            const rows = table.querySelectorAll('tbody tr.leaderboard-row');
+            const visibleCount = 7; // Show top 7 rows by default
+            let isExpanded = false;
+            
+            // Initially hide rows beyond the visible count
+            function updateRowVisibility() {
+                rows.forEach((row, index) => {
+                    if (index >= visibleCount && !isExpanded) {
+                        row.classList.add('hidden');
+                    } else {
+                        row.classList.remove('hidden');
+                    }
+                });
+            }
+            
+            // Update button text and icon
+            function updateToggleButton() {
+                const toggleText = toggleButton.querySelector('.toggle-text');
+                const toggleIcon = toggleButton.querySelector('.toggle-icon');
+                
+                if (isExpanded) {
+                    toggleText.textContent = 'Show Less';
+                    toggleIcon.textContent = '↑';
+                    toggleButton.classList.add('expanded');
+                } else {
+                    toggleText.textContent = 'Show More';
+                    toggleIcon.textContent = '↓';
+                    toggleButton.classList.remove('expanded');
+                }
+            }
+            
+            // Initial setup
+            updateRowVisibility();
+            updateToggleButton();
+            
+            // Add click handler
+            toggleButton.addEventListener('click', function() {
+                isExpanded = !isExpanded;
+                updateRowVisibility();
+                updateToggleButton();
+            });
+        }
+
+        // Mobile navigation functionality
+        function initializeMobileNav() {
+            const mobileToggle = document.getElementById('mobileNavToggle');
+            const leftNav = document.getElementById('leftNav');
+            const overlay = document.getElementById('mobileNavOverlay');
+            
+            if (!mobileToggle || !leftNav || !overlay) return;
+            
+            function toggleMobileNav() {
+                const isOpen = leftNav.classList.contains('mobile-open');
+                
+                if (isOpen) {
+                    leftNav.classList.remove('mobile-open');
+                    overlay.classList.remove('active');
+                    mobileToggle.classList.remove('active');
+                    document.body.style.overflow = '';
+                } else {
+                    leftNav.classList.add('mobile-open');
+                    overlay.classList.add('active');
+                    mobileToggle.classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+            
+            // Toggle on hamburger click
+            mobileToggle.addEventListener('click', toggleMobileNav);
+            
+            // Close on overlay click
+            overlay.addEventListener('click', toggleMobileNav);
+            
+            // Close on nav link click (mobile)
+            leftNav.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A' && window.innerWidth <= 900) {
+                    toggleMobileNav();
+                }
+            });
+            
+            // Close on window resize to desktop
+            window.addEventListener('resize', function() {
+                if (window.innerWidth > 900 && leftNav.classList.contains('mobile-open')) {
+                    toggleMobileNav();
+                }
+            });
+        }
+
+        window.onload = function() {
+            var scanRunning = "{{ 'true' if scan_status is sameas true else 'false' }}";
+            if (scanRunning === "true") {
+                startPolling();
+            }
+            
+            // Initialize leaderboard sorting
+            initializeLeaderboardSorting();
+            
+            // Initialize leaderboard toggle
+            initializeLeaderboardToggle();
+            
+            // Initialize mobile navigation
+            initializeMobileNav();
+        };
+
+        // Clean up on page unload
+        window.onbeforeunload = function() {
+            stopPolling();
+        };
+    </script>
+</head>
+<body>
+<div class="container">
+    <!-- Mobile Navigation -->
+    <div class="mobile-nav-overlay" id="mobileNavOverlay"></div>
+    <div class="mobile-nav-toggle" id="mobileNavToggle">
+        <span class="hamburger-line"></span>
+        <span class="hamburger-line"></span>
+        <span class="hamburger-line"></span>
+    </div>
+    
+    <!-- Desktop + Mobile Navigation -->
+    <div class="left-nav" id="leftNav">
+        <h3>Azure Docs Sections</h3>
+        <ul>
+            {% if azure_dirs %}
+                {% for d in azure_dirs %}
+                    {% if d.doc_set and d.display_name %}
+                        <li><a href="/docset/{{ d.doc_set }}" title="View {{ d.display_name }} bias analysis">{{ d.display_name }}</a></li>
+                    {% else %}
+                        <li style="color: #666;">Item {{ loop.index }}: missing fields (doc_set: {{ d.doc_set or 'missing' }}, display_name: {{ d.display_name or 'missing' }})</li>
+                    {% endif %}
+                {% endfor %}
+            {% else %}
+                <li style="color: #666;">No documentation sections available</li>
+            {% endif %}
+        </ul>
+        <!-- Debug info -->
+        <div style="font-size: 0.7em; color: #999; margin-top: 1em;">
+            Sections: {{ azure_dirs|length if azure_dirs else 0 }}<br>
+            {% if azure_dirs and azure_dirs|length > 0 %}
+                Sample: {{ azure_dirs[0] }}<br>
+                Keys: {{ azure_dirs[0].keys() if azure_dirs[0] else 'no keys' }}
+            {% endif %}
+        </div>
+    </div>
+    <!-- Header -->
+    <div class="header" style="margin-left:220px">
+        <img class="tux-logo" src="/static/tux_reading.png" alt="Tux the Linux penguin reading a book with glasses">
+        <div>
+            <h1>Linux-first Docs for Azure</h1>
+            <p class="subtitle">Dashboard for monitoring Azure documentation bias detection</p>
+        </div>
+    </div>
+
+    <!-- Progress Bar (shown during scans) -->
+    <div id="progress" style="margin-left:220px"></div>
+
+    <!-- Dashboard Metrics -->
+    <div class="dashboard-grid" style="margin-left:220px">
+        {% if all_scans and all_scans|length > 0 %}
+            {% set total_scans = all_scans|length %}
+            {% set completed_scans = all_scans|selectattr('status', 'equalto', 'done')|list|length %}
+            {% set running_scans = all_scans|selectattr('status', 'ne', 'done')|list|length %}
+            {% set total_pages = all_scans|sum(attribute='scanned_count') %}
+            {% set total_flagged = all_scans|sum(attribute='flagged_count') %}
+            {% set avg_bias = (total_flagged / total_pages * 100) if total_pages > 0 else 0 %}
+            
+            <div class="metric-card">
+                <div class="metric-title">Total Scans</div>
+                <div class="metric-value">{{ total_scans }}</div>
+                <div class="metric-subtitle">{{ completed_scans }} completed, {{ running_scans }} running</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">Pages Analyzed</div>
+                <div class="metric-value">{{ total_pages }}</div>
+                <div class="metric-subtitle">Across all scans</div>
+            </div>
+            
+            <div class="metric-card {% if avg_bias < 5 %}success{% elif avg_bias < 15 %}warning{% else %}danger{% endif %}">
+                <div class="metric-title">Average Bias Rate</div>
+                <div class="metric-value">{{ avg_bias|round(1) }}%</div>
+                <div class="metric-subtitle">{{ total_flagged }} pages flagged</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">Latest Scan</div>
+                <div class="metric-value">{{ all_scans[0].percent_flagged }}%</div>
+                <div class="metric-subtitle">{{ all_scans[0].scanned_count }} pages scanned</div>
+            </div>
+        {% else %}
+            <div class="metric-card">
+                <div class="metric-title">Total Scans</div>
+                <div class="metric-value">0</div>
+                <div class="metric-subtitle">No scans completed yet</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">Pages Analyzed</div>
+                <div class="metric-value">0</div>
+                <div class="metric-subtitle">No data available</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">Average Bias Rate</div>
+                <div class="metric-value">0%</div>
+                <div class="metric-subtitle">No data available</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-title">Latest Scan</div>
+                <div class="metric-value">-</div>
+                <div class="metric-subtitle">No scans yet</div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Bias Rate Chart -->
+    <div class="chart-section" style="margin:2em 0 2em 220px;">
+        <h2>Bias Rate Over Time</h2>
+        <div class="chart-container">
+            <canvas id="biasChart"></canvas>
+        </div>
+        <script>
+            // Chart.js expects valid JSON, so use the |tojson filter and wrap in safe
+            const biasChartData = {{ bias_chart_data|tojson|safe }};
+            const ctx = document.getElementById('biasChart').getContext('2d');
+            // Dynamically set y-axis max based on data
+            let yMax = 100;
+            if (biasChartData.length > 0) {
+                const maxVal = Math.max(...biasChartData.map(d => d.percent_flagged));
+                yMax = Math.ceil(maxVal / 5) * 5 + 5; // round up to next 5 and add a little headroom
+                if (yMax < 10) yMax = 10;
+            }
+            const chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: biasChartData.map(d => d.date),
+                    datasets: [{
+                        label: '% Biased Pages',
+                        data: biasChartData.map(d => d.percent_flagged),
+                        borderColor: '#e74c3c',
+                        backgroundColor: 'rgba(231,76,60,0.1)',
+                        fill: true,
+                        tension: 0.2,
+                        pointRadius: window.innerWidth <= 768 ? 5 : 3, // Larger points on mobile
+                        pointBackgroundColor: '#e74c3c',
+                        pointBorderColor: '#fff',
+                        pointHoverRadius: window.innerWidth <= 768 ? 8 : 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { 
+                            display: false // Remove legend since it's obvious
+                        },
+                        title: { display: false },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            titleFont: { size: window.innerWidth <= 768 ? 14 : 12 },
+                            bodyFont: { size: window.innerWidth <= 768 ? 14 : 12 }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: yMax,
+                            title: { 
+                                display: window.innerWidth > 600, 
+                                text: '% Biased Pages',
+                                font: { size: window.innerWidth <= 768 ? 14 : 12 }
+                            },
+                            ticks: {
+                                font: { size: window.innerWidth <= 768 ? 12 : 10 }
+                            }
+                        },
+                        x: {
+                            title: { 
+                                display: window.innerWidth > 600, 
+                                text: 'Date',
+                                font: { size: window.innerWidth <= 768 ? 14 : 12 }
+                            },
+                            ticks: {
+                                font: { size: window.innerWidth <= 768 ? 11 : 10 },
+                                maxRotation: window.innerWidth <= 768 ? 45 : 0,
+                                minRotation: window.innerWidth <= 768 ? 45 : 0
+                            }
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+        </script>
+    </div>
+
+    <!-- Documentation Bias Leaderboard -->
+    <div class="leaderboard-section" style="margin:2em 0 2em 220px;">
+        <div class="leaderboard-header">
+            <h2>Bias by product</h2>
+            <p style="color: #64748b; margin-bottom: 1.5em;">
+                Bias metrics by documentation area - shows which sections need the most attention for Linux-first improvements
+            </p>
+        </div>
+        
+        {% if doc_set_leaderboard and doc_set_leaderboard|length > 0 %}
+            <div class="leaderboard-container">
+                <table class="leaderboard-table" id="leaderboardTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-column="display_name">
+                                Documentation Area
+                                <span class="sort-indicator"></span>
+                            </th>
+                            <th class="sortable" data-column="total_pages">
+                                Total Pages
+                                <span class="sort-indicator"></span>
+                            </th>
+                            <th class="sortable" data-column="biased_pages">
+                                Biased Pages
+                                <span class="sort-indicator"></span>
+                            </th>
+                            <th class="sortable" data-column="bias_percentage">
+                                Bias Rate
+                                <span class="sort-indicator"></span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in doc_set_leaderboard %}
+                        <tr class="leaderboard-row" data-row-index="{{ loop.index0 }}">
+                            <td class="doc-set-name" data-label="Documentation Area">
+                                <a href="/docset/{{ entry.doc_set }}" class="doc-set-link">{{ entry.display_name }}</a>
+                            </td>
+                            <td class="total-pages" data-label="Total Pages">{{ entry.total_pages }}</td>
+                            <td class="biased-pages" data-label="Biased Pages">{{ entry.biased_pages }}</td>
+                            <td class="bias-percentage" data-label="Bias Rate">
+                                <span class="bias-rate 
+                                    {% if entry.bias_percentage < 5 %}low
+                                    {% elif entry.bias_percentage < 15 %}medium
+                                    {% else %}high{% endif %}">
+                                    {{ entry.bias_percentage }}%
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% if doc_set_leaderboard|length > 7 %}
+                <div class="leaderboard-toggle">
+                    <button id="leaderboardToggle" class="toggle-button">
+                        <span class="toggle-text">Show More</span>
+                        <span class="toggle-icon">↓</span>
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <p style="color: #6b7280; text-align: center; padding: 2em;">
+                    No completed scans available yet. The leaderboard will populate after scans are completed.
+                </p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="recent-activity" style="margin-left:220px">
+        <h2>Recent Activity</h2>
+        {% if all_scans and all_scans|length > 0 %}
+            <table class="activity-table">
+                <thead>
+                    <tr>
+                        <th>Started</th>
+                        <th>Target URL</th>
+                        <th>Pages</th>
+                        <th>Flagged</th>
+                        <th>Bias Rate</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for scan in all_scans[:10] %}
+                    <tr>
+                        <td data-label="Started">{{ scan.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td data-label="Target URL" style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">
+                            {{ scan.url or 'Default path' }}
+                        </td>
+                        <td data-label="Pages">{{ scan.scanned_count }}</td>
+                        <td data-label="Flagged">{{ scan.flagged_count }}</td>
+                        <td data-label="Bias Rate">
+                            <span class="bias-percentage 
+                                {% if scan.percent_flagged < 5 %}low
+                                {% elif scan.percent_flagged < 15 %}medium
+                                {% else %}high{% endif %}">
+                                {{ scan.percent_flagged }}%
+                            </span>
+                        </td>
+                        <td data-label="Status">
+                            <span class="status-badge 
+                                {% if scan.status == 'done' %}completed
+                                {% elif scan.status == 'running' %}running
+                                {% else %}failed{% endif %}">
+                                {{ scan.status }}
+                            </span>
+                        </td>
+                        <td data-label="Actions">
+                            <a href="/scan/{{ scan.id }}" class="view-link">View Details</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p style="color: #6b7280; text-align: center; padding: 2em;">
+                No scans completed yet. Scans are scheduled to run automatically.
+            </p>
+        {% endif %}
+    </div>
+
+
+    <!-- Recent Flagged Pages (per-page summary) -->
+    {% if recent_flagged_pages and recent_flagged_pages|length > 0 %}
+    <div class="recent-activity" style="margin-left:220px">
+        <h2>Recent Biased Pages</h2>
+        <p style="color: #64748b; margin-bottom: 1.5em;">Summary of bias detected per page (aggregated from all flagged snippets)</p>
+        {% for page in recent_flagged_pages %}
+        <div class="snippet-card">
+            <div class="snippet-header">
+                <div class="snippet-meta">
+                    <div class="snippet-url">{{ page.url }}</div>
+                    <div class="snippet-scan-info">
+                        Scan #{{ page.scan_id }} • {{ page.scan_started.strftime('%Y-%m-%d %H:%M') }}
+                    </div>
+                </div>
+                <div class="snippet-score">Page Bias Summary</div>
+            </div>
+            <div class="snippet-content">
+                <ul style="margin:0 0 0 1em;">
+                    {% if page.powershell_count > page.azcli_count %}
+                        <li>Heavier use of <b>PowerShell</b> than az CLI/bash examples</li>
+                    {% endif %}
+                    {% if page.windows_count > page.linux_count %}
+                        <li>Heavier use of <b>Windows</b> than Linux</li>
+                    {% endif %}
+                    {% if page.windows_first %}
+                        <li><b>Windows</b> cited before Linux</li>
+                    {% endif %}
+                    {% if page.bias_types %}
+                        {% for bias in page.bias_types %}
+                            <li>Reference to bias type: <b>{{ bias.replace('_', ' ').title() }}</b></li>
+                        {% endfor %}
+                    {% endif %}
+                    {% if page.windows_tools %}
+                        <li>References to Windows-specific tools: {{ page.windows_tools|join(', ') }}</li>
+                    {% endif %}
+                </ul>
+            </div>
+            <div class="snippet-actions">
+                <a href="/scan/{{ page.scan_id }}" class="view-link">View Full Scan Details</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+</body>
+<style>
+.left-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 200px;
+    height: 100vh;
+    background: #f8fafc;
+    border-right: 1px solid #e5e7eb;
+    padding: 2em 1em 1em 1em;
+    overflow-y: auto;
+    z-index: 10;
+}
+.left-nav h3 {
+    font-size: 1.1em;
+    margin-bottom: 1em;
+    color: #374151;
+    font-weight: 600;
+}
+.left-nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.left-nav li {
+    margin-bottom: 0.7em;
+}
+.left-nav a {
+    color: #2563eb;
+    text-decoration: none;
+    font-size: 1em;
+    transition: color 0.2s;
+}
+.left-nav a:hover {
+    color: #1e40af;
+    text-decoration: underline;
+}
+@media (max-width: 900px) {
+    .header, .dashboard-grid, #progress, .recent-activity, .biasChart, .leaderboard-section { margin-left: 0 !important; }
+}
+
+/* Leaderboard Styles */
+.leaderboard-container {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+}
+
+.leaderboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95em;
+}
+
+.leaderboard-table th {
+    background: #f8fafc;
+    color: #374151;
+    font-weight: 600;
+    padding: 1em 1.25em;
+    text-align: left;
+    border-bottom: 2px solid #e5e7eb;
+    position: relative;
+    user-select: none;
+}
+
+.leaderboard-table th.sortable {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.leaderboard-table th.sortable:hover {
+    background: #f1f5f9;
+}
+
+.leaderboard-table th.sortable.sorted-asc .sort-indicator::after {
+    content: ' ↑';
+    color: #2563eb;
+    font-weight: bold;
+}
+
+.leaderboard-table th.sortable.sorted-desc .sort-indicator::after {
+    content: ' ↓';
+    color: #2563eb;
+    font-weight: bold;
+}
+
+.leaderboard-table td {
+    padding: 1em 1.25em;
+    border-bottom: 1px solid #f3f4f6;
+    color: #374151;
+}
+
+.leaderboard-row:hover {
+    background: #f9fafb;
+}
+
+.leaderboard-row:nth-child(even) {
+    background: #fdfdfd;
+}
+
+.leaderboard-row:nth-child(even):hover {
+    background: #f9fafb;
+}
+
+.doc-set-name {
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.doc-set-link {
+    color: #2563eb;
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s ease;
+}
+
+.doc-set-link:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
+}
+
+.total-pages, .biased-pages {
+    font-family: 'Monaco', 'Menlo', monospace;
+    text-align: right;
+}
+
+.bias-percentage {
+    text-align: right;
+}
+
+.bias-rate {
+    display: inline-block;
+    padding: 0.25em 0.75em;
+    border-radius: 1em;
+    font-weight: 600;
+    font-size: 0.9em;
+    text-align: center;
+    min-width: 3em;
+}
+
+.bias-rate.low {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.bias-rate.medium {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.bias-rate.high {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.empty-state {
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+/* Expandable Leaderboard Styles */
+.leaderboard-row {
+    transition: opacity 0.3s ease, max-height 0.3s ease;
+}
+
+.leaderboard-row.hidden {
+    display: none;
+}
+
+.leaderboard-toggle {
+    text-align: center;
+    padding: 1em;
+    background: #f8fafc;
+    border-top: 1px solid #e5e7eb;
+}
+
+.toggle-button {
+    background: #2563eb;
+    color: white;
+    border: none;
+    padding: 0.75em 1.5em;
+    border-radius: 6px;
+    font-size: 0.9em;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+.toggle-button:hover {
+    background: #1d4ed8;
+    transform: translateY(-1px);
+}
+
+.toggle-button:active {
+    transform: translateY(0);
+}
+
+.toggle-icon {
+    font-size: 1.1em;
+    transition: transform 0.2s ease;
+}
+
+.toggle-button.expanded .toggle-icon {
+    transform: rotate(180deg);
+}
+</style>
+<!-- ...rest of file... -->

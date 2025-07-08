@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: azuredocs-app
+data:
+  redis.conf: |
+    # Redis configuration for Kubernetes deployment
+    # Disable protected mode to allow connections from other pods
+    protected-mode no
+    
+    # Bind to all interfaces so pods can connect
+    bind 0.0.0.0
+    
+    # Set port
+    port 6379
+    
+    # Disable persistence for session storage (optional - reduces disk I/O)
+    save ""
+    appendonly no
+    
+    # Set reasonable memory usage
+    maxmemory 128mb
+    maxmemory-policy allkeys-lru
+    
+    # Timeout idle connections after 300 seconds (5 minutes)
+    timeout 300

@@ -11,5 +11,49 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+  rabbitmq:
+    image: mcr.microsoft.com/cbl-mariner/base/rabbitmq-server
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+  web:
+    build:
+      context: .
+      dockerfile: services/web/Dockerfile
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://azuredocs_user:azuredocs_pass@db:5432/azuredocs
+    ports:
+      - "8010:8000"
+    restart: always
+  worker:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    depends_on:
+      - db
+      - rabbitmq
+    environment:
+      - DATABASE_URL=postgresql://azuredocs_user:azuredocs_pass@db:5432/azuredocs
+      - RABBITMQ_HOST=rabbitmq
+    restart: always
+  mcp_server:
+    build:
+      context: ./services/mcp-server
+      dockerfile: Dockerfile
+    depends_on:
+      - db
+      - rabbitmq
+    environment:
+      - DATABASE_URL=postgresql://azuredocs_user:azuredocs_pass@db:5432/azuredocs
+      - RABBITMQ_HOST=rabbitmq
+    ports:
+      - "9000:9000"
+    restart: always
 volumes:
   pgdata:

@@ -1,0 +1,30 @@
+# requirements.txt for web service
+# Core web framework
+fastapi
+uvicorn[standard]
+python-multipart
+jinja2
+
+# Database & ORM
+sqlalchemy>=2.0
+psycopg2-binary>=2.9
+alembic
+
+# Azure services
+azure-identity
+openai
+
+# Message queue & caching
+pika==1.3.1
+redis>=4.0.0
+
+# HTTP clients
+httpx
+requests
+
+# Data processing
+markdown
+pyyaml
+
+# Monitoring
+prometheus-client>=0.19.0

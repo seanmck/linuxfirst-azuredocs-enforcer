@@ -70,6 +70,16 @@ results/
 # Environment variables and secrets
 .env
 .env.*
+*.env
+.azurepgsql.env
+
+# Terraform state files (security sensitive)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars  # Contains sensitive values
+tfplan
 
 # SQLite and other DBs
 *.db
@@ -77,6 +87,9 @@ results/
 
 # Logs
 *.log
+
+# Progress files
+*progress*.json
 
 # Misc
 *.zone.identifier

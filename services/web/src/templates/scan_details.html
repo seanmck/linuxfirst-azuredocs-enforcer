@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scan Details - Linux-first Docs for Azure</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            background: #f7fafd;
+            color: #222;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 1em auto;
+            padding: 0 1.5em;
+        }
+        .header {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+            padding: 1em 1.5em;
+            margin-bottom: 1em;
+            display: flex;
+            align-items: center;
+            gap: 1em;
+            position: relative;
+        }
+        .tux-logo {
+            max-width: 60px;
+            flex-shrink: 0;
+        }
+        h1 {
+            font-size: 1.8em;
+            font-weight: 700;
+            margin: 0;
+            color: #2563eb;
+            letter-spacing: -1px;
+        }
+        .subtitle {
+            color: #666;
+            font-size: 1em;
+            margin: 0.25em 0 0 0;
+        }
+        .scan-details {
+            background: #fff;
+            border-radius: 8px;
+            padding: 1.25em;
+            box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+            margin-bottom: 1em;
+        }
+        .scan-details h2 {
+            margin-top: 0;
+            margin-bottom: 1em;
+            color: #1f2937;
+            font-size: 1.3em;
+        }
+        .scan-details p {
+            font-size: 1em;
+            color: #374151;
+        }
+        .snippet-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .snippet-table th {
+            text-align: left;
+            padding: 1em 0.8em;
+            border-bottom: 2px solid #e5e7eb;
+            color: #6b7280;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        .snippet-table td {
+            padding: 1em 0.8em;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .snippet-table tr:hover {
+            background: #f9fafb;
+        }
+        .scan-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5em;
+            margin-bottom: 2em;
+        }
+        
+        .summary-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 1.5em;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+        }
+        
+        .summary-value {
+            font-size: 2em;
+            font-weight: 800;
+            color: #1e293b;
+            margin-bottom: 0.3em;
+        }
+        
+        .summary-label {
+            color: #64748b;
+            font-size: 0.95em;
+            font-weight: 500;
+        }
+        
+        .page-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5em;
+            margin-bottom: 1.25em;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1em;
+            padding-bottom: 0.75em;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        
+        .page-url {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #1e293b;
+            word-break: break-all;
+        }
+        
+        .page-status {
+            padding: 0.4em 0.8em;
+            border-radius: 12px;
+            font-size: 0.9em;
+            font-weight: 600;
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+        }
+        
+        .snippet-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 12px;
+            padding: 1.5em;
+            margin-bottom: 1em;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .snippet-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+        
+        .snippet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1em;
+        }
+        
+        .snippet-score {
+            padding: 0.4em 0.8em;
+            border-radius: 12px;
+            font-size: 0.9em;
+            font-weight: 700;
+            background: rgba(239, 68, 68, 0.15);
+            color: #dc2626;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+        
+        .snippet-content {
+            margin-bottom: 1em;
+        }
+        
+        .snippet-label {
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 0.5em;
+            font-size: 0.95em;
+        }
+        
+        .snippet-text {
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 8px;
+            padding: 1em;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+            line-height: 1.5;
+            color: #1e293b;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        
+        .analysis-content {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            padding: 1.5em;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        
+        .analysis-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.8em;
+            margin-bottom: 1em;
+            padding: 0.8em;
+            background: rgba(239, 68, 68, 0.05);
+            border-radius: 8px;
+            border-left: 4px solid #ef4444;
+        }
+        
+        .analysis-icon {
+            font-size: 1.2em;
+            flex-shrink: 0;
+            margin-top: 0.1em;
+        }
+        
+        .analysis-text {
+            color: #1e293b;
+            line-height: 1.5;
+            font-size: 0.95em;
+        }
+        
+        .analysis-explanation {
+            margin-top: 1.5em;
+            padding-top: 1.5em;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        
+        .explanation-label {
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 0.8em;
+            font-size: 0.95em;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .explanation-text {
+            color: #374151;
+            line-height: 1.6;
+            font-size: 0.95em;
+            background: rgba(59, 130, 246, 0.05);
+            padding: 1em;
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .no-flagged {
+            text-align: center;
+            padding: 3em;
+            color: #64748b;
+            font-size: 1.1em;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3em;
+            color: #3b82f6;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 0.3em 0.6em;
+            border-radius: 6px;
+            background: rgba(59, 130, 246, 0.1);
+            transition: all 0.3s ease;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            font-size: 0.9em;
+            flex-shrink: 0;
+        }
+        
+        .back-link:hover {
+            background: rgba(59, 130, 246, 0.2);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+        }
+        
+        .header-content {
+            display: flex;
+            align-items: center;
+            gap: 1em;
+            flex: 1;
+        }
+        
+        .stop-scan-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5em;
+            color: #dc2626;
+            background: rgba(239, 68, 68, 0.1);
+            text-decoration: none;
+            font-weight: 600;
+            padding: 0.6em 1.2em;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-left: 1em;
+        }
+        
+        .stop-scan-btn:hover {
+            background: rgba(239, 68, 68, 0.2);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(239, 68, 68, 0.2);
+        }
+        
+        .stop-scan-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        /* Mobile responsive adjustments for header */
+        @media (max-width: 768px) {
+            .container {
+                margin: 0.5em auto;
+                padding: 0 1em;
+            }
+            
+            .header {
+                padding: 0.75em 1em;
+                margin-bottom: 0.75em;
+            }
+            
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.75em;
+            }
+            
+            .back-link {
+                margin-bottom: 0;
+            }
+            
+            .header-content {
+                width: 100%;
+            }
+            
+            .tux-logo {
+                max-width: 50px;
+            }
+            
+            h1 {
+                font-size: 1.5em;
+            }
+            
+            .subtitle {
+                font-size: 0.9em;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .back-link {
+                font-size: 0.85em;
+                padding: 0.25em 0.5em;
+            }
+            
+            h1 {
+                font-size: 1.3em;
+            }
+            
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/" class="back-link">
+                &#8592; Back
+            </a>
+            <div class="header-content">
+                <img src="/static/tux_reading.png" class="tux-logo" alt="Tux Penguin">
+                <div>
+                    <h1>Scan Details</h1>
+                    <div class="subtitle">Linux-first Azure Docs Enforcer</div>
+                </div>
+            </div>
+        </div>
+        <div id="scan-details-root">
+        {% include "scan_details_partial.html" %}
+        </div>
+        <script>
+        // Real-time scan progress with WebSocket and HTTP fallback
+        const scanId = window.location.pathname.split("/").pop();
+        let websocket = null;
+        let fallbackTimer = null;
+        let isConnected = false;
+        
+        // Progress tracking
+        let currentProgress = {
+            overall: 0,
+            phase: '',
+            phase_progress: 0,
+            current_item: '',
+            eta: null,
+            activity_log: []
+        };
+        
+        // Try WebSocket connection first
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/scan/${scanId}`;
+            
+            websocket = new WebSocket(wsUrl);
+            
+            websocket.onopen = function() {
+                console.log('[WebSocket] Connected to scan progress updates');
+                isConnected = true;
+                clearInterval(fallbackTimer);
+                updateConnectionStatus(true);
+            };
+            
+            websocket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                handleProgressUpdate(data);
+            };
+            
+            websocket.onclose = function() {
+                console.log('[WebSocket] Connection closed, falling back to HTTP polling');
+                isConnected = false;
+                updateConnectionStatus(false);
+                startHttpFallback();
+            };
+            
+            websocket.onerror = function(error) {
+                console.log('[WebSocket] Error, falling back to HTTP polling:', error);
+                isConnected = false;
+                updateConnectionStatus(false);
+                startHttpFallback();
+            };
+        }
+        
+        // HTTP polling fallback
+        function startHttpFallback() {
+            if (!isConnected) {
+                pollScanDetails();
+                fallbackTimer = setInterval(pollScanDetails, 3000);
+            }
+        }
+        
+        async function pollScanDetails() {
+            // Always poll for now since WebSocket messages might not be working
+            // TODO: Re-enable WebSocket-only mode once WebSocket broadcasting is fixed
+            
+            try {
+                const resp = await fetch(`/scan/${scanId}/json`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    document.getElementById('scan-details-root').innerHTML = data.html;
+                    
+                    // Also fetch detailed progress
+                    const progressResp = await fetch(`/api/scan/${scanId}/progress`);
+                    if (progressResp.ok) {
+                        const progressData = await progressResp.json();
+                        handleProgressUpdate({
+                            type: 'progress_update',
+                            ...progressData
+                        });
+                    }
+                    
+                    if (data.status === 'done') {
+                        clearInterval(fallbackTimer);
+                    }
+                }
+            } catch (e) {
+                console.error('[Polling] Error:', e);
+            }
+        }
+        
+        function handleProgressUpdate(data) {
+            console.log('[Progress Update]', data);
+            
+            switch(data.type) {
+                case 'connected':
+                    addActivityLog('Connected to real-time updates');
+                    break;
+                    
+                case 'phase_start':
+                    currentProgress.phase = data.phase;
+                    addActivityLog(`Starting ${data.phase} phase: ${data.details?.description || ''}`);
+                    updateProgressDisplay();
+                    break;
+                    
+                case 'progress_update':
+                    // Handle cancellation status in progress updates
+                    if (data.cancellation_requested) {
+                        currentProgress.phase = 'Cancelled';
+                        currentProgress.current_item = data.cancellation_reason || 'Scan was stopped by admin';
+                        addActivityLog(`🛑 Scan cancelled: ${data.cancellation_reason || 'Manually stopped by admin'}`, 'error');
+                        
+                        // Hide the stop button if it's visible
+                        const stopBtn = document.querySelector('.stop-scan-btn');
+                        if (stopBtn) {
+                            stopBtn.style.display = 'none';
+                        }
+                    } else {
+                        currentProgress.overall = data.overall_progress || 0;
+                        currentProgress.phase = data.phase;
+                        currentProgress.phase_progress = data.progress_percentage || 0;
+                        currentProgress.current_item = data.current_item;
+                        currentProgress.eta = data.estimated_completion;
+                        
+                        if (data.current_item) {
+                            addActivityLog(`Processing: ${data.current_item}`);
+                        }
+                    }
+                    
+                    updateProgressDisplay();
+                    break;
+                    
+                case 'phase_complete':
+                    addActivityLog(`Completed ${data.phase} phase`);
+                    if (data.summary) {
+                        addActivityLog(`Summary: ${JSON.stringify(data.summary)}`);
+                    }
+                    break;
+                    
+                case 'page_result':
+                    if (data.has_bias) {
+                        addActivityLog(`⚠️ Bias detected on: ${data.page_url}`);
+                        // Could add live results here
+                    }
+                    break;
+                    
+                case 'error':
+                    addActivityLog(`❌ Error: ${data.message}`, 'error');
+                    break;
+                    
+                default:
+                    // Handle scan completion (done, cancelled, error)
+                    if (data.status === 'done' || data.status === 'error' || data.status === 'cancelled') {
+                        clearInterval(fallbackTimer);
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000); // Give a moment to see the final status
+                    }
+                    break;
+            }
+        }
+        
+        function addActivityLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            currentProgress.activity_log.unshift({
+                timestamp,
+                message,
+                type
+            });
+            
+            // Keep only last 50 entries
+            if (currentProgress.activity_log.length > 50) {
+                currentProgress.activity_log = currentProgress.activity_log.slice(0, 50);
+            }
+            
+            updateActivityDisplay();
+        }
+        
+        function updateProgressDisplay() {
+            // Update progress bar
+            const progressBar = document.getElementById('overall-progress-bar');
+            if (progressBar) {
+                progressBar.style.width = `${currentProgress.overall}%`;
+                progressBar.textContent = `${Math.round(currentProgress.overall)}%`;
+            }
+            
+            // Update phase display
+            const phaseDisplay = document.getElementById('current-phase-display');
+            if (phaseDisplay) {
+                phaseDisplay.textContent = currentProgress.phase || 'Starting...';
+            }
+            
+            // Update current item
+            const currentItemDisplay = document.getElementById('current-item-display');
+            if (currentItemDisplay && currentProgress.current_item) {
+                currentItemDisplay.textContent = currentProgress.current_item;
+            }
+            
+            // Update ETA
+            const etaDisplay = document.getElementById('eta-display');
+            if (etaDisplay && currentProgress.eta) {
+                const eta = new Date(currentProgress.eta);
+                etaDisplay.textContent = `ETA: ${eta.toLocaleTimeString()}`;
+            }
+        }
+        
+        function updateActivityDisplay() {
+            const activityFeed = document.getElementById('activity-feed');
+            if (activityFeed) {
+                activityFeed.innerHTML = currentProgress.activity_log
+                    .slice(0, 10) // Show only last 10 items
+                    .map(item => `
+                        <div class="activity-item ${item.type}">
+                            <span class="activity-time">${item.timestamp}</span>
+                            <span class="activity-message">${item.message}</span>
+                        </div>
+                    `).join('');
+            }
+        }
+        
+        function updateConnectionStatus(connected) {
+            const statusIndicator = document.getElementById('connection-status');
+            if (statusIndicator) {
+                statusIndicator.className = connected ? 'connected' : 'disconnected';
+                statusIndicator.textContent = connected ? '🟢 Live' : '🔴 Polling';
+            }
+        }
+        
+        // Initialize connection when page loads
+        window.addEventListener('DOMContentLoaded', function() {
+            connectWebSocket();
+            // Also start HTTP polling as backup since WebSocket messages may not work
+            startHttpFallback();
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (websocket) {
+                websocket.close();
+            }
+            if (fallbackTimer) {
+                clearInterval(fallbackTimer);
+            }
+        });
+        
+        // Stop scan function
+        async function stopScan(scanId) {
+            if (!confirm('Are you sure you want to stop this scan? This action cannot be undone.')) {
+                return;
+            }
+            
+            const stopBtn = document.querySelector('.stop-scan-btn');
+            if (stopBtn) {
+                stopBtn.disabled = true;
+                stopBtn.textContent = '⏹️ Stopping...';
+            }
+            
+            try {
+                const response = await fetch(`/admin/scan/${scanId}/stop`, {
+                    method: 'POST',
+                    credentials: 'include'  // Include cookies for session authentication
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    alert(result.message);
+                    // Refresh the page to show updated scan status
+                    window.location.reload();
+                } else {
+                    alert(`Failed to stop scan: ${result.message || 'Unknown error'}`);
+                    if (stopBtn) {
+                        stopBtn.disabled = false;
+                        stopBtn.textContent = '⏹️ Stop Scan';
+                    }
+                }
+            } catch (error) {
+                console.error('Error stopping scan:', error);
+                alert('Error stopping scan. Please try again.');
+                if (stopBtn) {
+                    stopBtn.disabled = false;
+                    stopBtn.textContent = '⏹️ Stop Scan';
+                }
+            }
+        }
+        </script>
+    </div>
+</body>
+</html>
