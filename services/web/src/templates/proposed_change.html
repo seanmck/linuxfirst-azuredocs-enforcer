@@ -309,7 +309,12 @@
             </div>
             <div id="diff-container">
                 <div style="padding: 1em; color: #6b7280; text-align: center;">
-                    Click to compute diff...
+                    <button id="compute-inline-diff-btn" style="background: #2563eb; color: #fff; border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        Compute Inline Diff
+                    </button>
+                    <div id="inline-diff-loading" style="display: none; color: #f59e0b;">
+                        Computing diff...
+                    </div>
                 </div>
             </div>
         </div>
@@ -322,7 +327,12 @@
             </div>
             <div id="split-diff-container">
                 <div style="padding: 1em; color: #6b7280; text-align: center;">
-                    Click to compute diff...
+                    <button id="compute-split-diff-btn" style="background: #2563eb; color: #fff; border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        Compute Split Diff
+                    </button>
+                    <div id="split-diff-loading" style="display: none; color: #f59e0b;">
+                        Computing diff...
+                    </div>
                 </div>
             </div>
         </div>
@@ -362,8 +372,20 @@
             
             // Diff computation and rendering
             function computeAndRenderDiff(original, updated, isInline = true) {
+                const loadingId = isInline ? 'inline-diff-loading' : 'split-diff-loading';
+                const buttonId = isInline ? 'compute-inline-diff-btn' : 'compute-split-diff-btn';
+                
+                // Show loading state
+                const loadingEl = document.getElementById(loadingId);
+                const buttonEl = document.getElementById(buttonId);
+                if (loadingEl) loadingEl.style.display = 'block';
+                if (buttonEl) buttonEl.style.display = 'none';
+                
                 if (!window.Diff || !window.Diff2Html) {
                     console.error('Diff libraries not loaded');
+                    const containerId = isInline ? 'diff-container' : 'split-diff-container';
+                    document.getElementById(containerId).innerHTML = 
+                        '<div style="padding: 1em; color: #ef4444;">Error: Diff libraries not loaded</div>';
                     return;
                 }
                 
@@ -406,12 +428,50 @@
                     const containerId = isInline ? 'diff-container' : 'split-diff-container';
                     document.getElementById(containerId).innerHTML = diffHtml;
                     
+                    // Hide loading state
+                    if (loadingEl) loadingEl.style.display = 'none';
+                    
                 } catch (error) {
                     console.error('Error computing diff:', error);
                     const containerId = isInline ? 'diff-container' : 'split-diff-container';
                     document.getElementById(containerId).innerHTML = 
                         '<div style="padding: 1em; color: #ef4444;">Error computing diff: ' + error.message + '</div>';
+                    
+                    // Hide loading state and show button again
+                    if (loadingEl) loadingEl.style.display = 'none';
+                    if (buttonEl) buttonEl.style.display = 'inline-block';
                 }
+            }
+            
+            // Helper function to try computing diff with current content
+            function tryComputeDiff(isInline = true, showAlerts = true) {
+                const original = document.getElementById('raw-original-markdown').textContent;
+                const updated = document.getElementById('raw-new-markdown').textContent;
+                
+                if (!original || !updated) {
+                    if (showAlerts) {
+                        alert('Content is not available yet. Please wait for the content to load.');
+                    }
+                    return false;
+                }
+                
+                if (updated === 'Generating updated version of doc...') {
+                    if (showAlerts) {
+                        alert('Content is still loading. Please wait for the updated markdown to be generated.');
+                    }
+                    return false;
+                }
+                
+                computeAndRenderDiff(original, updated, isInline);
+                
+                // Mark as computed
+                if (isInline) {
+                    diffComputed = true;
+                } else {
+                    splitDiffComputed = true;
+                }
+                
+                return true;
             }
             
             // Tab switching functionality
@@ -434,25 +494,22 @@
                         activeContent.style.display = 'block';
                     }
                     
-                    // Compute diff if needed
+                    // Compute diff if needed and content is available
                     if (tabName === 'inline-diff' && !diffComputed) {
-                        const original = document.getElementById('raw-original-markdown').textContent;
-                        const updated = document.getElementById('raw-new-markdown').textContent;
-                        
-                        if (original && updated && updated !== 'Generating updated version of doc...') {
-                            computeAndRenderDiff(original, updated, true);
-                            diffComputed = true;
-                        }
+                        tryComputeDiff(true, false); // No alerts when switching tabs
                     } else if (tabName === 'split-diff' && !splitDiffComputed) {
-                        const original = document.getElementById('raw-original-markdown').textContent;
-                        const updated = document.getElementById('raw-new-markdown').textContent;
-                        
-                        if (original && updated && updated !== 'Generating updated version of doc...') {
-                            computeAndRenderDiff(original, updated, false);
-                            splitDiffComputed = true;
-                        }
+                        tryComputeDiff(false, false); // No alerts when switching tabs
                     }
                 });
+            });
+            
+            // Add click handlers for diff computation buttons
+            document.getElementById('compute-inline-diff-btn').addEventListener('click', () => {
+                tryComputeDiff(true);
+            });
+            
+            document.getElementById('compute-split-diff-btn').addEventListener('click', () => {
+                tryComputeDiff(false);
             });
             
             const pageId = new URLSearchParams(window.location.search).get('page_id');
@@ -488,13 +545,9 @@
                             // If we're currently viewing a diff tab, recompute the diff
                             const activeTab = document.querySelector('.tab-button.active').dataset.tab;
                             if (activeTab === 'inline-diff') {
-                                const original = document.getElementById('raw-original-markdown').textContent;
-                                computeAndRenderDiff(original, data.updated_markdown, true);
-                                diffComputed = true;
+                                tryComputeDiff(true, false); // No alerts when content updates
                             } else if (activeTab === 'split-diff') {
-                                const original = document.getElementById('raw-original-markdown').textContent;
-                                computeAndRenderDiff(original, data.updated_markdown, false);
-                                splitDiffComputed = true;
+                                tryComputeDiff(false, false); // No alerts when content updates
                             }
                         } else {
                             document.getElementById('raw-new-markdown').textContent = '[Error generating updated markdown]';
