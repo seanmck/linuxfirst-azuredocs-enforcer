@@ -56,10 +56,8 @@ class RefactoredQueueWorker:
             # Process based on source type
             if source == 'github':
                 success = orchestrator.process_github_scan(url, scan_id, force_rescan)
-            elif source == 'ms-learn':
-                success = orchestrator.process_web_scan(url, scan_id, force_rescan)
             else:
-                # Default to web scan for unknown source types
+                # Default to web scan for 'ms-learn' and unknown source types
                 success = orchestrator.process_web_scan(url, scan_id, force_rescan)
                 
             if success:
