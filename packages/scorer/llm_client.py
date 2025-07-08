@@ -7,6 +7,7 @@ import re
 import json
 import time
 from shared.utils.metrics import get_metrics
+from shared.utils.logging import get_logger
 
 class LLMClient:
     def __init__(self):
@@ -14,6 +15,9 @@ class LLMClient:
         self.api_base = os.getenv("AZURE_OPENAI_ENDPOINT")
         self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT")
         self.client_id = os.getenv("AZURE_OPENAI_CLIENTID")
+        
+        # Initialize logger
+        self.logger = get_logger(__name__)
         
         # Check if we have the required credentials (either API key or managed identity)
         self.api_available = self.api_base and (self.api_key or self.client_id)
@@ -43,10 +47,10 @@ class LLMClient:
                     )
                     self.auth_method = "api_key"
             except Exception as e:
-                print(f"[WARNING] Failed to initialize Azure OpenAI client: {e}")
+                self.logger.warning(f"Failed to initialize Azure OpenAI client: {e}")
                 self.api_available = False
         else:
-            print("[WARNING] Azure OpenAI credentials not found. Using heuristic fallback for bias detection.")
+            self.logger.warning("Azure OpenAI credentials not found. Using heuristic fallback for bias detection.")
             self.client = None
         
         # Initialize metrics
@@ -188,7 +192,7 @@ Code:
                     "method": "api"
                 }
         except Exception as e:
-            print(f"[WARNING] API call failed, falling back to heuristics: {e}")
+            self.logger.warning(f"API call failed, falling back to heuristics: {e}")
             return self._heuristic_score(snippet_dict)
 
 # Example usage:
