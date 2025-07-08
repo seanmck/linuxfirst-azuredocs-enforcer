@@ -316,7 +316,7 @@ async def admin_start_scan(request: Request, url: str = Form(""), scan_type: str
     scan_id = new_scan.id
     db.close()
     # Import here to avoid circular import
-    from web.routes.scan import enqueue_scan_task
+    from .scan import enqueue_scan_task
     enqueue_scan_task(url if url else None, scan_id, source, force_rescan)
     return RedirectResponse(url=f"/scan/{scan_id}", status_code=302)
 
