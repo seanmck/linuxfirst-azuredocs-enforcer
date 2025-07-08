@@ -9,9 +9,9 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
 sys.path.insert(0, project_root)
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException
-from db import SessionLocal
+from shared.utils.database import SessionLocal
 from shared.models import Scan
-# from shared.progress_service import progress_service  # TODO: Implement progress service
+from shared.application.progress_service import progress_service
 
 router = APIRouter()
 
@@ -42,7 +42,7 @@ async def websocket_scan_progress(websocket: WebSocket, scan_id: int):
     await websocket.accept()
     
     # Register connection with progress service
-    # await progress_service.connect_websocket(scan_id, websocket)  # TODO: Implement progress service
+    await progress_service.connect_websocket(scan_id, websocket)
     
     try:
         # Keep connection alive and handle any client messages
@@ -61,8 +61,7 @@ async def websocket_scan_progress(websocket: WebSocket, scan_id: int):
         print(f"[ERROR] WebSocket error for scan {scan_id}: {e}")
     finally:
         # Unregister connection
-        # await progress_service.disconnect_websocket(scan_id, websocket)  # TODO: Implement progress service
-        pass
+        await progress_service.disconnect_websocket(scan_id, websocket)
 
 
 @router.get("/api/scan/{scan_id}/progress")

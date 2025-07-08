@@ -16,18 +16,16 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first (changes less frequently)
-COPY webui/requirements.txt /app/requirements.txt
+COPY infra/db/requirements.txt /app/requirements.txt
 
-# Install Python dependencies and Alembic (expensive layer - cache this!)
-RUN pip install --no-cache-dir -r /app/requirements.txt alembic psycopg2-binary
+# Install Python dependencies (expensive layer - cache this!)
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
 # Create directory structure
-RUN mkdir -p /app/src/shared /app/infra/db/alembic/versions
+RUN mkdir -p /app/shared /app/infra/db/alembic/versions
 
-# Copy shared models (needed for alembic migrations, changes less frequently)
-COPY src/shared/models.py /app/src/shared/models.py
-COPY src/__init__.py /app/src/__init__.py
-COPY src/shared/__init__.py /app/src/shared/__init__.py
+# Copy shared components (needed for alembic migrations, changes less frequently)
+COPY shared/ /app/shared/
 
 # Copy Alembic configuration (changes less frequently)
 COPY infra/db/alembic.ini /app/infra/db/alembic.ini

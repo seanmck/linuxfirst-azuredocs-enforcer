@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Request, Body, Query, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
-from db import SessionLocal
+from shared.utils.database import SessionLocal
 from shared.models import Page
 from packages.scorer.llm_client import LLMClient
-from jinja_env import templates
+from web.jinja_env import templates
 import os
 import time
 import re
@@ -186,7 +186,7 @@ You are an expert technical writer. Given the following original markdown and a 
 
 @router.post("/score_page_holistic")
 async def score_page_holistic(request: Request, body: dict = Body(...)):
-    mcp_url = os.getenv("MCP_SERVER_URL", "http://localhost:8001/score_page")
+    mcp_url = os.getenv("MCP_SERVER_URL", "http://localhost:9000/score_page")
     page_content = body.get("page_content")
     metadata = body.get("metadata", {})
     if not page_content:

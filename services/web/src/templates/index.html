@@ -39,8 +39,8 @@
                         <div class="progress-stat-label">Snippets Found</div>
                     </div>
                     <div class="progress-stat">
-                        <div class="progress-stat-value">${flaggedCount}</div>
-                        <div class="progress-stat-label">Flagged Snippets</div>
+                        <div class="progress-stat-value">${flaggedPages}</div>
+                        <div class="progress-stat-label">Pages Flagged</div>
                     </div>
                     <div class="progress-stat">
                         <div class="progress-stat-value">${percentFlagged.toFixed(1)}%</div>
@@ -79,8 +79,8 @@
                             <div class="progress-stat-label">Snippets Found</div>
                         </div>
                         <div class="progress-stat">
-                            <div class="progress-stat-value">${flaggedCount}</div>
-                            <div class="progress-stat-label">Flagged Snippets</div>
+                            <div class="progress-stat-value">${flaggedPages}</div>
+                            <div class="progress-stat-label">Pages Flagged</div>
                         </div>
                         <div class="progress-stat">
                             <div class="progress-stat-value">${percentFlagged.toFixed(1)}%</div>
@@ -512,8 +512,7 @@
                     maintainAspectRatio: false,
                     plugins: {
                         legend: { 
-                            display: window.innerWidth > 768, // Hide legend on mobile
-                            position: 'top'
+                            display: false // Remove legend since it's obvious
                         },
                         title: { display: false },
                         tooltip: {
@@ -539,7 +538,7 @@
                         x: {
                             title: { 
                                 display: window.innerWidth > 600, 
-                                text: 'Scan Date',
+                                text: 'Date',
                                 font: { size: window.innerWidth <= 768 ? 14 : 12 }
                             },
                             ticks: {
@@ -562,7 +561,7 @@
     <!-- Documentation Bias Leaderboard -->
     <div class="leaderboard-section" style="margin:2em 0 2em 220px;">
         <div class="leaderboard-header">
-            <h2>Documentation Bias Leaderboard</h2>
+            <h2>Bias by product</h2>
             <p style="color: #64748b; margin-bottom: 1.5em;">
                 Bias metrics by documentation area - shows which sections need the most attention for Linux-first improvements
             </p>
@@ -684,140 +683,6 @@
         {% endif %}
     </div>
 
-    <!-- Recent Flagged Snippets -->
-    {% if recent_flagged_snippets and recent_flagged_snippets|length > 0 %}
-    <div class="recent-activity" style="margin-left:220px">
-        <h2>Recent Issues Found</h2>
-        <p style="color: #64748b; margin-bottom: 1.5em;">Latest Windows-biased content detected across all scans</p>
-        
-        {% for snippet in recent_flagged_snippets %}
-        <div class="snippet-card">
-            <div class="snippet-header">
-                <div class="snippet-meta">
-                    <div class="snippet-url">{{ snippet.page_url }}</div>
-                    <div class="snippet-scan-info">
-                        Scan #{{ snippet.scan_id }} • {{ snippet.scan_started.strftime('%Y-%m-%d %H:%M') }}
-                    </div>
-                </div>
-                <div class="snippet-score">Windows Biased</div>
-            </div>
-            
-            {% if snippet.context %}
-            <div class="snippet-content">
-                <div class="snippet-label">Context:</div>
-                <div class="snippet-text">{{ snippet.context[:200] }}{% if snippet.context|length > 200 %}...{% endif %}</div>
-            </div>
-            {% endif %}
-            
-            {% if snippet.code %}
-            <div class="snippet-content">
-                <div class="snippet-label">Code Snippet:</div>
-                <div class="snippet-text">{{ snippet.code[:300] }}{% if snippet.code|length > 300 %}...{% endif %}</div>
-            </div>
-            {% endif %}
-            
-            {% if snippet.llm_score %}
-            <div class="snippet-content">
-                <div class="snippet-label">Analysis:</div>
-                <div class="analysis-content">
-                    {% if snippet.llm_score.windows_biased %}
-                        <div class="analysis-item">
-                            <span class="analysis-icon">⚠️</span>
-                            <span class="analysis-text"><strong>Windows Bias Detected:</strong> This content appears to be Windows-specific or lacks Linux alternatives.</span>
-                        </div>
-                    {% endif %}
-                    
-                    {% if snippet.llm_score.bias_types %}
-                        {% set bias_types = snippet.llm_score.bias_types %}
-                        {% if bias_types.powershell_only %}
-                            <div class="analysis-item">
-                                <span class="analysis-icon">💻</span>
-                                <span class="analysis-text"><strong>PowerShell Only:</strong> Uses PowerShell cmdlets or syntax specific to Windows.</span>
-                            </div>
-                        {% endif %}
-                        
-                        {% if bias_types.windows_paths %}
-                            <div class="analysis-item">
-                                <span class="analysis-icon">📁</span>
-                                <span class="analysis-text"><strong>Windows Paths:</strong> Uses Windows-style paths with backslashes or C:\ drive references.</span>
-                            </div>
-                        {% endif %}
-                        
-                        {% if bias_types.windows_commands %}
-                            <div class="analysis-item">
-                                <span class="analysis-icon">⚡</span>
-                                <span class="analysis-text"><strong>Windows Commands:</strong> Uses Windows-specific commands (dir, copy, del, etc.).</span>
-                            </div>
-                        {% endif %}
-                        
-                        {% if bias_types.windows_tools %}
-                            <div class="analysis-item">
-                                <span class="analysis-icon">🔧</span>
-                                <span class="analysis-text"><strong>Windows Tools:</strong> Uses Windows-only tools (regedit, msiexec, etc.).</span>
-                            </div>
-                        {% endif %}
-                        
-                        {% if bias_types.windows_specific_syntax %}
-                            <div class="analysis-item">
-                                <span class="analysis-icon">📝</span>
-                                <span class="analysis-text"><strong>Windows Syntax:</strong> Uses Windows-specific syntax (backticks, etc.).</span>
-                            </div>
-                        {% endif %}
-                        
-                        {% if bias_types.windows_registry %}
-                            <div class="analysis-item">
-                                <span class="analysis-icon">🗄️</span>
-                                <span class="analysis-text"><strong>Windows Registry:</strong> References Windows registry keys or values.</span>
-                            </div>
-                        {% endif %}
-                        
-                        {% if bias_types.windows_services %}
-                            <div class="analysis-item">
-                                <span class="analysis-icon">⚙️</span>
-                                <span class="analysis-text"><strong>Windows Services:</strong> Uses Windows service management commands.</span>
-                            </div>
-                        {% endif %}
-                        
-                        {% if bias_types.missing_linux_example %}
-                            <div class="analysis-item">
-                                <span class="analysis-icon">🐧</span>
-                                <span class="analysis-text"><strong>Missing Linux Example:</strong> The documentation does not provide equivalent examples for Linux systems.</span>
-                            </div>
-                        {% endif %}
-                    {% else %}
-                        <!-- Fallback for old data format -->
-                        {% if snippet.llm_score.missing_linux_example %}
-                            <div class="analysis-item">
-                                <span class="analysis-icon">🐧</span>
-                                <span class="analysis-text"><strong>Missing Linux Example:</strong> The documentation does not provide equivalent examples for Linux systems.</span>
-                            </div>
-                        {% endif %}
-                    {% endif %}
-                    
-                    {% if snippet.llm_score.explanation %}
-                        <div class="analysis-explanation">
-                            <div class="explanation-label">Explanation:</div>
-                            <div class="explanation-text">{{ snippet.llm_score.explanation[:150] }}{% if snippet.llm_score.explanation|length > 150 %}...{% endif %}</div>
-                        </div>
-                    {% endif %}
-                    
-                    {% if snippet.llm_score.suggested_linux_alternative %}
-                        <div class="analysis-explanation">
-                            <div class="explanation-label">Linux Alternative:</div>
-                            <div class="explanation-text">{{ snippet.llm_score.suggested_linux_alternative[:100] }}{% if snippet.llm_score.suggested_linux_alternative|length > 100 %}...{% endif %}</div>
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-            {% endif %}
-            
-            <div class="snippet-actions">
-                <a href="/scan/{{ snippet.scan_id }}" class="view-link">View Full Scan Details</a>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
 
     <!-- Recent Flagged Pages (per-page summary) -->
     {% if recent_flagged_pages and recent_flagged_pages|length > 0 %}

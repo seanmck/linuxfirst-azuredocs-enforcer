@@ -15,7 +15,7 @@ from shared.infrastructure.github_service import GitHubService
 from scoring_service import ScoringService
 from shared.infrastructure.queue_service import QueueService
 from shared.infrastructure.url_lock_service import url_lock_service
-from shared.application.progress_service import ProgressService
+from shared.application.progress_tracker import progress_tracker
 from shared.utils.metrics import get_metrics
 from packages.extractor.parser import extract_code_snippets
 
@@ -27,7 +27,7 @@ class ScanOrchestrator:
         self.db = db_session
         self.scoring_service = ScoringService()
         self.doc_queue_service = QueueService(queue_name='doc_processing')
-        self.progress_service = ProgressService()
+        # Note: Using progress_tracker directly instead of progress_service to avoid FastAPI dependency
         self.metrics = get_metrics()
 
     def _check_cancellation(self, scan_id: int) -> bool:
@@ -82,14 +82,14 @@ class ScanOrchestrator:
                 
             # Phase 1: Crawling and Document Discovery
             print(f"[INFO] Starting crawling phase for scan {scan_id}")
-            self.progress_service.start_phase(self.db, scan_id, 'crawling', {
+            progress_tracker.start_phase(self.db, scan_id, 'crawling', {
                 'description': 'Discovering and crawling web pages',
                 'target_url': url
             })
             
             crawled_results, page_objs = self._crawl_pages(url, scan, scan_id)
             if not crawled_results:
-                self.progress_service.report_error(self.db, scan_id, "No pages crawled")
+                progress_tracker.report_error(self.db, scan_id, "No pages crawled")
                 self._mark_scan_error(scan, "No pages crawled")
                 return False
                 
@@ -97,14 +97,14 @@ class ScanOrchestrator:
             if self._check_cancellation(scan_id):
                 return False
                 
-            self.progress_service.complete_phase(self.db, scan_id, 'crawling', {
+            progress_tracker.complete_phase(self.db, scan_id, 'crawling', {
                 'pages_found': len(crawled_results),
                 'pages_crawled': len(page_objs)
             })
                 
             # Phase 2: Queue Documents for Processing
             print(f"[INFO] Starting document queuing phase for scan {scan_id}")
-            self.progress_service.start_phase(self.db, scan_id, 'queuing', {
+            progress_tracker.start_phase(self.db, scan_id, 'queuing', {
                 'description': 'Queuing documents for parallel processing',
                 'total_pages': len(crawled_results)
             })
@@ -116,7 +116,7 @@ class ScanOrchestrator:
             queued_count, skipped_count = self._queue_web_documents(crawled_results, page_objs, scan_id, force_rescan)
             if queued_count == 0 and skipped_count == 0:
                 # No documents found at all - this is an error
-                self.progress_service.report_error(self.db, scan_id, "No documents queued for processing")
+                progress_tracker.report_error(self.db, scan_id, "No documents queued for processing")
                 self._mark_scan_error(scan, "No documents queued for processing")
                 return False
             elif queued_count == 0 and skipped_count > 0:
@@ -127,7 +127,7 @@ class ScanOrchestrator:
                 scan.finished_at = datetime.datetime.now(datetime.timezone.utc)
                 self.db.commit()
                 
-                self.progress_service.complete_phase(self.db, scan_id, 'queuing', {
+                progress_tracker.complete_phase(self.db, scan_id, 'queuing', {
                     'documents_queued': 0,
                     'documents_skipped': skipped_count,
                     'reason': 'no_changes_detected'
@@ -137,7 +137,7 @@ class ScanOrchestrator:
                 self.metrics.record_scan_completed('web', 'completed_no_changes', time.time() - scan_start_time)
                 return True
                 
-            self.progress_service.complete_phase(self.db, scan_id, 'queuing', {
+            progress_tracker.complete_phase(self.db, scan_id, 'queuing', {
                 'documents_queued': queued_count,
                 'documents_skipped': skipped_count
             })
@@ -200,7 +200,7 @@ class ScanOrchestrator:
                 
             # Phase 1: GitHub File Discovery
             print(f"[INFO] Starting GitHub crawling phase for scan {scan_id}")
-            self.progress_service.start_phase(self.db, scan_id, 'crawling', {
+            progress_tracker.start_phase(self.db, scan_id, 'crawling', {
                 'description': 'Fetching files from GitHub repository',
                 'github_url': url
             })
@@ -210,20 +210,20 @@ class ScanOrchestrator:
             )
             
             if not page_objs:
-                self.progress_service.report_error(self.db, scan_id, "No files discovered from GitHub")
+                progress_tracker.report_error(self.db, scan_id, "No files discovered from GitHub")
                 return False
                 
             # Check for cancellation after file discovery
             if self._check_cancellation(scan_id):
                 return False
                 
-            self.progress_service.complete_phase(self.db, scan_id, 'crawling', {
+            progress_tracker.complete_phase(self.db, scan_id, 'crawling', {
                 'files_discovered': len(page_objs)
             })
                 
             # Phase 2: Queue Documents for Processing
             print(f"[INFO] Starting GitHub document queuing phase for scan {scan_id}")
-            self.progress_service.start_phase(self.db, scan_id, 'queuing', {
+            progress_tracker.start_phase(self.db, scan_id, 'queuing', {
                 'description': 'Queuing GitHub documents for parallel processing',
                 'total_files': len(page_objs)
             })
@@ -238,7 +238,7 @@ class ScanOrchestrator:
             
             if queued_count == 0 and skipped_count == 0:
                 # No documents found at all - this is an error
-                self.progress_service.report_error(self.db, scan_id, "No GitHub documents queued for processing")
+                progress_tracker.report_error(self.db, scan_id, "No GitHub documents queued for processing")
                 self._mark_scan_error(scan, "No GitHub documents queued for processing")
                 return False
             elif queued_count == 0 and skipped_count > 0:
@@ -249,7 +249,7 @@ class ScanOrchestrator:
                 scan.finished_at = datetime.datetime.now(datetime.timezone.utc)
                 self.db.commit()
                 
-                self.progress_service.complete_phase(self.db, scan_id, 'queuing', {
+                progress_tracker.complete_phase(self.db, scan_id, 'queuing', {
                     'documents_queued': 0,
                     'documents_skipped': skipped_count,
                     'reason': 'no_changes_detected'
@@ -259,7 +259,7 @@ class ScanOrchestrator:
                 self.metrics.record_scan_completed('github', 'completed_no_changes', time.time() - scan_start_time)
                 return True
                 
-            self.progress_service.complete_phase(self.db, scan_id, 'queuing', {
+            progress_tracker.complete_phase(self.db, scan_id, 'queuing', {
                 'documents_queued': queued_count,
                 'documents_skipped': skipped_count
             })
@@ -300,7 +300,7 @@ class ScanOrchestrator:
             
             processed_count += 1
             # Report progress for each page processed
-            self.progress_service.update_phase_progress(
+            progress_tracker.update_phase_progress(
                 self.db, scan_id, 
                 items_processed=processed_count,
                 items_total=total_pages,
@@ -403,7 +403,7 @@ class ScanOrchestrator:
                     
                 processed_count += 1
                 # Report progress for each page processed
-                self.progress_service.update_phase_progress(
+                progress_tracker.update_phase_progress(
                     self.db, scan_id,
                     items_processed=processed_count,
                     items_total=total_pages,
@@ -463,7 +463,7 @@ class ScanOrchestrator:
             
             processed_count += 1
             # Report progress for each file discovered
-            self.progress_service.update_phase_progress(
+            progress_tracker.update_phase_progress(
                 self.db, scan_id,
                 items_processed=processed_count,
                 items_total=len(md_files),
@@ -591,7 +591,7 @@ class ScanOrchestrator:
                     
                 processed_count += 1
                 # Report progress for each file processed
-                self.progress_service.update_phase_progress(
+                progress_tracker.update_phase_progress(
                     self.db, scan_id,
                     items_processed=processed_count,
                     items_total=total_files,
@@ -636,7 +636,7 @@ class ScanOrchestrator:
                 
             processed_count += 1
             # Report progress for each page processed
-            self.progress_service.update_phase_progress(
+            progress_tracker.update_phase_progress(
                 self.db, scan_id,
                 items_processed=processed_count,
                 items_total=total_pages,
@@ -678,13 +678,13 @@ class ScanOrchestrator:
                 
                 # Check if bias was detected and report result
                 if snip['llm_score'].get('windows_biased'):
-                    self.progress_service.report_page_result(
+                    progress_tracker.report_page_result(
                         self.db, scan_id, snip['url'], True, snip['llm_score']
                     )
             
             processed_count += 1
             # Report progress
-            self.progress_service.update_phase_progress(
+            progress_tracker.update_phase_progress(
                 self.db, scan_id,
                 items_processed=processed_count,
                 items_total=len(flagged_snippets),
@@ -711,13 +711,13 @@ class ScanOrchestrator:
                     
                     # Check if bias was detected and report result
                     if mcp_result.get('bias_types'):
-                        self.progress_service.report_page_result(
+                        progress_tracker.report_page_result(
                             self.db, scan_id, page_url, True, mcp_result
                         )
             
             processed_count += 1
             # Report progress
-            self.progress_service.update_phase_progress(
+            progress_tracker.update_phase_progress(
                 self.db, scan_id,
                 items_processed=processed_count,
                 items_total=total_pages,
@@ -799,7 +799,7 @@ class ScanOrchestrator:
             
             processed_count += 1
             # Report progress for each file processed
-            self.progress_service.update_phase_progress(
+            progress_tracker.update_phase_progress(
                 self.db, scan_id,
                 items_processed=processed_count,
                 items_total=len(md_files),
@@ -822,7 +822,7 @@ class ScanOrchestrator:
                 
                 processed_count += 1
                 # Report progress for snippet scoring
-                self.progress_service.update_phase_progress(
+                progress_tracker.update_phase_progress(
                     self.db, scan_id,
                     items_processed=processed_count,
                     items_total=len(snippets),

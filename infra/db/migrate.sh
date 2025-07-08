@@ -14,12 +14,15 @@ echo "DATABASE_URL before processing: ${DATABASE_URL:-(not set)}"
 
 if [ -n "$AZURE_POSTGRESQL_CONNECTIONSTRING" ]; then  
   # Acquire an access token using Azure Instance Metadata Service (IMDS)
+  echo "Attempting to acquire Azure managed identity token..."
   if [ -n "$AZURE_POSTGRESQL_CLIENTID" ]; then
     # Use user-assigned managed identity
-    token=$(curl -s -H "Metadata: true" "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://ossrdbms-aad.database.windows.net&client_id=$AZURE_POSTGRESQL_CLIENTID" | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+    echo "Using user-assigned managed identity with client ID: $AZURE_POSTGRESQL_CLIENTID"
+    token=$(timeout 30 curl -s -H "Metadata: true" "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://ossrdbms-aad.database.windows.net&client_id=$AZURE_POSTGRESQL_CLIENTID" | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
   else
     # Use system-assigned managed identity
-    token=$(curl -s -H "Metadata: true" "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://ossrdbms-aad.database.windows.net" | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+    echo "Using system-assigned managed identity"
+    token=$(timeout 30 curl -s -H "Metadata: true" "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://ossrdbms-aad.database.windows.net" | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
   fi
   if [ -z "$token" ]; then
     echo "Failed to acquire access token for managed identity."
@@ -69,26 +72,56 @@ echo "DATABASE_URL length: ${#DATABASE_URL}"
 echo "Testing DATABASE_URL with Python:"
 python3 -c "
 import os
-from sqlalchemy.engine.url import make_url
-url = os.environ.get('DATABASE_URL')
-print('URL from env:', repr(url))
+import sys
+# Add project root to Python path - use current working directory since we're in /app/infra/db
+project_root = '/app'
+sys.path.insert(0, project_root)
+
 try:
-    parsed = make_url(url)
+    from shared.config import config
+    print('Shared config loaded successfully')
+    print('Database URL from config:', repr(config.database.url))
+    print('Database mode:', config.database.mode)
+    
+    from sqlalchemy.engine.url import make_url
+    parsed = make_url(config.database.url)
     print('SQLAlchemy parsing: SUCCESS')
 except Exception as e:
-    print('SQLAlchemy parsing: FAILED -', e)
+    print('Configuration loading: FAILED -', e)
+    # Fallback to direct environment variable check
+    url = os.environ.get('DATABASE_URL')
+    print('URL from env:', repr(url))
+    try:
+        from sqlalchemy.engine.url import make_url
+        parsed = make_url(url)
+        print('SQLAlchemy parsing: SUCCESS (fallback)')
+    except Exception as e2:
+        print('SQLAlchemy parsing: FAILED -', e2)
 "
 
 echo "Running Alembic migrations against $DATABASE_URL ..."
 
+# Test database connectivity first
+echo "Testing database connectivity..."
+timeout 30 bash -c "PGPASSWORD=\"$password\" psql \"$PSQL_URL\" -c 'SELECT 1;'" >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "ERROR: Cannot connect to database. Check connection string and credentials."
+    exit 1
+fi
+echo "Database connectivity test passed"
+
 # Check if tables already exist
-table_count=$(PGPASSWORD="$password" psql "$PSQL_URL" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('scans', 'pages', 'snippets');" 2>/dev/null | tr -d ' ')
+echo "Checking if database tables exist..."
+table_count=$(timeout 30 bash -c "PGPASSWORD=\"$password\" psql \"$PSQL_URL\" -t -c \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('scans', 'pages', 'snippets');\"" 2>/dev/null | tr -d ' ')
+echo "Found $table_count tables out of 3 expected tables"
 
 if [ "$table_count" = "3" ]; then
     echo "All tables already exist, checking migration state..."
     
     # Check if any migrations have been applied
-    current_revision=$(alembic -c alembic.ini current 2>&1 | grep -v "INFO" | tail -n1 || echo "")
+    echo "Checking current Alembic revision..."
+    current_revision=$(timeout 60 alembic -c alembic.ini current 2>&1 | grep -v "INFO" | tail -n1 || echo "")
+    echo "Current revision: '$current_revision'"
     
     # Check if we have an old migration reference that no longer exists
     if echo "$current_revision" | grep -q "Can't locate revision"; then
@@ -130,14 +163,60 @@ if [ "$table_count" = "3" ]; then
         echo "Current migration state: $current_revision"
     fi
     
-    alembic -c alembic.ini upgrade head
+    echo "Running Alembic upgrade to head (existing tables)..."
+    echo "Note: This may take several minutes for large tables..."
+    
+    # Use a longer timeout for potentially slow migrations
+    timeout 600 alembic -c alembic.ini upgrade head
+    migration_result=$?
+    
+    if [ $migration_result -eq 0 ]; then
+        echo "Alembic upgrade completed successfully"
+    elif [ $migration_result -eq 124 ]; then
+        echo "TIMEOUT: Alembic upgrade timed out after 10 minutes"
+        echo "This may indicate:"
+        echo "  1. A large table is being modified"
+        echo "  2. Database locks are preventing the migration"
+        echo "  3. Database performance issues"
+        echo "Check the database for active locks and long-running queries"
+        exit 1
+    else
+        echo "Alembic upgrade failed with exit code $migration_result"
+        exit 1
+    fi
 else
     echo "Tables missing (found $table_count/3), applying schema.sql first..."
     # Apply the base schema
-    PGPASSWORD="$password" psql "$PSQL_URL" -f /app/schema.sql
+    echo "Applying base schema..."
+    timeout 60 bash -c "PGPASSWORD=\"$password\" psql \"$PSQL_URL\" -f /app/schema.sql"
+    if [ $? -eq 0 ]; then
+        echo "Schema applied successfully"
+    else
+        echo "Schema application failed or timed out"
+        exit 1
+    fi
     
     echo "Schema applied, now running Alembic migrations..."
-    alembic -c alembic.ini upgrade head
+    echo "Note: This may take several minutes for large tables..."
+    
+    # Use a longer timeout for potentially slow migrations
+    timeout 600 alembic -c alembic.ini upgrade head
+    migration_result=$?
+    
+    if [ $migration_result -eq 0 ]; then
+        echo "Alembic upgrade completed successfully"
+    elif [ $migration_result -eq 124 ]; then
+        echo "TIMEOUT: Alembic upgrade timed out after 10 minutes"
+        echo "This may indicate:"
+        echo "  1. A large table is being modified"
+        echo "  2. Database locks are preventing the migration"
+        echo "  3. Database performance issues"
+        echo "Check the database for active locks and long-running queries"
+        exit 1
+    else
+        echo "Alembic upgrade failed with exit code $migration_result"
+        exit 1
+    fi
 fi
 
 echo "Database migrations completed successfully."

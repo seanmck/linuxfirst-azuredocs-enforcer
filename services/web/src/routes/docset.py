@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from db import SessionLocal
+from shared.utils.database import SessionLocal
 from shared.models import Scan, Page, Snippet
 from datetime import datetime
 from collections import defaultdict
 import os
 import json
 from urllib.parse import unquote
+from shared.utils.bias_utils import is_page_biased, count_biased_pages, get_bias_percentage
 
 router = APIRouter()
 
@@ -85,27 +86,8 @@ def get_docset_bias_history(db, doc_set):
         if not doc_set_pages:
             continue
             
-        # Count biased pages
-        biased_count = 0
-        for page in doc_set_pages:
-            is_biased = False
-            
-            # Check mcp_holistic field
-            if page.mcp_holistic and isinstance(page.mcp_holistic, dict):
-                is_biased = page.mcp_holistic.get('windows_biased', False)
-            
-            # Check snippets if not already flagged
-            if not is_biased:
-                flagged_snippets = (
-                    db.query(Snippet)
-                    .filter(Snippet.page_id == page.id)
-                    .filter(Snippet.llm_score['windows_biased'].as_boolean() == True)
-                    .count()
-                )
-                is_biased = flagged_snippets > 0
-            
-            if is_biased:
-                biased_count += 1
+        # Count biased pages using unified logic
+        biased_count = count_biased_pages(doc_set_pages)
         
         total_pages = len(doc_set_pages)
         bias_percentage = (biased_count / total_pages * 100) if total_pages > 0 else 0
@@ -137,35 +119,11 @@ def get_docset_flagged_pages(db, doc_set):
             if page.url in seen_urls:
                 continue
                 
-            # Check if page has bias
-            is_biased = False
-            bias_details = {}
+            # Check if page has bias using unified logic
+            page_is_biased = is_page_biased(page)
             
-            # Check mcp_holistic field
-            if page.mcp_holistic and isinstance(page.mcp_holistic, dict):
-                is_biased = page.mcp_holistic.get('windows_biased', False)
-                if is_biased:
-                    bias_details['mcp_holistic'] = page.mcp_holistic
-            
-            # Get flagged snippets for this page
-            flagged_snippets = (
-                db.query(Snippet)
-                .filter(Snippet.page_id == page.id)
-                .filter(Snippet.llm_score['windows_biased'].as_boolean() == True)
-                .all()
-            )
-            
-            if flagged_snippets:
-                is_biased = True
-                bias_details['snippets'] = []
-                for snippet in flagged_snippets:
-                    bias_details['snippets'].append({
-                        'context': snippet.context,
-                        'code': snippet.code,
-                        'llm_score': snippet.llm_score
-                    })
-            
-            if is_biased:
+            if page_is_biased:
+                bias_details = {'mcp_holistic': page.mcp_holistic}
                 seen_urls.add(page.url)
                 flagged_pages.append({
                     'url': page.url,
@@ -194,24 +152,8 @@ def get_docset_summary_stats(db, doc_set):
                 
             all_pages.add(page.url)
             
-            # Check if page has bias
-            is_biased = False
-            
-            # Check mcp_holistic field
-            if page.mcp_holistic and isinstance(page.mcp_holistic, dict):
-                is_biased = page.mcp_holistic.get('windows_biased', False)
-            
-            # Check snippets if not already flagged
-            if not is_biased:
-                flagged_snippets = (
-                    db.query(Snippet)
-                    .filter(Snippet.page_id == page.id)
-                    .filter(Snippet.llm_score['windows_biased'].as_boolean() == True)
-                    .count()
-                )
-                is_biased = flagged_snippets > 0
-            
-            if is_biased:
+            # Check if page has bias using unified logic
+            if is_page_biased(page):
                 biased_pages.add(page.url)
     
     total_pages = len(all_pages)

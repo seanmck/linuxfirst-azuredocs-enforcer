@@ -1,50 +1,6 @@
 {# This partial renders only the scan details section for AJAX polling #}
-<div class="scan-details">
-    <h2>Scan Information</h2>
-    
-    <!-- Real-time Progress Section -->
-    {% if scan.status != 'done' %}
-    <div class="progress-section">
-        <div class="progress-header">
-            <h3>Live Progress</h3>
-            <span id="connection-status" class="connection-status">🔴 Connecting...</span>
-        </div>
-        
-        <!-- Overall Progress Bar -->
-        <div class="progress-container">
-            <div class="progress-label">Overall Progress</div>
-            <div class="progress-bar-container">
-                <div class="progress-bar" id="overall-progress-bar" style="width: 0%">0%</div>
-            </div>
-        </div>
-        
-        <!-- Current Phase and Activity -->
-        <div class="current-activity">
-            <div class="activity-item">
-                <strong>Current Phase:</strong> <span id="current-phase-display">{{ scan.current_phase or 'Starting...' }}</span>
-            </div>
-            <div class="activity-item">
-                <strong>Processing:</strong> <span id="current-item-display">{{ scan.current_page_url or 'Initializing...' }}</span>
-            </div>
-            <div class="activity-item">
-                <strong id="eta-display">Calculating ETA...</strong>
-            </div>
-        </div>
-        
-        <!-- Activity Feed -->
-        <div class="activity-feed-container">
-            <h4>Activity Feed</h4>
-            <div id="activity-feed" class="activity-feed">
-                <div class="activity-item info">
-                    <span class="activity-time">{{ scan.started_at.strftime('%H:%M:%S') }}</span>
-                    <span class="activity-message">Scan started</span>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-    
-    <!-- Summary Cards -->
+<!-- Key Metrics (Promoted to top) -->
+<div class="key-metrics">
     <div class="scan-summary">
         <div class="summary-card">
             <div class="summary-value">{{ scanned_count }}</div>
@@ -63,6 +19,48 @@
             <div class="summary-label">% Pages Flagged</div>
         </div>
     </div>
+</div>
+
+<!-- Real-time Progress Section (Compact for running scans) -->
+{% if scan.status != 'done' %}
+<div class="progress-section-compact">
+    <div class="progress-header-compact">
+        <h3>Live Progress</h3>
+        <span id="connection-status" class="connection-status">🔴 Connecting...</span>
+    </div>
+    
+    <!-- Overall Progress Bar -->
+    <div class="progress-container">
+        <div class="progress-bar-container">
+            <div class="progress-bar" id="overall-progress-bar" style="width: 0%">0%</div>
+        </div>
+    </div>
+    
+    <!-- Current Phase and Activity (Compact) -->
+    <div class="current-activity-compact">
+        <div class="activity-item">
+            <strong>Phase:</strong> <span id="current-phase-display">{{ scan.current_phase or 'Starting...' }}</span>
+        </div>
+        <div class="activity-item">
+            <strong>Processing:</strong> <span id="current-item-display">{{ scan.current_page_url or 'Initializing...' }}</span>
+        </div>
+    </div>
+    
+    <!-- Activity Feed (Collapsible) -->
+    <details class="activity-feed-details">
+        <summary>Activity Feed</summary>
+        <div id="activity-feed" class="activity-feed">
+            <div class="activity-item info">
+                <span class="activity-time">{{ scan.started_at.strftime('%H:%M:%S') }}</span>
+                <span class="activity-message">Scan started</span>
+            </div>
+        </div>
+    </details>
+</div>
+{% endif %}
+
+<div class="scan-details">
+    <h2>Scan Information</h2>
     
     <!-- Scan Details -->
     <div class="scan-info">
@@ -104,26 +102,76 @@
 
 <!-- CSS for new components -->
 <style>
-.progress-section {
-    background: #f8fafc;
-    border-radius: 12px;
-    padding: 1.5em;
+/* Key Metrics - Promoted and Enhanced */
+.key-metrics {
     margin-bottom: 1.5em;
-    border: 1px solid #e2e8f0;
 }
 
-.progress-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+.scan-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1em;
     margin-bottom: 1em;
 }
 
-.connection-status {
-    font-size: 0.9em;
+.summary-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border-radius: 12px;
+    padding: 1.5em;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e2e8f0;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.summary-value {
+    font-size: 2.5em;
+    font-weight: 800;
+    color: #1e293b;
+    margin-bottom: 0.3em;
+    line-height: 1;
+}
+
+.summary-label {
+    color: #64748b;
+    font-size: 0.95em;
     font-weight: 600;
-    padding: 0.3em 0.8em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Compact Progress Section */
+.progress-section-compact {
+    background: #f8fafc;
     border-radius: 8px;
+    padding: 1em;
+    margin-bottom: 1em;
+    border: 1px solid #e2e8f0;
+}
+
+.progress-header-compact {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75em;
+}
+
+.progress-header-compact h3 {
+    font-size: 1.1em;
+    margin: 0;
+    color: #374151;
+}
+
+.connection-status {
+    font-size: 0.85em;
+    font-weight: 600;
+    padding: 0.2em 0.6em;
+    border-radius: 6px;
     background: #fee2e2;
     color: #dc2626;
 }
@@ -134,19 +182,13 @@
 }
 
 .progress-container {
-    margin-bottom: 1em;
-}
-
-.progress-label {
-    font-weight: 600;
-    color: #374151;
-    margin-bottom: 0.5em;
+    margin-bottom: 0.75em;
 }
 
 .progress-bar-container {
     background: #e5e7eb;
-    border-radius: 8px;
-    height: 24px;
+    border-radius: 6px;
+    height: 20px;
     position: relative;
     overflow: hidden;
 }
@@ -154,54 +196,62 @@
 .progress-bar {
     background: linear-gradient(90deg, #3b82f6, #1d4ed8);
     height: 100%;
-    border-radius: 8px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
     font-weight: 600;
-    font-size: 0.9em;
+    font-size: 0.85em;
     transition: width 0.3s ease;
-    min-width: 40px;
+    min-width: 30px;
 }
 
-.current-activity {
+.current-activity-compact {
     background: rgba(255, 255, 255, 0.8);
-    border-radius: 8px;
-    padding: 1em;
-    margin-bottom: 1em;
+    border-radius: 6px;
+    padding: 0.75em;
+    margin-bottom: 0.75em;
+    display: flex;
+    gap: 1.5em;
+    flex-wrap: wrap;
 }
 
-.activity-item {
-    margin-bottom: 0.5em;
-    font-size: 0.95em;
-}
-
-.activity-item:last-child {
+.current-activity-compact .activity-item {
+    font-size: 0.9em;
     margin-bottom: 0;
 }
 
-.activity-feed-container {
+.activity-feed-details {
     background: rgba(255, 255, 255, 0.8);
-    border-radius: 8px;
-    padding: 1em;
+    border-radius: 6px;
+    padding: 0.75em;
+}
+
+.activity-feed-details summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.95em;
+    margin-bottom: 0.5em;
 }
 
 .activity-feed {
-    max-height: 200px;
+    max-height: 150px;
     overflow-y: auto;
     background: white;
-    border-radius: 6px;
-    padding: 0.8em;
+    border-radius: 4px;
+    padding: 0.6em;
     border: 1px solid #e5e7eb;
+    margin-top: 0.5em;
 }
 
 .activity-feed .activity-item {
-    padding: 0.5em 0;
+    padding: 0.4em 0;
     border-bottom: 1px solid #f3f4f6;
     display: flex;
     gap: 1em;
-    font-size: 0.9em;
+    font-size: 0.85em;
 }
 
 .activity-feed .activity-item:last-child {
@@ -232,6 +282,41 @@
     border-radius: 8px;
     padding: 1em;
     margin-top: 1em;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+    .scan-summary {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75em;
+    }
+    
+    .summary-card {
+        padding: 1.25em;
+    }
+    
+    .summary-value {
+        font-size: 2em;
+    }
+    
+    .summary-label {
+        font-size: 0.85em;
+    }
+    
+    .current-activity-compact {
+        flex-direction: column;
+        gap: 0.5em;
+    }
+    
+    .progress-section-compact {
+        padding: 0.75em;
+    }
+}
+
+@media (max-width: 480px) {
+    .scan-summary {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 

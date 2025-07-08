@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, Form, BackgroundTasks, HTTPException, Depends, Cookie, Body, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.concurrency import run_in_threadpool
-from db import SessionLocal
+from shared.utils.database import SessionLocal
 from shared.models import Scan, Page, Snippet
 from fastapi.staticfiles import StaticFiles
 import os
@@ -21,10 +21,11 @@ import re
 import httpx
 from markdown import markdown as md_lib
 from functools import lru_cache
-from routes import admin, scan, llm, websocket, docset
-from routes.scan import enqueue_scan_task
-from jinja_env import templates
-from middleware.metrics import PrometheusMiddleware, create_metrics_endpoint
+from web.routes import admin, scan, llm, websocket, docset
+from web.routes.scan import enqueue_scan_task
+from web.jinja_env import templates
+from web.middleware.metrics import PrometheusMiddleware, create_metrics_endpoint
+from web.middleware.security import SecurityMiddleware
 from shared.utils.metrics import get_metrics
 import logging
 
@@ -47,6 +48,13 @@ test_hash = hashlib.sha256(test_password.encode()).hexdigest()
 logger.info(f"Test hash for 'admin123': {test_hash}")
 logger.info(f"Expected hash: {hashlib.sha256(os.getenv('ADMIN_PASSWORD', 'admin123').encode()).hexdigest()}")
 logger.info("=====================================")
+
+# Add security middleware first (processes requests before other middleware)
+app.add_middleware(
+    SecurityMiddleware,
+    rate_limit_per_minute=60,  # Adjust based on your needs
+    block_duration_minutes=30
+)
 
 # Add Prometheus metrics middleware
 app.add_middleware(PrometheusMiddleware, service_name="webui")
@@ -147,14 +155,11 @@ def get_doc_set_leaderboard(db):
                         )
                     ELSE NULL
                 END as doc_set,
-                -- Check if page is biased via mcp_holistic or has flagged snippets
+                -- Check if page needs attention based on bias_types in mcp_holistic
                 CASE 
-                    WHEN p.mcp_holistic->>'windows_biased' = 'true' THEN true
-                    WHEN EXISTS (
-                        SELECT 1 FROM snippets s 
-                        WHERE s.page_id = p.id 
-                        AND s.llm_score->>'windows_biased' = 'true'
-                    ) THEN true
+                    WHEN p.mcp_holistic IS NOT NULL 
+                    AND jsonb_array_length(COALESCE(p.mcp_holistic->'bias_types', '[]'::jsonb)) > 0 
+                    THEN true
                     ELSE false
                 END as is_biased
             FROM pages p
@@ -297,7 +302,7 @@ async def index(request: Request):
                 func.count(Page.id).label('total_pages'),
                 func.count(
                     case(
-                        (Page.mcp_holistic['windows_biased'].as_boolean() == True, Page.id),
+                        (func.jsonb_array_length(func.coalesce(Page.mcp_holistic['bias_types'], '[]')) > 0, Page.id),
                         else_=None
                     )
                 ).label('mcp_biased_pages')
@@ -337,29 +342,6 @@ async def index(request: Request):
             "flagged_count": flagged_count
         })
     
-    # Get the most recent flagged snippets across all scans with optimized join
-    recent_flagged_snippets = (
-        db.query(Snippet, Page.url, Scan.id, Scan.started_at)
-        .join(Page, Snippet.page_id == Page.id)
-        .join(Scan, Page.scan_id == Scan.id)
-        .filter(Snippet.llm_score["windows_biased"].as_boolean() == True)
-        .order_by(Scan.started_at.desc())
-        .limit(10)
-        .all()
-    )
-    
-    # Format the flagged snippets for display
-    formatted_snippets = []
-    for snippet_data in recent_flagged_snippets:
-        snippet, page_url, scan_id, scan_started = snippet_data
-        formatted_snippets.append({
-            "scan_id": scan_id,
-            "scan_started": scan_started,
-            "page_url": page_url,
-            "context": snippet.context,
-            "code": snippet.code,
-            "llm_score": snippet.llm_score
-        })
     
     # Show the most recent completed scan's results by default
     scan = next((s for s in scan_summaries if s["status"] == "done"), None)
@@ -514,7 +496,6 @@ async def index(request: Request):
         "last_url": scan_obj.get('url') if scan_obj else None,
         "all_scans": scan_summaries,
         "scan_id": scan_obj.get('id') if scan_obj else None,
-        "recent_flagged_snippets": formatted_snippets,
         "bias_chart_data": bias_chart_data,
         "azure_dirs": azure_dirs,
         "doc_set_leaderboard": doc_set_leaderboard

@@ -53,6 +53,10 @@ class Page(Base):
     processing_worker_id = Column(String, nullable=True)  # ID of worker processing this page
     processing_expires_at = Column(DateTime, nullable=True)  # When processing lock expires
     
+    # Retry mechanism fields
+    retry_count = Column(Integer, default=0)  # Number of retry attempts
+    last_error_at = Column(DateTime, nullable=True)  # When last error occurred
+    
     scan = relationship("Scan", back_populates="pages")
     snippets = relationship("Snippet", back_populates="page")
 

@@ -172,6 +172,10 @@ class ApplicationConfig:
     rate_limit_per_sec: int = 2
     user_agent: str = "linuxfirst-crawler"
     
+    # Retry mechanism configuration
+    max_retries: int = 3
+    retry_delay_seconds: int = 60
+    
     @classmethod
     def from_env(cls) -> 'ApplicationConfig':
         # Handle unlimited pages option
@@ -186,7 +190,9 @@ class ApplicationConfig:
             test_mode=os.getenv("TEST_MODE", "0") == "1",
             max_pages=max_pages,
             rate_limit_per_sec=int(os.getenv("RATE_LIMIT_PER_SEC", "2")),
-            user_agent=os.getenv("USER_AGENT", "linuxfirst-crawler")
+            user_agent=os.getenv("USER_AGENT", "linuxfirst-crawler"),
+            max_retries=int(os.getenv("MAX_RETRIES", "3")),
+            retry_delay_seconds=int(os.getenv("RETRY_DELAY_SECONDS", "60"))
         )
 
 

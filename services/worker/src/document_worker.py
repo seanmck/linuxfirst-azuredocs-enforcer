@@ -5,6 +5,7 @@ This enables horizontal scaling based on document count rather than scan task co
 import sys
 import os
 import time
+import datetime
 from typing import Dict, Any, List, Optional
 
 # Add the project root to the Python path
@@ -18,7 +19,7 @@ from shared.infrastructure.queue_service import QueueService
 from scoring_service import ScoringService
 from shared.infrastructure.github_service import GitHubService
 from shared.infrastructure.url_lock_service import url_lock_service
-from shared.application.progress_service import ProgressService
+from shared.application.progress_tracker import progress_tracker
 from shared.utils.database import SessionLocal
 from shared.utils.logging import get_logger
 from shared.utils.metrics import get_metrics
@@ -32,7 +33,7 @@ class DocumentWorker:
         self.queue_service = QueueService(queue_name='doc_processing')
         self.scoring_service = ScoringService()
         self.github_service = GitHubService()
-        self.progress_service = ProgressService()
+        # Note: Using progress_tracker directly instead of progress_service to avoid FastAPI dependency
         self.logger = get_logger(__name__)
         self.metrics = get_metrics()
 
@@ -72,9 +73,21 @@ class DocumentWorker:
                 return False
             
             # Check if page is already processed (idempotency check)
-            if page.status in ['processed', 'error']:
-                self.logger.info(f"Page {url} already processed with status: {page.status}")
-                return page.status == 'processed'
+            if page.status == 'processed':
+                self.logger.info(f"Page {url} already processed with status: processed")
+                return True
+            elif page.status == 'error':
+                # Implement retry mechanism for failed pages
+                if page.retry_count < config.application.max_retries:
+                    self.logger.info(f"Page {url} has error status, retrying (attempt {page.retry_count + 1}/{config.application.max_retries})")
+                    # Reset for retry
+                    page.status = 'pending'
+                    page.retry_count += 1
+                    db_session.commit()
+                    # Continue processing
+                else:
+                    self.logger.warning(f"Page {url} has exceeded max retries ({config.application.max_retries}), skipping")
+                    return True  # Acknowledge message to prevent infinite loop
             
             # Verify we have a processing lock for this URL
             content_hash = page.content_hash
@@ -113,8 +126,9 @@ class DocumentWorker:
                 # Release the URL processing lock
                 url_lock_service.release_url_lock(db_session, url, content_hash, scan_id, success=True)
                 
-                # Increment the pages_processed counter correctly
-                self.progress_service.increment_pages_processed(db_session, scan_id, url)
+                # Update progress tracking
+                current_processed = db_session.query(Page).filter(Page.scan_id == scan_id, Page.status == 'processed').count()
+                progress_tracker.update_phase_progress(db_session, scan_id, current_processed, current_item=url)
                 
                 # Record successful processing metrics
                 self.metrics.record_queue_task_processed('doc_processing', 'success', time.time() - processing_start_time)
@@ -123,6 +137,7 @@ class DocumentWorker:
                 self._check_scan_completion(db_session, scan_id)
             else:
                 page.status = 'error'
+                page.last_error_at = datetime.datetime.utcnow()
                 page.processing_started_at = None
                 page.processing_worker_id = None
                 page.processing_expires_at = None
@@ -144,6 +159,7 @@ class DocumentWorker:
             try:
                 if 'page' in locals() and 'content_hash' in locals():
                     page.status = 'error'
+                    page.last_error_at = datetime.datetime.utcnow()
                     page.processing_started_at = None
                     page.processing_worker_id = None
                     page.processing_expires_at = None
@@ -300,7 +316,7 @@ class DocumentWorker:
                         # Record bias detection
                         self.metrics.record_bias_detected('llm', 'windows')
                         
-                        self.progress_service.report_page_result(
+                        progress_tracker.report_page_result(
                             db_session, scan_id, snip['url'], True, snip['llm_score']
                         )
                         
@@ -331,7 +347,7 @@ class DocumentWorker:
                 
                 # Check if bias was detected and report result
                 if mcp_result.get('bias_types'):
-                    self.progress_service.report_page_result(
+                    progress_tracker.report_page_result(
                         db_session, scan_id, page.url, True, mcp_result
                     )
                     
