@@ -12,7 +12,7 @@ import sys
 import secrets
 import hashlib
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import time
 import pika
 from packages.scorer.llm_client import LLMClient
@@ -373,8 +373,8 @@ async def index(request: Request):
     bias_chart_data = []
     
     # Get bias snapshots for the last 30 days
-    end_date = datetime.date.today()
-    start_date = end_date - datetime.timedelta(days=30)
+    end_date = date.today()
+    start_date = end_date - timedelta(days=30)
     
     try:
         snapshots = (

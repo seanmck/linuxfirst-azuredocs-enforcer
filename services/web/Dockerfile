@@ -20,8 +20,11 @@ COPY services/web/static ./static
 # Set PYTHONPATH so modules are importable
 ENV PYTHONPATH=/app
 
+# Change working directory to web service directory to match local development
+WORKDIR /app/web
+
 # Expose port
 EXPOSE 8000
 
-# Run the web service
-CMD ["uvicorn", "web.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the web service (now from web directory, so we can use relative imports)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from shared.utils.database import SessionLocal
 from shared.models import Scan, Page, Snippet, BiasSnapshotByDocset
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from collections import defaultdict
 import os
 import json
@@ -71,11 +71,10 @@ def format_doc_set_name(doc_set):
 
 def get_docset_bias_history(db, doc_set):
     """Get historical bias data for a specific doc set."""
-    import datetime
     
     # Get bias snapshots for this docset for the last 90 days
-    end_date = datetime.date.today()
-    start_date = end_date - datetime.timedelta(days=90)
+    end_date = date.today()
+    start_date = end_date - timedelta(days=90)
     
     try:
         # Try to get data from bias snapshots first
