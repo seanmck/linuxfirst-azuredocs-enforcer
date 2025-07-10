@@ -127,13 +127,13 @@ def build_flagged_tree(flagged):
 def get_doc_set_leaderboard(db):
     """
     Get bias metrics aggregated by documentation set (e.g., virtual-machines, app-service).
-    Returns a list of doc sets with their bias statistics.
+    Returns a list of doc sets with their bias statistics from all scans (including in-progress).
     Uses efficient aggregation queries for better performance.
     """
     from sqlalchemy import func, case, text
     
     # Check cache first
-    cache_key = "doc_set_leaderboard_github"
+    cache_key = "doc_set_leaderboard_all_scans"
     cached_result = cache.get(cache_key)
     if cached_result is not None:
         print(f"[DEBUG] Using cached leaderboard data")
@@ -164,8 +164,7 @@ def get_doc_set_leaderboard(db):
                 END as is_biased
             FROM pages p
             JOIN scans sc ON p.scan_id = sc.id
-            WHERE sc.status = 'done'
-            AND p.url LIKE '%/articles/%'
+            WHERE p.url LIKE '%/articles/%'
         ),
         doc_set_aggregates AS (
             SELECT 
