@@ -105,6 +105,13 @@ class ProgressService:
         if scan.phase_progress and phase in scan.phase_progress:
             progress_percentage = scan.phase_progress[phase].get('progress_percentage', 0)
         
+        # Calculate page-based overall progress
+        overall_progress = 0
+        if scan.total_pages_found and scan.total_pages_found > 0:
+            overall_progress = (scan.pages_processed / scan.total_pages_found) * 100
+        elif scan.status == 'completed':
+            overall_progress = 100
+        
         # Broadcast progress update (handle async/sync context)
         self._safe_broadcast(scan_id, {
             'type': 'progress_update',
@@ -113,6 +120,9 @@ class ProgressService:
             'items_total': items_total or 0,
             'current_item': current_item,
             'progress_percentage': progress_percentage,
+            'overall_progress': overall_progress,
+            'total_pages_found': scan.total_pages_found,
+            'pages_processed': scan.pages_processed,
             'estimated_completion': scan.estimated_completion.isoformat() if scan.estimated_completion else None,
             'details': details
         })
@@ -191,14 +201,37 @@ class ProgressService:
     
     async def _send_initial_progress(self, scan_id: int, websocket: WebSocket):
         """Send initial progress state to a newly connected WebSocket"""
-        # This would typically fetch current scan state from database
-        # and send it to the new connection
         try:
-            await websocket.send_json({
-                'type': 'connected',
-                'scan_id': scan_id,
-                'message': 'Connected to scan progress updates'
-            })
+            from shared.utils.database import SessionLocal
+            db = SessionLocal()
+            try:
+                scan = db.query(Scan).filter(Scan.id == scan_id).first()
+                if scan:
+                    # Calculate page-based overall progress
+                    overall_progress = 0
+                    if scan.total_pages_found and scan.total_pages_found > 0:
+                        overall_progress = (scan.pages_processed / scan.total_pages_found) * 100
+                    elif scan.status == 'completed':
+                        overall_progress = 100
+                    
+                    await websocket.send_json({
+                        'type': 'initial_progress',
+                        'scan_id': scan_id,
+                        'status': scan.status,
+                        'current_phase': scan.current_phase,
+                        'overall_progress': overall_progress,
+                        'total_pages_found': scan.total_pages_found,
+                        'pages_processed': scan.pages_processed,
+                        'current_page_url': scan.current_page_url
+                    })
+                else:
+                    await websocket.send_json({
+                        'type': 'connected',
+                        'scan_id': scan_id,
+                        'message': 'Connected to scan progress updates'
+                    })
+            finally:
+                db.close()
         except Exception as e:
             logger.warning(f"Failed to send initial progress: {e}")
 

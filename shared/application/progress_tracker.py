@@ -91,11 +91,15 @@ class ProgressTracker:
             if items_total is not None:
                 progress['items_total'] = items_total
                 
-                # Only update total_pages_found if it hasn't been set yet, or if we're in the initial discovery phase
-                # This prevents overwriting the final count with intermediate values during crawling
-                if scan.total_pages_found == 0 or phase in ['crawling', 'discovery']:
+                # Update total_pages_found if it's increasing (discovery is finding more pages)
+                # or if it hasn't been set yet, or if we're in discovery-related phases
+                if (scan.total_pages_found == 0 or 
+                    items_total > scan.total_pages_found or 
+                    phase in ['crawling', 'discovery', 'discovering', 'file_discovery']):
+                    old_total = scan.total_pages_found
                     scan.total_pages_found = items_total
-                    logger.info(f"Scan {scan_id}: Updated total_pages_found to {items_total} during phase '{phase}'")
+                    if old_total != items_total:
+                        logger.info(f"Scan {scan_id}: Updated total_pages_found from {old_total} to {items_total} during phase '{phase}'")
                 else:
                     logger.debug(f"Scan {scan_id}: Skipping total_pages_found update ({scan.total_pages_found} -> {items_total}) during phase '{phase}'")
                 

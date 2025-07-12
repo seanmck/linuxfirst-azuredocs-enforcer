@@ -328,7 +328,7 @@ async def index(request: Request):
         percent_flagged = (flagged_count / scanned_count * 100) if scanned_count else 0
         
         # Update bias detection rate metrics for completed scans
-        if scan_data.status == "done" and scanned_count > 0:
+        if scan_data.status == "completed" and scanned_count > 0:
             metrics.update_bias_detection_rate(percent_flagged, 'last_scan')
         
         scan_summaries.append({
@@ -343,14 +343,14 @@ async def index(request: Request):
     
     
     # Show the most recent completed scan's results by default
-    scan = next((s for s in scan_summaries if s["status"] == "done"), None)
+    scan = next((s for s in scan_summaries if s["status"] == "completed"), None)
     last_result = None
     scan_status = False
     last_url = None
     if scan:
-        scan_status = scan["status"] != "done"
+        scan_status = scan["status"] != "completed"
         last_url = scan["url"]
-        if scan["status"] == "done":
+        if scan["status"] == "completed":
             # Get snippets for the completed scan with optimized query
             snippets_data = (
                 db.query(Snippet, Page.url)
@@ -398,7 +398,7 @@ async def index(request: Request):
                 percent_flagged = scan.get("percent_flagged")
                 scanned_count = scan.get("scanned_count")
                 status = scan.get("status")
-                if status == "done" and scanned_count and started_at is not None and percent_flagged is not None:
+                if status == "completed" and scanned_count and started_at is not None and percent_flagged is not None:
                     if hasattr(started_at, 'strftime'):
                         try:
                             bias_chart_data.append({
@@ -534,10 +534,10 @@ async def progress():
         db.close()
         return JSONResponse({"running": False, "flagged_snippets": []})
     
-    running = scan.status != "done"
+    running = scan.status != "completed"
     
     # Use computed fields when available for completed scans
-    if scan.status == "done" and scan.flagged_snippets_count is not None and scan.biased_pages_count is not None:
+    if scan.status == "completed" and scan.flagged_snippets_count is not None and scan.biased_pages_count is not None:
         # For completed scans, use the stored computed values for better performance
         scanned_count = scan.total_pages_found or 0
         flagged_count = scan.flagged_snippets_count

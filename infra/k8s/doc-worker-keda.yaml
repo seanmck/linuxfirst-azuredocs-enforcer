@@ -21,9 +21,9 @@ spec:
       serviceAccountName: sc-account-fefa7dd8-f9d3-4524-8a35-c1123a838df0
       containers:
       - name: doc-worker
-        image: seanmckdemo.azurecr.io/queue-worker:0.0.27
+        image: seanmckdemo.azurecr.io/queue-worker:0.0.37
         imagePullPolicy: Always
-        command: ["python", "worker/document_worker.py"]
+        command: ["python", "worker/changed_files_worker.py"]
         env:
         - name: ADMIN_PASSWORD
           valueFrom:
@@ -112,6 +112,8 @@ spec:
           volumeAttributes:
             secretProviderClass: "azuredocs-secrets"
       restartPolicy: Always
+      nodeSelector:
+        karpenter.sh/capacity-type: spot
 ---
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
@@ -121,13 +123,13 @@ metadata:
 spec:
   scaleTargetRef:
     name: doc-worker
-  minReplicaCount: 1
+  minReplicaCount: 0
   maxReplicaCount: 50
-  cooldownPeriod: 300
+  cooldownPeriod: 90
   triggers:
   - type: rabbitmq
     metadata:
-      queueName: doc_processing
+      queueName: changed_files
       mode: QueueLength
       value: "10"
     authenticationRef:

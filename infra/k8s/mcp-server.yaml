@@ -28,7 +28,7 @@ spec:
     spec:
       containers:
         - name: mcp-server
-          image: seanmckdemo.azurecr.io/mcp-server:0.0.7
+          image: seanmckdemo.azurecr.io/mcp-server:0.0.8
           env:            
             - name: AZURE_OPENAI_DEPLOYMENT
               valueFrom:

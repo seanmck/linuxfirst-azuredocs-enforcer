@@ -11,6 +11,12 @@ set -a
 source .env
 set +a
 
+# Ensure a virtual environment is created and activated for local development
+if [ ! -d ".venv" ]; then
+  echo "Creating a virtual environment..."
+  python3 -m venv .venv
+fi
+
 # Activate venv if exists
 if [ -d ".venv" ]; then
   source .venv/bin/activate

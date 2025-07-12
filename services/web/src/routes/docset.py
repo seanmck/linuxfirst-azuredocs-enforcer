@@ -70,7 +70,7 @@ def format_doc_set_name(doc_set):
     return name_mappings.get(doc_set, doc_set.replace('-', ' ').title())
 
 def get_docset_bias_history(db, doc_set):
-    """Get historical bias data for a specific doc set."""
+    """Get historical bias data for a specific doc set from all scans (including in-progress)."""
     
     # Get bias snapshots for this docset for the last 90 days
     end_date = date.today()
@@ -105,7 +105,7 @@ def get_docset_bias_history(db, doc_set):
     
     # Fallback to calculating from scan data if no snapshots exist
     print(f"[INFO] No bias snapshots found for docset {doc_set}, calculating from scan data")
-    completed_scans = db.query(Scan).filter(Scan.status == 'done').order_by(Scan.started_at.asc()).all()
+    completed_scans = db.query(Scan).order_by(Scan.started_at.asc()).all()
     
     bias_history = []
     for scan in completed_scans:
@@ -137,8 +137,8 @@ def get_docset_bias_history(db, doc_set):
     return bias_history
 
 def get_docset_flagged_pages(db, doc_set):
-    """Get detailed information about flagged pages for a specific doc set."""
-    completed_scans = db.query(Scan).filter(Scan.status == 'done').all()
+    """Get detailed information about flagged pages for a specific doc set from all scans."""
+    completed_scans = db.query(Scan).all()
     
     flagged_pages = []
     seen_urls = set()  # Avoid duplicates across scans
@@ -171,8 +171,8 @@ def get_docset_flagged_pages(db, doc_set):
     return flagged_pages
 
 def get_docset_summary_stats(db, doc_set):
-    """Get summary statistics for a specific doc set."""
-    completed_scans = db.query(Scan).filter(Scan.status == 'done').all()
+    """Get summary statistics for a specific doc set from all scans."""
+    completed_scans = db.query(Scan).all()
     
     all_pages = set()
     biased_pages = set()

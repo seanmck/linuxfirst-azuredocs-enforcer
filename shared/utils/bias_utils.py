@@ -1,6 +1,6 @@
 """
 Shared utilities for page-based bias detection.
-Provides consistent logic across all web UI components.
+Provides consistent logic across all UI components.
 """
 
 def is_page_biased(page):

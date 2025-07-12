@@ -41,7 +41,7 @@ class BiasSnapshotService:
             .join(Scan, Page.scan_id == Scan.id)
             .filter(
                 and_(
-                    Scan.status == 'done',
+                    Scan.status == 'completed',
                     Scan.started_at <= target_datetime
                 )
             )
@@ -109,7 +109,7 @@ class BiasSnapshotService:
             .join(Scan, Page.scan_id == Scan.id)
             .filter(
                 and_(
-                    Scan.status == 'done',
+                    Scan.status == 'completed',
                     Scan.started_at <= target_datetime
                 )
             )
@@ -240,7 +240,7 @@ class BiasSnapshotService:
         # Get all dates with completed scans
         scan_dates_query = (
             self.db.query(func.date(Scan.started_at))
-            .filter(Scan.status == 'done')
+            .filter(Scan.status == 'completed')
             .distinct()
             .order_by(func.date(Scan.started_at))
         )

@@ -30,6 +30,13 @@ async def scan_details(scan_id: int, request: Request):
     flagged_count = len(flagged_pages)
     percent_flagged = (flagged_count / scanned_count * 100) if scanned_count else 0
     
+    # Calculate initial progress for the UI
+    initial_progress = 0
+    if scan.total_pages_found and scan.total_pages_found > 0:
+        initial_progress = (scan.pages_processed / scan.total_pages_found) * 100
+    elif scan.status == 'completed':
+        initial_progress = 100
+    
     # Calculate changed pages count
     changed_pages_count = 0
     try:
@@ -89,6 +96,7 @@ async def scan_details(scan_id: int, request: Request):
         "flagged_pages": flagged_count,
         "changed_pages_count": changed_pages_count,
         "percent_flagged": round(percent_flagged, 1),
+        "initial_progress": round(initial_progress, 1),
         "bias_icon_map": bias_icon_map
     })
 
@@ -104,6 +112,13 @@ async def scan_details_json(scan_id: int, request: Request):
     flagged_pages = [p for p in pages if is_page_biased(p)]
     flagged_count = len(flagged_pages)
     percent_flagged = (flagged_count / scanned_count * 100) if scanned_count else 0
+    
+    # Calculate initial progress for the UI
+    initial_progress = 0
+    if scan.total_pages_found and scan.total_pages_found > 0:
+        initial_progress = (scan.pages_processed / scan.total_pages_found) * 100
+    elif scan.status == 'completed':
+        initial_progress = 100
     
     # Calculate changed pages count
     changed_pages_count = 0
@@ -159,6 +174,7 @@ async def scan_details_json(scan_id: int, request: Request):
         "flagged_pages": flagged_count,
         "changed_pages_count": changed_pages_count,
         "percent_flagged": round(percent_flagged, 1),
+        "initial_progress": round(initial_progress, 1),
         "bias_icon_map": bias_icon_map
     })
     return JSONResponse({

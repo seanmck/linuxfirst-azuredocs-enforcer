@@ -63,10 +63,9 @@ def validate_task_data(task_data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
     except (ValueError, TypeError):
         return False, f"Invalid scan_id: {task_data['scan_id']}"
     
-    # Validate source if present
-    source = task_data.get('source', 'web')
-    if source not in ['web', 'github']:
-        return False, f"Invalid source: {source}"
+    # Validate URL is GitHub (GitHub-only system)
+    if not is_github_url(task_data['url']):
+        return False, f"Only GitHub URLs are supported: {task_data['url']}"
     
     return True, None
 

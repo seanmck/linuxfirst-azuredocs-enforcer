@@ -1,5 +1,5 @@
 """
-DocumentWorker - Handles processing of individual documents from the doc_processing queue
+DocumentWorker - Handles processing of individual documents from the changed_files queue
 This enables horizontal scaling based on document count rather than scan task count
 """
 import sys
@@ -13,6 +13,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..
 sys.path.insert(0, project_root)
 
 from sqlalchemy.orm import Session
+from sqlalchemy import Boolean
 from shared.models import Scan, Page, Snippet
 from shared.config import config
 from shared.infrastructure.queue_service import QueueService
@@ -27,10 +28,10 @@ from packages.extractor.parser import extract_code_snippets
 
 
 class DocumentWorker:
-    """Worker that processes individual documents from the doc_processing queue"""
+    """Worker that processes individual documents from the changed_files queue"""
     
     def __init__(self):
-        self.queue_service = QueueService(queue_name='doc_processing')
+        self.queue_service = QueueService(queue_name='changed_files')
         self.scoring_service = ScoringService()
         self.github_service = GitHubService()
         # Note: Using progress_tracker directly instead of progress_service to avoid FastAPI dependency
@@ -50,9 +51,9 @@ class DocumentWorker:
         page_id = task_data.get('page_id')
         scan_id = task_data.get('scan_id')
         url = task_data.get('url')
-        source = task_data.get('source', 'web')
+        # All documents are now GitHub-only
         
-        self.logger.info(f"Processing document: {url} (page_id: {page_id}, scan_id: {scan_id}, source: {source})")
+        self.logger.info(f"Processing GitHub document: {url} (page_id: {page_id}, scan_id: {scan_id})")
         
         # Check if scan has been cancelled before processing
         if self.queue_service.is_scan_cancelled(scan_id):
@@ -108,11 +109,8 @@ class DocumentWorker:
             page.status = 'processing'
             db_session.commit()
                 
-            # Process based on source type
-            if source == 'github':
-                success = self._process_github_document(db_session, page, task_data)
-            else:
-                success = self._process_web_document(db_session, page, task_data)
+            # Process GitHub document
+            success = self._process_github_document(db_session, page, task_data)
                 
             if success:
                 # Mark page as processed
@@ -159,6 +157,7 @@ class DocumentWorker:
             try:
                 if 'page' in locals() and 'content_hash' in locals():
                     page.status = 'error'
+                    page.processing_state = 'failed'
                     page.last_error_at = datetime.datetime.utcnow()
                     page.processing_started_at = None
                     page.processing_worker_id = None
@@ -166,6 +165,15 @@ class DocumentWorker:
                     db_session.commit()
                     
                     url_lock_service.release_url_lock(db_session, url, content_hash, scan_id, success=False)
+                    
+                    # Record error in history
+                    if 'history_service' in locals() and 'file_path' in locals() and file_path:
+                        history_service.record_processing_completion(
+                            file_path, page.github_sha or 'unknown', scan_id, 'failed',
+                            int(time.time() * 1000 - processing_start_time * 1000),
+                            error_message=str(e)
+                        )
+                        
             except Exception as cleanup_error:
                 self.logger.error(f"Error during cleanup: {cleanup_error}")
             
@@ -174,60 +182,6 @@ class DocumentWorker:
         finally:
             db_session.close()
 
-    def _process_web_document(self, db_session: Session, page: Page, task_data: Dict[str, Any]) -> bool:
-        """
-        Process a web document (extract snippets, score, and holistic analysis)
-        
-        Args:
-            db_session: Database session
-            page: Page record
-            task_data: Task data containing HTML content
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            html_content = task_data.get('html_content')
-            scan_id = task_data.get('scan_id')
-            url = page.url
-            
-            if not html_content:
-                self.logger.error(f"No HTML content provided for {url}")
-                return False
-                
-            # Extract code snippets
-            snippets = extract_code_snippets(html_content)
-            all_snippets = []
-            
-            for snip in snippets:
-                snip['url'] = url
-                snippet_obj = Snippet(
-                    page_id=page.id,
-                    context=snip['context'],
-                    code=snip['code']
-                )
-                db_session.add(snippet_obj)
-                db_session.commit()
-                all_snippets.append(snip)
-                
-            self.logger.info(f"Extracted {len(all_snippets)} snippets from {url}")
-            
-            # Score snippets if any found
-            if all_snippets:
-                # Record snippet analysis metrics
-                for _ in all_snippets:
-                    self.metrics.record_snippet_analyzed('heuristic')
-                    
-                self._score_snippets(db_session, all_snippets, scan_id)
-                
-            # Apply holistic MCP scoring
-            self._apply_holistic_scoring(db_session, page, html_content, scan_id)
-            
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Error processing web document {page.url}: {e}", exc_info=True)
-            return False
 
     def _process_github_document(self, db_session: Session, page: Page, task_data: Dict[str, Any]) -> bool:
         """
@@ -286,42 +240,6 @@ class DocumentWorker:
             self.logger.error(f"Error processing GitHub document {page.url}: {e}", exc_info=True)
             return False
 
-    def _score_snippets(self, db_session: Session, snippets: List[Dict], scan_id: int):
-        """Score web snippets using heuristic and LLM scoring"""
-        try:
-            # Apply heuristic filtering first
-            flagged_snippets = self.scoring_service.apply_heuristic_scoring(snippets)
-            if not flagged_snippets:
-                flagged_snippets = snippets  # If no heuristic flags, score all
-                
-            # Score each snippet
-            for snip in flagged_snippets:
-                # Record that we're analyzing with LLM
-                self.metrics.record_snippet_analyzed('llm')
-                
-                snip['llm_score'] = self.scoring_service.llm_client.score_snippet(snip)
-                
-                # Update database
-                snippet_obj = db_session.query(Snippet).join(Page).filter(
-                    Page.url == snip['url'],
-                    Snippet.code == snip['code']
-                ).first()
-                
-                if snippet_obj:
-                    snippet_obj.llm_score = snip['llm_score']
-                    db_session.commit()
-                    
-                    # Check if bias was detected and report result
-                    if snip['llm_score'].get('windows_biased'):
-                        # Record bias detection
-                        self.metrics.record_bias_detected('llm', 'windows')
-                        
-                        progress_tracker.report_page_result(
-                            db_session, scan_id, snip['url'], True, snip['llm_score']
-                        )
-                        
-        except Exception as e:
-            self.logger.error(f"Error scoring snippets: {e}", exc_info=True)
 
     def _score_github_snippets(self, db_session: Session, snippets: List[Dict], scan_id: int):
         """Score GitHub snippets using LLM scoring"""
@@ -359,7 +277,7 @@ class DocumentWorker:
         try:
             # Get scan record
             scan = db_session.query(Scan).filter(Scan.id == scan_id).first()
-            if not scan or scan.status != 'processing':
+            if not scan or scan.status != 'in_progress':
                 return
                 
             # Count processed and error pages
@@ -405,7 +323,7 @@ class DocumentWorker:
             ).count()
             
             # Update scan record
-            scan.status = 'done'
+            scan.status = 'completed'
             scan.finished_at = datetime.datetime.now(datetime.timezone.utc)
             scan.biased_pages_count = biased_pages_count
             scan.flagged_snippets_count = flagged_snippets_count
@@ -429,6 +347,35 @@ class DocumentWorker:
         except Exception as e:
             self.logger.error(f"Error finalizing scan {scan.id}: {e}", exc_info=True)
 
+    def _extract_file_path_from_url(self, github_url: str) -> Optional[str]:
+        """Extract file path from GitHub URL for history tracking"""
+        try:
+            # Example: https://github.com/owner/repo/blob/branch/path/to/file.md
+            # Extract: path/to/file.md
+            parts = github_url.split('/blob/')
+            if len(parts) == 2:
+                # Remove branch part
+                path_with_branch = parts[1]
+                path_parts = path_with_branch.split('/', 1)
+                if len(path_parts) == 2:
+                    return path_parts[1]
+        except Exception as e:
+            self.logger.error(f"Error extracting file path from URL {github_url}: {e}")
+        return None
+    
+    def _check_bias_detected(self, db_session: Session, page_id: int) -> bool:
+        """Check if bias was detected in any snippets for this page"""
+        try:
+            biased_snippets = db_session.query(Snippet).filter(
+                Snippet.page_id == page_id,
+                Snippet.llm_score.op('->>')('windows_biased').cast(Boolean) == True
+            ).count()
+            
+            return biased_snippets > 0
+        except Exception as e:
+            self.logger.error(f"Error checking bias detection for page {page_id}: {e}")
+            return False
+    
     def start_consuming(self):
         """Start consuming document tasks from the queue"""
         self.logger.info("Document worker starting...")
