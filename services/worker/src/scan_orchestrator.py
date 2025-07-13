@@ -280,6 +280,6 @@ class ScanOrchestrator:
     def _mark_scan_error(self, scan: Scan, error_message: str):
         """Mark scan as failed with error message"""
         scan.status = 'error'
-        scan.finished_at = datetime.datetime.utcnow()
+        scan.finished_at = datetime.datetime.now(datetime.timezone.utc)
         self.db.commit()
         print(f"[ERROR] {error_message}")

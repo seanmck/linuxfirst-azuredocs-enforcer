@@ -8,7 +8,7 @@ This service replaces the inefficient file-by-file discovery approach with:
 """
 import time
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from enum import Enum
 
@@ -255,8 +255,9 @@ class GitHubDiscoveryService:
         """
         repo_full_name = parsed_url['repo_full_name']
         branch = parsed_url['branch']
+        path = parsed_url.get('path', '')
         
-        self.logger.info(f"Starting recovery discovery for {repo_full_name}, baseline coverage: {baseline.coverage:.1%}")
+        self.logger.info(f"Starting recovery discovery for {repo_full_name}:{branch} at path '{path}', baseline coverage: {baseline.coverage:.1%}, files in baseline: {len(baseline.file_map) if baseline.file_map else 0}")
         
         # Get current HEAD commit
         current_commit = self.github_service.get_head_commit(repo_full_name, branch)
@@ -272,7 +273,7 @@ class GitHubDiscoveryService:
             self.db.commit()
         
         # Get current repository state
-        tree = self.github_service.get_tree(repo_full_name, current_commit, recursive=True)
+        tree = self.github_service.get_tree(repo_full_name, current_commit, path, recursive=True)
         if not tree:
             self.logger.error(f"Could not get repository tree for {repo_full_name}:{current_commit}")
             return 0
@@ -280,19 +281,51 @@ class GitHubDiscoveryService:
         # Find files that need processing
         md_files = [f for f in tree.tree if f.path.endswith('.md') and f.type == 'blob']
         files_queued = 0
+        files_skipped = 0
+        files_changed = 0
+        files_new = 0
+        
+        # Log first few entries to debug
+        sample_logged = 0
         
         for file_obj in md_files:
             if self._should_process_file_path(file_obj.path):
+                # When scanning a subdirectory, paths from tree are relative to that directory
+                # But baseline paths are from repository root, so we need to prepend the path
+                full_path = file_obj.path
+                if path:
+                    full_path = f"{path.strip('/')}/{file_obj.path}"
+                
                 # Check if we have this file in our baseline
-                baseline_sha = baseline.file_map.get(file_obj.path) if baseline.file_map else None
+                baseline_sha = baseline.file_map.get(full_path) if baseline.file_map else None
+                
+                # Debug logging for first few files
+                if sample_logged < 10:  # Increased to see more examples
+                    if not baseline_sha:
+                        self.logger.info(f"File not in baseline: '{full_path}' (tree path: '{file_obj.path}')")
+                        # Log a few baseline keys to see format
+                        if sample_logged == 0 and baseline.file_map:
+                            sample_keys = list(baseline.file_map.keys())[:5]
+                            self.logger.info(f"Sample baseline paths: {sample_keys}")
+                            # Also check if any baseline paths start with 'articles/'
+                            articles_count = sum(1 for k in baseline.file_map.keys() if k.startswith('articles/'))
+                            self.logger.info(f"Baseline has {articles_count} paths starting with 'articles/'")
+                    else:
+                        self.logger.info(f"File found in baseline: '{full_path}' with sha {baseline_sha[:8]}")
+                    sample_logged += 1
                 
                 if baseline_sha != file_obj.sha:
                     # File changed or is new, queue for processing
-                    change_type = 'modified' if baseline_sha else 'added'
+                    if baseline_sha:
+                        files_changed += 1
+                        change_type = 'modified'
+                    else:
+                        files_new += 1
+                        change_type = 'added'
                     
                     message = {
                         'scan_id': scan_id,
-                        'path': file_obj.path,
+                        'path': full_path,  # Use full path from repository root
                         'sha': file_obj.sha,
                         'change_type': change_type,
                         'commit_sha': current_commit
@@ -304,7 +337,10 @@ class GitHubDiscoveryService:
                         self.queue_service.disconnect()
                     else:
                         self.logger.error(f"Failed to connect to queue for publishing file: {file_obj.path}")
+                else:
+                    files_skipped += 1
                         
+        self.logger.info(f"Recovery discovery complete: {files_queued} queued ({files_new} new, {files_changed} changed), {files_skipped} skipped")
         return files_queued
     
     def _should_process_file(self, file_change) -> bool:
@@ -391,7 +427,7 @@ class BaselineManager:
         # Choose optimal strategy
         if complete_baseline and complete_baseline.age < timedelta(days=7):
             return complete_baseline
-        elif partial_baselines.coverage > 0.8:
+        elif partial_baselines.type == BaselineType.PARTIAL:
             return partial_baselines
         else:
             return BaselineInfo(type=BaselineType.NONE, reason="No suitable baseline found")
@@ -401,12 +437,12 @@ class BaselineManager:
         try:
             last_scan = self.db.query(Scan).filter(
                 Scan.url == repo_url,
-                Scan.status == 'done',
+                Scan.status == 'completed',
                 Scan.last_commit_sha.isnot(None)
             ).order_by(Scan.finished_at.desc()).first()
             
             if last_scan:
-                age = datetime.utcnow() - last_scan.finished_at if last_scan.finished_at else timedelta(days=999)
+                age = datetime.now(timezone.utc) - last_scan.finished_at if last_scan.finished_at else timedelta(days=999)
                 return BaselineInfo(
                     type=BaselineType.COMPLETE,
                     commit_sha=last_scan.last_commit_sha,
@@ -433,15 +469,16 @@ class BaselineManager:
             # Get scan IDs from recent processing history
             recent_scans = self.db.query(Scan).filter(
                 Scan.url == repo_url,
-                Scan.started_at >= datetime.utcnow() - timedelta(days=30)
-            ).order_by(Scan.started_at.desc()).limit(5).all()
+                Scan.started_at >= datetime.now(timezone.utc) - timedelta(days=30)
+            ).order_by(Scan.started_at.desc()).limit(10).all()
             
             scan_ids = [scan.id for scan in recent_scans]
             
             # Calculate coverage (rough estimate based on typical repo size)
-            coverage = min(len(file_map) / 1000, 1.0)  # Assume ~1000 files max
+            # Azure docs has ~20,000+ markdown files
+            coverage = min(len(file_map) / 13500, 1.0)  # More realistic for large repos
             
-            if coverage > 0.5:
+            if coverage > 0.1:  # Use partial baseline if we have at least 10% coverage
                 return BaselineInfo(
                     type=BaselineType.PARTIAL,
                     file_map=file_map,

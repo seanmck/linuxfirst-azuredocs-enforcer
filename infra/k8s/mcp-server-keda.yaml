@@ -72,7 +72,7 @@ metadata:
 spec:
   scaleTargetRef:
     name: mcp-server
-  minReplicaCount: 1
+  minReplicaCount: 3
   maxReplicaCount: 10
   cooldownPeriod: 60
   triggers:

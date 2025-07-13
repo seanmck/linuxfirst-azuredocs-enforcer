@@ -168,6 +168,7 @@ class ApplicationConfig:
     environment: str = "development"
     debug: bool = False
     test_mode: bool = False
+    user_agent: str = "Azure-Docs-Enforcer/1.0"
     # Web crawling configs removed - GitHub-only focus
     
     # Retry mechanism configuration
@@ -182,6 +183,7 @@ class ApplicationConfig:
             environment=os.getenv("ENVIRONMENT", "development"),
             debug=os.getenv("DEBUG", "false").lower() == "true",
             test_mode=os.getenv("TEST_MODE", "0") == "1",
+            user_agent=os.getenv("USER_AGENT", "Azure-Docs-Enforcer/1.0"),
             # Web crawling configs removed - GitHub-only focus
             max_retries=int(os.getenv("MAX_RETRIES", "3")),
             retry_delay_seconds=int(os.getenv("RETRY_DELAY_SECONDS", "60"))

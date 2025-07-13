@@ -38,7 +38,7 @@ class ProgressTracker:
             scan.phase_progress = {}
             
         # Record phase start time
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         scan.current_phase = phase
         scan.phase_timestamps[phase] = {
             'started': now.isoformat(),
@@ -136,7 +136,7 @@ class ProgressTracker:
             
         # Update phase completion
         if scan.phase_timestamps and phase in scan.phase_timestamps:
-            scan.phase_timestamps[phase]['finished'] = datetime.datetime.utcnow().isoformat()
+            scan.phase_timestamps[phase]['finished'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
             
         if scan.phase_progress and phase in scan.phase_progress:
             scan.phase_progress[phase]['completed'] = True
@@ -164,7 +164,7 @@ class ProgressTracker:
             
         # Add error to log
         error_entry = {
-            'timestamp': datetime.datetime.utcnow().isoformat(),
+            'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat(),
             'message': error_message,
             'phase': scan.current_phase,
             'current_item': scan.current_page_url,
@@ -192,7 +192,7 @@ class ProgressTracker:
             return
             
         start_time = self.phase_start_times[scan_id][phase]
-        elapsed = datetime.datetime.utcnow() - start_time
+        elapsed = datetime.datetime.now(datetime.timezone.utc) - start_time
         
         # Calculate processing rate
         processing_rate = items_processed / elapsed.total_seconds()  # items per second
@@ -200,7 +200,7 @@ class ProgressTracker:
         if processing_rate > 0:
             remaining_items = items_total - items_processed
             remaining_seconds = remaining_items / processing_rate
-            scan.estimated_completion = datetime.datetime.utcnow() + datetime.timedelta(seconds=remaining_seconds)
+            scan.estimated_completion = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=remaining_seconds)
             
             # Update performance metrics
             if not scan.performance_metrics:

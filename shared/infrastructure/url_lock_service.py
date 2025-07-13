@@ -70,7 +70,7 @@ class UrlLockService:
                 return False, "Content unchanged since last processing"
             
             # Attempt to acquire lock
-            now = datetime.datetime.utcnow()
+            now = datetime.datetime.now(datetime.timezone.utc)
             expires_at = now + datetime.timedelta(minutes=self.lock_timeout_minutes)
             
             processing_lock = ProcessingUrl(
@@ -240,7 +240,7 @@ class UrlLockService:
             Number of locks cleaned up
         """
         try:
-            now = datetime.datetime.utcnow()
+            now = datetime.datetime.now(datetime.timezone.utc)
             
             # Find expired locks
             expired_locks = db.query(ProcessingUrl).filter(

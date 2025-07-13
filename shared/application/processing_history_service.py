@@ -198,7 +198,7 @@ class ProcessingHistoryService:
             ).filter(
                 and_(
                     Scan.url == repo_url,
-                    FileProcessingHistory.processing_result == 'completed',
+                    FileProcessingHistory.processing_result == 'processed',
                     FileProcessingHistory.processed_at >= cutoff_date
                 )
             ).distinct().all()

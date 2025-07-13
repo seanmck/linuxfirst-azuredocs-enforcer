@@ -13,6 +13,7 @@ from shared.config import config
 from shared.utils.logging import get_logger
 
 
+
 class GitHubService:
     """Service responsible for GitHub repository scanning operations"""
     
@@ -23,8 +24,6 @@ class GitHubService:
         
         self.github_client = Github(self.github_token)
         self.logger = get_logger(__name__)
-        
-        # No need to cache rate limit - we'll check it from GitHub API directly
 
     def _check_rate_limit(self):
         """
@@ -55,7 +54,7 @@ class GitHubService:
         except Exception as e:
             # Don't let rate limit checking break the actual operation
             self.logger.warning(f"Could not check rate limit: {e}")
-    
+
 
     def parse_github_url(self, url: str) -> Optional[Dict[str, str]]:
         """
@@ -245,6 +244,8 @@ class GitHubService:
 
     def generate_github_url(self, repo_full_name: str, branch: str, file_path: str) -> str:
         """Generate GitHub blob URL for a file"""
+        # Strip leading slash from file_path to avoid double slashes
+        file_path = file_path.lstrip('/')
         return f"https://github.com/{repo_full_name}/blob/{branch}/{file_path}"
 
     def get_file_metadata(self, repo_full_name: str, file_path: str, branch: str) -> Optional[Dict[str, str]]:

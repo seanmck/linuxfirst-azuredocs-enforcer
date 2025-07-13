@@ -49,7 +49,7 @@ class ProgressService:
             return
             
         # Add timestamp to progress data
-        progress_data['timestamp'] = datetime.datetime.utcnow().isoformat()
+        progress_data['timestamp'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
         
         disconnected = set()
         for websocket in self.connections[scan_id]:

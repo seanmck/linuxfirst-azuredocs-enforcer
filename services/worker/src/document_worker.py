@@ -6,6 +6,7 @@ import sys
 import os
 import time
 import datetime
+import hashlib
 from typing import Dict, Any, List, Optional
 
 # Add the project root to the Python path
@@ -21,6 +22,7 @@ from scoring_service import ScoringService
 from shared.infrastructure.github_service import GitHubService
 from shared.infrastructure.url_lock_service import url_lock_service
 from shared.application.progress_tracker import progress_tracker
+from shared.application.processing_history_service import ProcessingHistoryService
 from shared.utils.database import SessionLocal
 from shared.utils.logging import get_logger
 from shared.utils.metrics import get_metrics
@@ -37,81 +39,100 @@ class DocumentWorker:
         # Note: Using progress_tracker directly instead of progress_service to avoid FastAPI dependency
         self.logger = get_logger(__name__)
         self.metrics = get_metrics()
+        self.worker_id = f"document_worker_{os.getpid()}_{int(time.time())}"
 
-    def process_document_task(self, task_data: Dict[str, Any]) -> bool:
+    def process_document_task(self, message: Dict[str, Any]) -> bool:
         """
-        Process a single document task from the queue
+        Process a single file change message from the queue
         
         Args:
-            task_data: Dictionary containing document processing information
+            message: File change message from GitHubDiscoveryService
             
         Returns:
             True if successful, False otherwise
         """
-        page_id = task_data.get('page_id')
-        scan_id = task_data.get('scan_id')
-        url = task_data.get('url')
-        # All documents are now GitHub-only
+        scan_id = message.get('scan_id')
+        file_path = message.get('path')
+        file_sha = message.get('sha')
+        change_type = message.get('change_type')
+        commit_sha = message.get('commit_sha')
         
-        self.logger.info(f"Processing GitHub document: {url} (page_id: {page_id}, scan_id: {scan_id})")
+        self.logger.info(f"Processing file change: {file_path} (scan_id: {scan_id}, change_type: {change_type})")
         
-        # Check if scan has been cancelled before processing
-        if self.queue_service.is_scan_cancelled(scan_id):
-            self.logger.info(f"Scan {scan_id} was cancelled, skipping document processing for {url}")
+        # Check if scan has been cancelled
+        if self._is_scan_cancelled(scan_id):
+            self.logger.info(f"Scan {scan_id} was cancelled, skipping file processing for {file_path}")
             return True
         
-        # Record queue task processing start
+        # Record file processing start time
         processing_start_time = time.time()
         
         # Create database session
         db_session = SessionLocal()
         
         try:
-            # Get page record
-            page = db_session.query(Page).filter(Page.id == page_id).first()
-            if not page:
-                self.logger.error(f"Page with ID {page_id} not found")
+            # Get scan record
+            scan = db_session.query(Scan).filter(Scan.id == scan_id).first()
+            if not scan:
+                self.logger.error(f"Scan with ID {scan_id} not found")
                 return False
             
-            # Check if page is already processed (idempotency check)
-            if page.status == 'processed':
-                self.logger.info(f"Page {url} already processed with status: processed")
+            # Parse GitHub URL to get repo info
+            parsed_url = self.github_service.parse_github_url(scan.url)
+            if not parsed_url:
+                self.logger.error(f"Could not parse GitHub URL: {scan.url}")
+                return False
+            
+            repo_full_name = parsed_url['repo_full_name']
+            branch = parsed_url['branch']
+            
+            # Generate GitHub URL for this file
+            github_url = self.github_service.generate_github_url(repo_full_name, branch, file_path)
+            
+            # Skip Windows-focused files
+            if self.github_service.is_windows_focused_url(github_url):
+                self.logger.info(f"Skipping Windows-focused file: {github_url}")
                 return True
-            elif page.status == 'error':
-                # Implement retry mechanism for failed pages
-                if page.retry_count < config.application.max_retries:
-                    self.logger.info(f"Page {url} has error status, retrying (attempt {page.retry_count + 1}/{config.application.max_retries})")
-                    # Reset for retry
-                    page.status = 'pending'
-                    page.retry_count += 1
+            
+            # Handle deleted files
+            if change_type == 'removed':
+                return self._handle_deleted_file(db_session, scan_id, github_url, file_path)
+            
+            # Get file content
+            file_content = self.github_service.get_file_content(repo_full_name, file_path, branch)
+            if not file_content:
+                self.logger.warning(f"Could not get file content for {file_path}, skipping file")
+                # Mark page as skipped
+                page = self._create_or_update_page(db_session, scan_id, github_url, file_path, file_sha, "")
+                if page:
+                    page.status = 'skipped_unreadable'
                     db_session.commit()
-                    # Continue processing
-                else:
-                    self.logger.warning(f"Page {url} has exceeded max retries ({config.application.max_retries}), skipping")
-                    return True  # Acknowledge message to prevent infinite loop
+                # Update scan progress
+                self._update_scan_progress(db_session, scan_id)
+                return True  # Return True to acknowledge message and move on
             
-            # Verify we have a processing lock for this URL
-            content_hash = page.content_hash
-            if not content_hash:
-                self.logger.warning(f"Page {url} missing content_hash, processing anyway")
-                content_hash = "unknown"
+            # Skip Windows-focused content
+            if self.github_service.is_windows_focused_content(file_content):
+                self.logger.info(f"Skipping Windows-focused content: {file_path}")
+                return True
             
-            is_locked, lock_scan_id = url_lock_service.is_url_locked(db_session, url, content_hash)
-            if not is_locked or lock_scan_id != scan_id:
-                self.logger.warning(f"No valid processing lock found for {url} (scan {scan_id})")
-                # Process anyway, but log the issue
-                
-            # Update page processing metadata
-            import datetime
-            page.processing_started_at = datetime.datetime.utcnow()
-            page.processing_worker_id = url_lock_service.worker_id
-            page.processing_expires_at = datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
-            page.status = 'processing'
-            db_session.commit()
-                
-            # Process GitHub document
-            success = self._process_github_document(db_session, page, task_data)
-                
+            # Create processing history service
+            history_service = ProcessingHistoryService(db_session)
+            
+            # Record processing start
+            history_id = history_service.record_processing_start(
+                file_path, file_sha, scan_id, self.worker_id, commit_sha
+            )
+            
+            # Create or update page record
+            page = self._create_or_update_page(db_session, scan_id, github_url, file_path, file_sha, file_content)
+            if not page:
+                self.logger.error(f"Could not create page record for {file_path}")
+                return False
+            
+            # Process the document (extract code blocks, score, etc.)
+            success = self._process_github_document(db_session, page, file_content, scan_id)
+            
             if success:
                 # Mark page as processed
                 page.status = 'processed'
@@ -119,63 +140,57 @@ class DocumentWorker:
                 page.processing_worker_id = None
                 page.processing_expires_at = None
                 db_session.commit()
-                self.logger.info(f"Successfully processed document: {url}")
                 
-                # Release the URL processing lock
-                url_lock_service.release_url_lock(db_session, url, content_hash, scan_id, success=True)
+                # Record successful processing in history
+                history_service.record_processing_completion(
+                    file_path, file_sha, scan_id, 'processed',
+                    int(time.time() * 1000 - processing_start_time * 1000)
+                )
                 
-                # Update progress tracking
-                current_processed = db_session.query(Page).filter(Page.scan_id == scan_id, Page.status == 'processed').count()
-                progress_tracker.update_phase_progress(db_session, scan_id, current_processed, current_item=url)
+                self.logger.info(f"Successfully processed file: {github_url}")
                 
                 # Record successful processing metrics
-                self.metrics.record_queue_task_processed('doc_processing', 'success', time.time() - processing_start_time)
+                self.metrics.record_file_change_processed(change_type, 'success', time.time() - processing_start_time)
                 
-                # Check if all documents for this scan are complete
-                self._check_scan_completion(db_session, scan_id)
+                # Update scan progress
+                self._update_scan_progress(db_session, scan_id)
+                
+                return True
             else:
+                # Mark page as error
                 page.status = 'error'
-                page.last_error_at = datetime.datetime.utcnow()
-                page.processing_started_at = None
-                page.processing_worker_id = None
-                page.processing_expires_at = None
+                page.last_error_at = datetime.datetime.now(datetime.timezone.utc)
                 db_session.commit()
-                self.logger.error(f"Failed to process document: {url}")
                 
-                # Release the URL processing lock
-                url_lock_service.release_url_lock(db_session, url, content_hash, scan_id, success=False)
+                # Record failure in history
+                history_service.record_processing_completion(
+                    file_path, file_sha, scan_id, 'failed',
+                    int(time.time() * 1000 - processing_start_time * 1000),
+                    error_message="Failed to process document"
+                )
+                
+                self.logger.error(f"Failed to process file: {github_url}")
                 
                 # Record failed processing metrics
-                self.metrics.record_queue_task_processed('doc_processing', 'error', time.time() - processing_start_time)
+                self.metrics.record_file_change_processed(change_type, 'error', time.time() - processing_start_time)
                 
-            return success
-            
+                return False
+                
         except Exception as e:
-            self.logger.error(f"Unexpected error processing document {url}: {e}", exc_info=True)
+            self.logger.error(f"Error processing file change {file_path}: {e}", exc_info=True)
+            self.metrics.record_file_change_processed(change_type, 'error', time.time() - processing_start_time)
             
-            # Try to release lock and clean up page status on error
-            try:
-                if 'page' in locals() and 'content_hash' in locals():
-                    page.status = 'error'
-                    page.processing_state = 'failed'
-                    page.last_error_at = datetime.datetime.utcnow()
-                    page.processing_started_at = None
-                    page.processing_worker_id = None
-                    page.processing_expires_at = None
-                    db_session.commit()
-                    
-                    url_lock_service.release_url_lock(db_session, url, content_hash, scan_id, success=False)
-                    
-                    # Record error in history
-                    if 'history_service' in locals() and 'file_path' in locals() and file_path:
-                        history_service.record_processing_completion(
-                            file_path, page.github_sha or 'unknown', scan_id, 'failed',
-                            int(time.time() * 1000 - processing_start_time * 1000),
-                            error_message=str(e)
-                        )
-                        
-            except Exception as cleanup_error:
-                self.logger.error(f"Error during cleanup: {cleanup_error}")
+            # Record error in history if we have the required info
+            if 'db_session' in locals() and file_path and file_sha:
+                try:
+                    history_service = ProcessingHistoryService(db_session)
+                    history_service.record_processing_completion(
+                        file_path, file_sha, scan_id, 'failed',
+                        int(time.time() * 1000 - processing_start_time * 1000),
+                        error_message=str(e)
+                    )
+                except Exception as hist_error:
+                    self.logger.error(f"Error recording processing history: {hist_error}")
             
             return False
             
@@ -183,21 +198,20 @@ class DocumentWorker:
             db_session.close()
 
 
-    def _process_github_document(self, db_session: Session, page: Page, task_data: Dict[str, Any]) -> bool:
+    def _process_github_document(self, db_session: Session, page: Page, file_content: str, scan_id: int) -> bool:
         """
         Process a GitHub document (extract code blocks, score, and holistic analysis)
         
         Args:
             db_session: Database session
             page: Page record
-            task_data: Task data containing GitHub file information
+            file_content: File content to process
+            scan_id: Scan ID
             
         Returns:
             True if successful, False otherwise
         """
         try:
-            file_content = task_data.get('file_content')
-            scan_id = task_data.get('scan_id')
             url = page.url
             
             if not file_content:
@@ -272,80 +286,6 @@ class DocumentWorker:
         except Exception as e:
             self.logger.error(f"Error applying holistic scoring to {page.url}: {e}", exc_info=True)
 
-    def _check_scan_completion(self, db_session: Session, scan_id: int):
-        """Check if all documents for a scan have been processed and finalize if complete"""
-        try:
-            # Get scan record
-            scan = db_session.query(Scan).filter(Scan.id == scan_id).first()
-            if not scan or scan.status != 'in_progress':
-                return
-                
-            # Count processed and error pages
-            processed_count = db_session.query(Page).filter(
-                Page.scan_id == scan_id,
-                Page.status.in_(['processed', 'error'])
-            ).count()
-            
-            # Check if all expected pages are processed
-            if processed_count >= scan.total_pages_found:
-                self._finalize_scan(db_session, scan)
-                self.logger.info(f"Scan {scan_id} completed with {processed_count} documents processed")
-                
-        except Exception as e:
-            self.logger.error(f"Error checking scan completion for scan {scan_id}: {e}", exc_info=True)
-
-    def _finalize_scan(self, db_session: Session, scan: Scan):
-        """Finalize a completed scan with metrics"""
-        try:
-            import datetime
-            
-            # Calculate metrics
-            total_pages = db_session.query(Page).filter(Page.scan_id == scan.id).count()
-            processed_pages = db_session.query(Page).filter(
-                Page.scan_id == scan.id,
-                Page.status == 'processed'
-            ).count()
-            error_pages = db_session.query(Page).filter(
-                Page.scan_id == scan.id,
-                Page.status == 'error'
-            ).count()
-            
-            # Count biased pages (pages with bias detected)
-            biased_pages_count = db_session.query(Page).filter(
-                Page.scan_id == scan.id,
-                Page.mcp_holistic.isnot(None)
-            ).count()
-            
-            # Count flagged snippets
-            flagged_snippets_count = db_session.query(Snippet).join(Page).filter(
-                Page.scan_id == scan.id,
-                Snippet.llm_score.isnot(None)
-            ).count()
-            
-            # Update scan record
-            scan.status = 'completed'
-            scan.finished_at = datetime.datetime.now(datetime.timezone.utc)
-            scan.biased_pages_count = biased_pages_count
-            scan.flagged_snippets_count = flagged_snippets_count
-            db_session.commit()
-            
-            self.logger.info(f"Finalized scan {scan.id}: {processed_pages} processed, {error_pages} errors, {biased_pages_count} biased pages, {flagged_snippets_count} flagged snippets")
-            
-            # Update bias snapshots after scan completion
-            try:
-                from shared.application.bias_snapshot_service import BiasSnapshotService
-                snapshot_service = BiasSnapshotService(db_session)
-                overall_snapshot, docset_snapshots = snapshot_service.calculate_and_save_today()
-                if overall_snapshot:
-                    self.logger.info(f"Updated bias snapshot for today: {overall_snapshot.bias_percentage}% bias ({overall_snapshot.biased_pages}/{overall_snapshot.total_pages} pages)")
-                else:
-                    self.logger.warning("Failed to create bias snapshot after scan completion")
-            except Exception as e:
-                self.logger.error(f"Error updating bias snapshot after scan {scan.id}: {e}", exc_info=True)
-                # Don't fail the scan finalization if snapshot update fails
-            
-        except Exception as e:
-            self.logger.error(f"Error finalizing scan {scan.id}: {e}", exc_info=True)
 
     def _extract_file_path_from_url(self, github_url: str) -> Optional[str]:
         """Extract file path from GitHub URL for history tracking"""
@@ -375,6 +315,162 @@ class DocumentWorker:
         except Exception as e:
             self.logger.error(f"Error checking bias detection for page {page_id}: {e}")
             return False
+
+    def _is_scan_cancelled(self, scan_id: int) -> bool:
+        """Check if scan has been cancelled"""
+        try:
+            db_session = SessionLocal()
+            scan = db_session.query(Scan).filter(Scan.id == scan_id).first()
+            cancelled = scan and scan.cancellation_requested
+            db_session.close()
+            return cancelled
+        except Exception as e:
+            self.logger.error(f"Error checking cancellation status: {e}")
+            return False
+
+    def _create_or_update_page(self, db_session: Session, scan_id: int, github_url: str, 
+                               file_path: str, file_sha: str, file_content: str) -> Optional[Page]:
+        """Create or update page record with file information"""
+        try:
+            # Calculate content hash
+            content_hash = hashlib.sha256(file_content.encode()).hexdigest()
+            
+            # Check if page already exists
+            page = db_session.query(Page).filter(
+                Page.scan_id == scan_id,
+                Page.url == github_url
+            ).first()
+            
+            if page:
+                # Update existing page
+                page.content_hash = content_hash
+                page.github_sha = file_sha
+                page.last_scanned_at = datetime.datetime.now(datetime.timezone.utc)
+                page.processing_state = 'discovered'
+                page.status = 'processing'
+            else:
+                # Create new page
+                page = Page(
+                    scan_id=scan_id,
+                    url=github_url,
+                    status='processing',
+                    content_hash=content_hash,
+                    github_sha=file_sha,
+                    last_scanned_at=datetime.datetime.now(datetime.timezone.utc),
+                    processing_state='discovered'
+                )
+                db_session.add(page)
+            
+            db_session.commit()
+            return page
+            
+        except Exception as e:
+            self.logger.error(f"Error creating/updating page for {github_url}: {e}")
+            return None
+
+    def _handle_deleted_file(self, db_session: Session, scan_id: int, github_url: str, file_path: str) -> bool:
+        """Handle deleted file by updating page status"""
+        try:
+            page = db_session.query(Page).filter(
+                Page.scan_id == scan_id,
+                Page.url == github_url
+            ).first()
+            
+            if page:
+                page.status = 'removed'
+                page.processing_state = 'removed'
+                db_session.commit()
+                self.logger.info(f"Marked deleted file as removed: {github_url}")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error handling deleted file {file_path}: {e}")
+            return False
+
+    def _update_scan_progress(self, db_session: Session, scan_id: int):
+        """Update scan progress and check for completion"""
+        try:
+            scan = db_session.query(Scan).filter(Scan.id == scan_id).first()
+            if not scan:
+                return
+            
+            # Count completed files (including errors as they won't be retried)
+            completed_count = db_session.query(Page).filter(
+                Page.scan_id == scan_id,
+                Page.status.in_(['processed', 'removed', 'skipped_locked', 'skipped_no_change', 'skipped_unreadable', 'error'])
+            ).count()
+            
+            # Update scan progress
+            scan.total_files_completed = completed_count
+            db_session.commit()
+            
+            # Check if scan is complete
+            if scan.total_files_queued > 0 and completed_count >= scan.total_files_queued:
+                self._finalize_scan(db_session, scan_id)
+                
+        except Exception as e:
+            self.logger.error(f"Error updating scan progress for scan {scan_id}: {e}")
+
+    def _finalize_scan(self, db_session: Session, scan_id: int):
+        """Finalize scan when all files are processed"""
+        try:
+            scan = db_session.query(Scan).filter(Scan.id == scan_id).first()
+            if not scan:
+                return
+            
+            # Calculate metrics
+            total_pages = db_session.query(Page).filter(Page.scan_id == scan.id).count()
+            processed_pages = db_session.query(Page).filter(
+                Page.scan_id == scan.id,
+                Page.status == 'processed'
+            ).count()
+            error_pages = db_session.query(Page).filter(
+                Page.scan_id == scan.id,
+                Page.status == 'error'
+            ).count()
+            
+            # Count biased pages (pages with bias detected)
+            biased_pages_count = db_session.query(Page).filter(
+                Page.scan_id == scan.id,
+                Page.mcp_holistic.isnot(None)
+            ).count()
+            
+            # Count flagged snippets
+            flagged_snippets_count = db_session.query(Snippet).join(Page).filter(
+                Page.scan_id == scan.id,
+                Snippet.llm_score.isnot(None)
+            ).count()
+            
+            # Mark scan as complete
+            scan.status = 'completed'
+            scan.finished_at = datetime.datetime.now(datetime.timezone.utc)
+            scan.biased_pages_count = biased_pages_count
+            scan.flagged_snippets_count = flagged_snippets_count
+            
+            # Set last_commit_sha for future incremental scans
+            if scan.working_commit_sha:
+                scan.last_commit_sha = scan.working_commit_sha
+            
+            db_session.commit()
+            
+            self.logger.info(f"Scan {scan_id} finalized successfully: {processed_pages} processed, {error_pages} errors, {biased_pages_count} biased pages, {flagged_snippets_count} flagged snippets")
+            
+            # Update bias snapshots after scan completion
+            try:
+                from shared.application.bias_snapshot_service import BiasSnapshotService
+                snapshot_service = BiasSnapshotService(db_session)
+                overall_snapshot, docset_snapshots = snapshot_service.calculate_and_save_today()
+                if overall_snapshot:
+                    self.logger.info(f"Updated bias snapshot for today: {overall_snapshot.bias_percentage}% bias ({overall_snapshot.biased_pages}/{overall_snapshot.total_pages} pages)")
+                else:
+                    self.logger.warning("Failed to create bias snapshot after scan completion")
+            except Exception as e:
+                self.logger.error(f"Error updating bias snapshot after scan {scan_id}: {e}", exc_info=True)
+                # Don't fail the scan finalization if snapshot update fails
+            
+        except Exception as e:
+            self.logger.error(f"Error finalizing scan {scan_id}: {e}")
     
     def start_consuming(self):
         """Start consuming document tasks from the queue"""
