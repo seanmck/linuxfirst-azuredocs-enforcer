@@ -17,18 +17,25 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 def extract_doc_set_from_url(url):
     """Extract the documentation set from a URL."""
-    if not url or '/azure/' not in url:
+    if not url:
         return None
     
     try:
-        # Extract path after /azure/
-        parts = url.split('/azure/', 1)
-        if len(parts) < 2:
-            return None
+        # Handle GitHub URLs (new format)
+        if '/articles/' in url:
+            parts = url.split('/articles/', 1)
+            if len(parts) >= 2:
+                path_parts = parts[1].split('/')
+                if len(path_parts) > 0 and path_parts[0]:
+                    return path_parts[0]
         
-        path_parts = parts[1].split('/')
-        if len(path_parts) > 0 and path_parts[0]:
-            return path_parts[0]
+        # Handle MS Learn URLs (legacy format)
+        elif '/azure/' in url:
+            parts = url.split('/azure/', 1)
+            if len(parts) >= 2:
+                path_parts = parts[1].split('/')
+                if len(path_parts) > 0 and path_parts[0]:
+                    return path_parts[0]
     except Exception:
         return None
     
@@ -64,7 +71,8 @@ def format_doc_set_name(doc_set):
         'stream-analytics': 'Stream Analytics',
         'event-hubs': 'Event Hubs',
         'service-bus': 'Service Bus',
-        'notification-hubs': 'Notification Hubs'
+        'notification-hubs': 'Notification Hubs',
+        'vpn-gateway': 'VPN Gateway'
     }
     
     return name_mappings.get(doc_set, doc_set.replace('-', ' ').title())
