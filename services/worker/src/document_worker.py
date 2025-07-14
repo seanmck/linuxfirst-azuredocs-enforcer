@@ -92,6 +92,13 @@ class DocumentWorker:
             # Skip Windows-focused files
             if self.github_service.is_windows_focused_url(github_url):
                 self.logger.info(f"Skipping Windows-focused file: {github_url}")
+                # Create page record to track the skip
+                page = self._create_or_update_page(db_session, scan_id, github_url, file_path, file_sha, "")
+                if page:
+                    page.status = 'skipped_windows_focused'
+                    db_session.commit()
+                # Update scan progress
+                self._update_scan_progress(db_session, scan_id)
                 return True
             
             # Handle deleted files
@@ -111,9 +118,28 @@ class DocumentWorker:
                 self._update_scan_progress(db_session, scan_id)
                 return True  # Return True to acknowledge message and move on
             
+            # Check file size to avoid OOM issues
+            file_size_mb = len(file_content.encode('utf-8')) / (1024 * 1024)
+            if file_size_mb > 5:  # Skip files larger than 5MB
+                self.logger.warning(f"File {file_path} is too large ({file_size_mb:.1f}MB), skipping to avoid memory issues")
+                page = self._create_or_update_page(db_session, scan_id, github_url, file_path, file_sha, "")
+                if page:
+                    page.status = 'skipped_too_large'
+                    db_session.commit()
+                # Update scan progress
+                self._update_scan_progress(db_session, scan_id)
+                return True
+            
             # Skip Windows-focused content
             if self.github_service.is_windows_focused_content(file_content):
                 self.logger.info(f"Skipping Windows-focused content: {file_path}")
+                # Update page status to track the skip
+                page = self._create_or_update_page(db_session, scan_id, github_url, file_path, file_sha, "")
+                if page:
+                    page.status = 'skipped_windows_focused'
+                    db_session.commit()
+                # Update scan progress
+                self._update_scan_progress(db_session, scan_id)
                 return True
             
             # Create processing history service
@@ -398,7 +424,8 @@ class DocumentWorker:
             # Count completed files (including errors as they won't be retried)
             completed_count = db_session.query(Page).filter(
                 Page.scan_id == scan_id,
-                Page.status.in_(['processed', 'removed', 'skipped_locked', 'skipped_no_change', 'skipped_unreadable', 'error'])
+                Page.status.in_(['processed', 'removed', 'skipped_locked', 'skipped_no_change', 
+                               'skipped_unreadable', 'skipped_too_large', 'skipped_windows_focused', 'error'])
             ).count()
             
             # Update scan progress
