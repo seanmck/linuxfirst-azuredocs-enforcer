@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, Form, BackgroundTasks, HTTPException, Depe
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.concurrency import run_in_threadpool
 from shared.utils.database import SessionLocal
-from shared.models import Scan, Page, Snippet
+from shared.models import Scan, Page, Snippet, BiasSnapshot
 from fastapi.staticfiles import StaticFiles
 import os
 import asyncio
@@ -12,7 +12,7 @@ import sys
 import secrets
 import hashlib
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import time
 import pika
 from packages.scorer.llm_client import LLMClient
@@ -127,13 +127,13 @@ def build_flagged_tree(flagged):
 def get_doc_set_leaderboard(db):
     """
     Get bias metrics aggregated by documentation set (e.g., virtual-machines, app-service).
-    Returns a list of doc sets with their bias statistics.
+    Returns a list of doc sets with their bias statistics from all scans (including in-progress).
     Uses efficient aggregation queries for better performance.
     """
     from sqlalchemy import func, case, text
     
     # Check cache first
-    cache_key = "doc_set_leaderboard_github"
+    cache_key = "doc_set_leaderboard_all_scans"
     cached_result = cache.get(cache_key)
     if cached_result is not None:
         print(f"[DEBUG] Using cached leaderboard data")
@@ -164,8 +164,7 @@ def get_doc_set_leaderboard(db):
                 END as is_biased
             FROM pages p
             JOIN scans sc ON p.scan_id = sc.id
-            WHERE sc.status = 'done'
-            AND p.url LIKE '%/articles/%'
+            WHERE p.url LIKE '%/articles/%'
         ),
         doc_set_aggregates AS (
             SELECT 
@@ -337,7 +336,7 @@ async def index(request: Request):
         percent_flagged = (flagged_count / scanned_count * 100) if scanned_count else 0
         
         # Update bias detection rate metrics for completed scans
-        if scan_data.status == "done" and scanned_count > 0:
+        if scan_data.status == "completed" and scanned_count > 0:
             metrics.update_bias_detection_rate(percent_flagged, 'last_scan')
         
         scan_summaries.append({
@@ -352,14 +351,14 @@ async def index(request: Request):
     
     
     # Show the most recent completed scan's results by default
-    scan = next((s for s in scan_summaries if s["status"] == "done"), None)
+    scan = next((s for s in scan_summaries if s["status"] == "completed"), None)
     last_result = None
     scan_status = False
     last_url = None
     if scan:
-        scan_status = scan["status"] != "done"
+        scan_status = scan["status"] != "completed"
         last_url = scan["url"]
-        if scan["status"] == "done":
+        if scan["status"] == "completed":
             # Get snippets for the completed scan with optimized query
             snippets_data = (
                 db.query(Snippet, Page.url)
@@ -377,34 +376,47 @@ async def index(request: Request):
                 for snippet, page_url in snippets_data
             ]
     
-    # Prepare data for bias rate chart
-    try:
-        import jinja2
-    except ImportError:
-        jinja2 = None
+    # Prepare data for bias rate chart using bias snapshots
     bias_chart_data = []
-    for scan in reversed(scan_summaries):
-        started_at = scan.get("started_at")
-        percent_flagged = scan.get("percent_flagged")
-        scanned_count = scan.get("scanned_count")
-        status = scan.get("status")
-        if status == "done" and scanned_count and started_at is not None and percent_flagged is not None:
-            if jinja2 and (isinstance(started_at, getattr(jinja2, 'Undefined', type(None))) or isinstance(percent_flagged, getattr(jinja2, 'Undefined', type(None)))):
-                print(f"[DEBUG] Skipping scan {scan.get('id')} due to Undefined value.")
-                continue
-            if not hasattr(started_at, 'strftime'):
-                print(f"[DEBUG] Skipping scan {scan.get('id')} due to started_at not being datetime.")
-                continue
-            try:
-                bias_chart_data.append({
-                    "date": started_at.strftime("%Y-%m-%d %H:%M"),
-                    "percent_flagged": float(percent_flagged)
-                })
-            except Exception as e:
-                print(f"[WARN] Skipping scan {scan.get('id')} in chart data due to error: {e}")
-        else:
-            print(f"[DEBUG] Skipping scan {scan.get('id')} for chart: status={status}, scanned_count={scanned_count}, started_at={started_at}, percent_flagged={percent_flagged}")
-    if not bias_chart_data or any([d is None for d in bias_chart_data]):
+    
+    # Get bias snapshots for the last 30 days
+    end_date = date.today()
+    start_date = end_date - timedelta(days=30)
+    
+    try:
+        snapshots = (
+            db.query(BiasSnapshot)
+            .filter(BiasSnapshot.date >= start_date)
+            .order_by(BiasSnapshot.date)
+            .all()
+        )
+        
+        for snapshot in snapshots:
+            bias_chart_data.append({
+                "date": snapshot.date.strftime("%Y-%m-%d"),
+                "percent_flagged": float(snapshot.bias_percentage)
+            })
+        
+        # If no snapshots exist yet, fall back to calculating from scan data
+        # This ensures the chart still works before snapshots are generated
+        if not bias_chart_data:
+            print("[INFO] No bias snapshots found, using scan data for chart")
+            for scan in reversed(scan_summaries):
+                started_at = scan.get("started_at")
+                percent_flagged = scan.get("percent_flagged")
+                scanned_count = scan.get("scanned_count")
+                status = scan.get("status")
+                if status == "completed" and scanned_count and started_at is not None and percent_flagged is not None:
+                    if hasattr(started_at, 'strftime'):
+                        try:
+                            bias_chart_data.append({
+                                "date": started_at.strftime("%Y-%m-%d %H:%M"),
+                                "percent_flagged": float(percent_flagged)
+                            })
+                        except Exception as e:
+                            print(f"[WARN] Skipping scan {scan.get('id')} in chart data due to error: {e}")
+    except Exception as e:
+        print(f"[ERROR] Failed to load bias snapshots: {e}")
         bias_chart_data = []
     # Use the scan dict for scan_id and last_url
     scan_obj = scan
@@ -530,10 +542,10 @@ async def progress():
         db.close()
         return JSONResponse({"running": False, "flagged_snippets": []})
     
-    running = scan.status != "done"
+    running = scan.status != "completed"
     
     # Use computed fields when available for completed scans
-    if scan.status == "done" and scan.flagged_snippets_count is not None and scan.biased_pages_count is not None:
+    if scan.status == "completed" and scan.flagged_snippets_count is not None and scan.biased_pages_count is not None:
         # For completed scans, use the stored computed values for better performance
         scanned_count = scan.total_pages_found or 0
         flagged_count = scan.flagged_snippets_count

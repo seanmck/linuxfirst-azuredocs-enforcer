@@ -6,6 +6,9 @@ import openai
 import re
 import json
 import time
+import random
+import threading
+from collections import deque
 from shared.utils.metrics import get_metrics
 from shared.utils.logging import get_logger
 
@@ -18,6 +21,13 @@ class LLMClient:
         
         # Initialize logger
         self.logger = get_logger(__name__)
+        
+        # Rate limiting: Azure OpenAI typical limits
+        # Adjust these based on your actual limits
+        self.requests_per_minute = int(os.getenv("AZURE_OPENAI_RPM", "60"))  # Default 60 RPM
+        self.min_request_interval = 60.0 / self.requests_per_minute
+        self.request_times = deque(maxlen=self.requests_per_minute)
+        self.rate_limit_lock = threading.Lock()
         
         # Check if we have the required credentials (either API key or managed identity)
         self.api_available = self.api_base and (self.api_key or self.client_id)
@@ -101,6 +111,36 @@ Code:
             "method": "heuristic"
         }
 
+    def _wait_for_rate_limit(self):
+        """Ensure we don't exceed rate limits by waiting if necessary"""
+        with self.rate_limit_lock:
+            now = time.time()
+            
+            # Clean up old request times
+            while self.request_times and self.request_times[0] < now - 60:
+                self.request_times.popleft()
+            
+            # If we're at the limit, wait
+            if len(self.request_times) >= self.requests_per_minute:
+                oldest_request = self.request_times[0]
+                wait_time = 60 - (now - oldest_request) + 0.1  # Add small buffer
+                if wait_time > 0:
+                    self.logger.info(f"Rate limit reached, waiting {wait_time:.1f} seconds")
+                    time.sleep(wait_time)
+                    now = time.time()
+            
+            # Also ensure minimum interval between requests
+            if self.request_times:
+                last_request = self.request_times[-1]
+                time_since_last = now - last_request
+                if time_since_last < self.min_request_interval:
+                    wait_time = self.min_request_interval - time_since_last
+                    time.sleep(wait_time)
+                    now = time.time()
+            
+            # Record this request
+            self.request_times.append(now)
+
     def score_snippet(self, snippet_dict):
         # If API is not available, use heuristic fallback
         if not self.api_available:
@@ -137,22 +177,64 @@ Code:
             "Context:\n" + snippet_dict.get('context', '') + "\n\nCode:\n" + snippet_dict.get('code', '') + "\n"
         )
         
-        try:
-            # Record API request metrics
-            start_time = time.time()
+        # Implement retry logic with exponential backoff for rate limiting
+        max_retries = 5
+        base_delay = 1
+        response = None
+        
+        for attempt in range(max_retries):
             try:
-                response = self.client.chat.completions.create(
-                    model=self.deployment,  # Azure OpenAI: use deployment name as model
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0
-                )
-                # Record successful API call
-                self.metrics.record_api_request('azure_openai', 'POST', 200, time.time() - start_time)
-            except Exception as api_error:
-                # Record failed API call
-                status_code = getattr(api_error, 'status_code', 500)
-                self.metrics.record_api_request('azure_openai', 'POST', status_code, time.time() - start_time)
-                raise
+                # Apply rate limiting before making request
+                self._wait_for_rate_limit()
+                
+                # Record API request metrics
+                start_time = time.time()
+                try:
+                    response = self.client.chat.completions.create(
+                        model=self.deployment,  # Azure OpenAI: use deployment name as model
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0
+                    )
+                    # Record successful API call
+                    self.metrics.record_api_request('azure_openai', 'POST', 200, time.time() - start_time)
+                    break  # Success, exit retry loop
+                except Exception as api_error:
+                    # Record failed API call
+                    status_code = getattr(api_error, 'status_code', 500)
+                    self.metrics.record_api_request('azure_openai', 'POST', status_code, time.time() - start_time)
+                    
+                    # Check if it's a rate limit error
+                    if status_code == 429:
+                        if attempt < max_retries - 1:
+                            # Extract retry-after from error message if available
+                            retry_after = base_delay
+                            error_msg = str(api_error)
+                            if 'Try again in' in error_msg:
+                                try:
+                                    # Extract seconds from error message
+                                    import re
+                                    match = re.search(r'Try again in (\d+) seconds', error_msg)
+                                    if match:
+                                        retry_after = int(match.group(1))
+                                except:
+                                    pass
+                            
+                            # Add jitter to prevent thundering herd
+                            delay = retry_after + random.uniform(0, 1)
+                            self.logger.warning(f"Rate limited. Retrying in {delay:.1f} seconds (attempt {attempt + 1}/{max_retries})")
+                            time.sleep(delay)
+                            
+                            # Exponential backoff for subsequent retries
+                            base_delay = min(base_delay * 2, 60)
+                            continue
+                    raise
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    self.logger.warning(f"API call failed after {max_retries} attempts, falling back to heuristics: {e}")
+                    return self._heuristic_score(snippet_dict)
+        
+        # Process the response if we got one
+        if response:
             content = response.choices[0].message.content
             try:
                 json_str = re.search(r'\{.*\}', content, re.DOTALL).group(0)
@@ -191,8 +273,8 @@ Code:
                     "parse_error": str(e),
                     "method": "api"
                 }
-        except Exception as e:
-            self.logger.warning(f"API call failed, falling back to heuristics: {e}")
+        else:
+            # Should not reach here, but just in case
             return self._heuristic_score(snippet_dict)
 
 # Example usage:

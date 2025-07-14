@@ -10,6 +10,8 @@ import json
 from typing import List, Dict, Optional
 from github import Github
 from shared.config import config
+from shared.utils.logging import get_logger
+
 
 
 class GitHubService:
@@ -21,6 +23,38 @@ class GitHubService:
             raise ValueError("GITHUB_TOKEN not set in environment. Cannot scan GitHub repo.")
         
         self.github_client = Github(self.github_token)
+        self.logger = get_logger(__name__)
+
+    def _check_rate_limit(self):
+        """
+        Check GitHub API rate limit from response headers and pause if necessary to avoid 429 errors
+        """
+        try:
+            # Get rate limit info from response headers (no API call needed)
+            remaining, limit = self.github_client.rate_limiting
+            
+            # If no rate limit info available yet, continue (first API call will populate it)
+            if remaining == -1:
+                return
+            
+            # Log rate limit status periodically (every 100 calls)
+            if remaining % 100 == 0:
+                self.logger.info(f"GitHub API rate limit: {remaining}/{limit} remaining")
+            
+            # Pause if we're close to the limit
+            if remaining < 100:  # Safety buffer
+                reset_time = self.github_client.rate_limiting_resettime
+                current_time = time.time()
+                sleep_time = reset_time - current_time + 60  # Extra 60s buffer
+                if sleep_time > 0:
+                    self.logger.warning(f"Rate limit approaching ({remaining} remaining), pausing for {sleep_time:.0f} seconds until reset")
+                    time.sleep(sleep_time)
+                    self.logger.info("Rate limit reset, resuming operations")
+                    
+        except Exception as e:
+            # Don't let rate limit checking break the actual operation
+            self.logger.warning(f"Could not check rate limit: {e}")
+
 
     def parse_github_url(self, url: str) -> Optional[Dict[str, str]]:
         """
@@ -173,7 +207,7 @@ class GitHubService:
 
     def get_file_content(self, repo_full_name: str, file_path: str, branch: str) -> Optional[str]:
         """
-        Get content of a specific file from GitHub repository
+        Get content of a specific file from GitHub repository with rate limit management
         
         Args:
             repo_full_name: GitHub repository in format 'owner/repo'
@@ -184,8 +218,13 @@ class GitHubService:
             File content as string, or None if error
         """
         try:
+            # Check rate limit before making API call
+            self._check_rate_limit()
+            
             repo = self.github_client.get_repo(repo_full_name)
             file_content_obj = repo.get_contents(file_path, ref=branch)
+            
+            # Rate limit info is now updated from the API response headers
             return file_content_obj.decoded_content.decode()
         except Exception as e:
             print(f"[ERROR] Could not fetch file {file_path}: {e}")
@@ -205,6 +244,8 @@ class GitHubService:
 
     def generate_github_url(self, repo_full_name: str, branch: str, file_path: str) -> str:
         """Generate GitHub blob URL for a file"""
+        # Strip leading slash from file_path to avoid double slashes
+        file_path = file_path.lstrip('/')
         return f"https://github.com/{repo_full_name}/blob/{branch}/{file_path}"
 
     def get_file_metadata(self, repo_full_name: str, file_path: str, branch: str) -> Optional[Dict[str, str]]:
@@ -220,6 +261,9 @@ class GitHubService:
             Dictionary with 'sha', 'last_modified', and 'path' keys, or None if error
         """
         try:
+            # Check rate limit before making API calls
+            self._check_rate_limit()
+            
             repo = self.github_client.get_repo(repo_full_name)
             file_obj = repo.get_contents(file_path, ref=branch)
             
@@ -256,3 +300,97 @@ class GitHubService:
             return None
             
         return metadata['sha'] != current_sha
+
+    def get_head_commit(self, repo_full_name: str, branch: str) -> Optional[str]:
+        """
+        Get the HEAD commit SHA for a repository branch
+        
+        Args:
+            repo_full_name: GitHub repository in format 'owner/repo'
+            branch: Branch to get HEAD commit from
+            
+        Returns:
+            HEAD commit SHA or None if error
+        """
+        try:
+            repo = self.github_client.get_repo(repo_full_name)
+            branch_obj = repo.get_branch(branch)
+            return branch_obj.commit.sha
+        except Exception as e:
+            print(f"[ERROR] Could not get HEAD commit for {repo_full_name}:{branch}: {e}")
+            return None
+
+    def compare_commits(self, repo_full_name: str, base_sha: str, head_sha: str):
+        """
+        Compare two commits using GitHub Compare API
+        
+        Args:
+            repo_full_name: GitHub repository in format 'owner/repo'
+            base_sha: Base commit SHA
+            head_sha: Head commit SHA
+            
+        Returns:
+            GitHub comparison object or None if error
+        """
+        try:
+            repo = self.github_client.get_repo(repo_full_name)
+            comparison = repo.compare(base_sha, head_sha)
+            return comparison
+        except Exception as e:
+            print(f"[ERROR] Could not compare commits {base_sha}...{head_sha}: {e}")
+            return None
+
+    def get_tree(self, repo_full_name: str, sha: str, path: str = '', recursive: bool = True):
+        """
+        Get repository tree using GitHub Trees API
+        
+        Args:
+            repo_full_name: GitHub repository in format 'owner/repo'
+            sha: Tree SHA (usually commit SHA)
+            path: Path within repository to get tree for
+            recursive: Whether to get tree recursively
+            
+        Returns:
+            GitHub tree object or None if error
+        """
+        try:
+            repo = self.github_client.get_repo(repo_full_name)
+            if path:
+                # Get tree for specific path
+                contents = repo.get_contents(path, ref=sha)
+                
+                # Handle case where contents is a list (directory) or single object (file)
+                if isinstance(contents, list):
+                    # Path points to a directory, get the first item which should be the directory itself
+                    # Actually, we need to find the directory entry in the parent's tree
+                    # For now, let's get the tree directly from the path
+                    try:
+                        # Get the directory tree by finding it in the parent tree
+                        path_parts = path.strip('/').split('/')
+                        current_tree = repo.get_git_tree(sha, recursive=False)
+                        
+                        # Navigate to the target directory
+                        for part in path_parts:
+                            for item in current_tree.tree:
+                                if item.path == part and item.type == 'tree':
+                                    current_tree = repo.get_git_tree(item.sha, recursive=recursive)
+                                    break
+                            else:
+                                # Path not found
+                                return None
+                        return current_tree
+                    except Exception:
+                        return None
+                elif contents.type == 'dir':
+                    tree = repo.get_git_tree(contents.sha, recursive=recursive)
+                    return tree
+                else:
+                    return None
+            else:
+                # Get root tree
+                commit = repo.get_commit(sha)
+                tree = repo.get_git_tree(commit.commit.tree.sha, recursive=recursive)
+                return tree
+        except Exception as e:
+            print(f"[ERROR] Could not get tree for {repo_full_name}:{sha} at path '{path}': {e}")
+            return None

@@ -417,8 +417,8 @@
     <div class="dashboard-grid" style="margin-left:220px">
         {% if all_scans and all_scans|length > 0 %}
             {% set total_scans = all_scans|length %}
-            {% set completed_scans = all_scans|selectattr('status', 'equalto', 'done')|list|length %}
-            {% set running_scans = all_scans|selectattr('status', 'ne', 'done')|list|length %}
+            {% set completed_scans = all_scans|selectattr('status', 'equalto', 'completed')|list|length %}
+            {% set running_scans = all_scans|selectattr('status', 'ne', 'completed')|list|length %}
             {% set total_pages = all_scans|sum(attribute='scanned_count') %}
             {% set total_flagged = all_scans|sum(attribute='flagged_count') %}
             {% set avg_bias = (total_flagged / total_pages * 100) if total_pages > 0 else 0 %}
@@ -426,7 +426,7 @@
             <div class="metric-card">
                 <div class="metric-title">Total Scans</div>
                 <div class="metric-value">{{ total_scans }}</div>
-                <div class="metric-subtitle">{{ completed_scans }} completed, {{ running_scans }} running</div>
+                <div class="metric-subtitle">{{ completed_scans }} completed, {{ running_scans }} in progress</div>
             </div>
             
             <div class="metric-card">
@@ -663,8 +663,8 @@
                         </td>
                         <td data-label="Status">
                             <span class="status-badge 
-                                {% if scan.status == 'done' %}completed
-                                {% elif scan.status == 'running' %}running
+                                {% if scan.status == 'completed' %}completed
+                                {% elif scan.status == 'in_progress' %}running
                                 {% else %}failed{% endif %}">
                                 {{ scan.status }}
                             </span>

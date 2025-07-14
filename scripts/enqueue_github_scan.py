@@ -12,7 +12,7 @@ from datetime import datetime
 # Add the project root to the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from services.web.src.db import SessionLocal
+from shared.utils.database import SessionLocal
 from shared.models import Scan
 from shared.utils.url_utils import detect_url_source
 
@@ -65,7 +65,7 @@ def main():
         new_scan = Scan(
             url=url,
             started_at=datetime.utcnow(),
-            status="running"
+            status="in_progress"
         )
         db.add(new_scan)
         db.commit()

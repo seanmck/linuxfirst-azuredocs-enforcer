@@ -473,7 +473,7 @@
                         });
                     }
                     
-                    if (data.status === 'done') {
+                    if (data.status === 'completed') {
                         clearInterval(fallbackTimer);
                     }
                 }
@@ -488,6 +488,21 @@
             switch(data.type) {
                 case 'connected':
                     addActivityLog('Connected to real-time updates');
+                    break;
+                    
+                case 'initial_progress':
+                    // Set current progress from initial state without animating
+                    currentProgress.overall = data.overall_progress || 0;
+                    currentProgress.phase = data.current_phase;
+                    currentProgress.current_item = data.current_page_url;
+                    
+                    // Update progress bar to current state without animation
+                    const progressBar = document.getElementById('overall-progress-bar');
+                    if (progressBar && currentProgress.overall > 0) {
+                        progressBar.dataset.initialProgress = currentProgress.overall;
+                    }
+                    addActivityLog('Connected to real-time updates');
+                    updateProgressDisplay();
                     break;
                     
                 case 'phase_start':
@@ -543,7 +558,7 @@
                     
                 default:
                     // Handle scan completion (done, cancelled, error)
-                    if (data.status === 'done' || data.status === 'error' || data.status === 'cancelled') {
+                    if (data.status === 'completed' || data.status === 'error' || data.status === 'cancelled') {
                         clearInterval(fallbackTimer);
                         setTimeout(() => {
                             window.location.reload();
@@ -573,8 +588,14 @@
             // Update progress bar
             const progressBar = document.getElementById('overall-progress-bar');
             if (progressBar) {
-                progressBar.style.width = `${currentProgress.overall}%`;
-                progressBar.textContent = `${Math.round(currentProgress.overall)}%`;
+                const initialProgress = parseFloat(progressBar.dataset.initialProgress) || 0;
+                const newProgress = currentProgress.overall || 0;
+                
+                // Only update if there's a meaningful change and it's not going backwards
+                if (newProgress >= initialProgress && Math.abs(newProgress - initialProgress) > 0.1) {
+                    progressBar.style.width = `${newProgress}%`;
+                    progressBar.textContent = `${Math.round(newProgress)}%`;
+                }
             }
             
             // Update phase display

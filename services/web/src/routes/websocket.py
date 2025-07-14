@@ -81,16 +81,12 @@ async def get_scan_progress(scan_id: int):
         if not scan:
             raise HTTPException(status_code=404, detail="Scan not found")
         
-        # Calculate overall progress
-        total_phases = 4  # crawling, extracting, scoring, mcp_holistic
-        completed_phases = 0
-        
-        if scan.phase_progress:
-            for phase_data in scan.phase_progress.values():
-                if phase_data.get('completed', False):
-                    completed_phases += 1
-        
-        overall_progress = (completed_phases / total_phases) * 100
+        # Calculate page-based overall progress
+        overall_progress = 0
+        if scan.total_pages_found and scan.total_pages_found > 0:
+            overall_progress = (scan.pages_processed / scan.total_pages_found) * 100
+        elif scan.status == 'completed':
+            overall_progress = 100
         
         # Get current phase progress
         current_phase_progress = 0

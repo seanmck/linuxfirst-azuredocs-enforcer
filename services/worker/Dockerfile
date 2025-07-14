@@ -15,15 +15,15 @@ RUN apt-get update && \
 COPY services/worker/requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy shared code and packages
+# Copy shared code and packages (less likely to change)
 COPY shared /app/shared
 COPY packages /app/packages
 
-# Copy worker service code
-COPY services/worker/src /app/worker
+# Copy necessary scripts (only specific ones needed by worker)
+COPY scripts/enqueue_github_scan.py /app/scripts/
 
-# Copy necessary scripts
-COPY scripts /app/scripts
+# Copy worker service code (most likely to change - keep last)
+COPY services/worker/src /app/worker
 
 # Create a non-root user
 RUN useradd --create-home --shell /bin/bash app && \

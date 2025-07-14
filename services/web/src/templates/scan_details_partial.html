@@ -22,7 +22,7 @@
 </div>
 
 <!-- Real-time Progress Section (Compact for running scans) -->
-{% if scan.status != 'done' %}
+{% if scan.status != 'completed' %}
 <div class="progress-section-compact">
     <div class="progress-header-compact">
         <h3>Live Progress</h3>
@@ -32,7 +32,8 @@
     <!-- Overall Progress Bar -->
     <div class="progress-container">
         <div class="progress-bar-container">
-            <div class="progress-bar" id="overall-progress-bar" style="width: 0%">0%</div>
+            {% set initial_progress = (scan.pages_processed / scan.total_pages_found * 100) if scan.total_pages_found and scan.total_pages_found > 0 else (100 if scan.status == 'completed' else 0) %}
+            <div class="progress-bar" id="overall-progress-bar" style="width: {{ initial_progress }}%" data-initial-progress="{{ initial_progress }}">{{ initial_progress|round|int }}%</div>
         </div>
     </div>
     
@@ -68,13 +69,13 @@
         <p><strong>Finished At:</strong> {{ scan.finished_at.strftime('%Y-%m-%d %H:%M:%S') if scan.finished_at else 'In Progress' }}</p>
         <p><strong>Status:</strong> 
             <span class="status-badge 
-                {% if scan.status == 'done' %}completed
-                {% elif scan.status == 'running' %}running
+                {% if scan.status == 'completed' %}completed
+                {% elif scan.status == 'in_progress' %}running
                 {% elif scan.status == 'cancelled' %}failed
                 {% else %}failed{% endif %}">
                 {{ scan.status }}
             </span>
-            {% if scan.status in ['running', 'processing'] %}
+            {% if scan.status == 'in_progress' %}
             <button class="stop-scan-btn" onclick="stopScan({{ scan.id }})">
                 ⏹️ Stop Scan
             </button>
@@ -94,7 +95,7 @@
         <p><strong>Pages Processed:</strong> {{ scan.pages_processed }}</p>
         {% endif %}
         
-        {% if scan.estimated_completion and scan.status != 'done' %}
+        {% if scan.estimated_completion and scan.status != 'completed' %}
         <p><strong>Estimated Completion:</strong> {{ scan.estimated_completion.strftime('%Y-%m-%d %H:%M:%S') }}</p>
         {% endif %}
     </div>

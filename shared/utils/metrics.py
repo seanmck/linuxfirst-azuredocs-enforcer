@@ -32,21 +32,21 @@ class AppMetrics:
         self.scans_total = Counter(
             'azuredocs_scans_total',
             'Total number of scans initiated',
-            ['scan_type', 'source'],  # web/github, manual/scheduled
+            ['source'],  # manual/scheduled
             registry=self.registry
         )
         
         self.scans_completed = Counter(
             'azuredocs_scans_completed_total',
             'Total number of scans completed',
-            ['scan_type', 'status'],  # done/error
+            ['status'],  # done/error
             registry=self.registry
         )
         
         self.scan_duration = Histogram(
             'azuredocs_scan_duration_seconds',
             'Duration of scan processing',
-            ['scan_type'],
+            [],  # GitHub-only scanning
             buckets=[60, 300, 900, 1800, 3600, 7200],  # 1min to 2 hours
             registry=self.registry
         )
@@ -90,6 +90,22 @@ class AppMetrics:
         )
         
         # === PERFORMANCE METRICS ===
+        
+        # Discovery metrics
+        self.discovery_duration = Histogram(
+            'azuredocs_discovery_duration_seconds',
+            'Duration of GitHub file discovery',
+            ['discovery_type'],  # incremental/initial/recovery
+            buckets=[1, 5, 10, 30, 60, 300],
+            registry=self.registry
+        )
+        
+        self.files_discovered = Counter(
+            'azuredocs_files_discovered_total',
+            'Total number of files discovered',
+            ['discovery_type'],
+            registry=self.registry
+        )
         
         # Queue metrics
         self.queue_tasks_published = Counter(
@@ -192,14 +208,14 @@ class AppMetrics:
     
     # === BUSINESS METRIC HELPERS ===
     
-    def record_scan_started(self, scan_type: str, source: str = 'manual'):
-        """Record that a scan has been started"""
-        self.scans_total.labels(scan_type=scan_type, source=source).inc()
+    def record_scan_started(self, source: str = 'manual'):
+        """Record that a GitHub scan has been started"""
+        self.scans_total.labels(source=source).inc()
         
-    def record_scan_completed(self, scan_type: str, status: str, duration_seconds: float):
-        """Record that a scan has been completed"""
-        self.scans_completed.labels(scan_type=scan_type, status=status).inc()
-        self.scan_duration.labels(scan_type=scan_type).observe(duration_seconds)
+    def record_scan_completed(self, status: str, duration_seconds: float):
+        """Record that a GitHub scan has been completed"""
+        self.scans_completed.labels(status=status).inc()
+        self.scan_duration.observe(duration_seconds)
         
     def record_document_processed(self, source: str, status: str, duration_seconds: float):
         """Record that a document has been processed"""
@@ -217,6 +233,17 @@ class AppMetrics:
     def update_bias_detection_rate(self, rate: float, time_window: str = 'last_hour'):
         """Update the current bias detection rate"""
         self.bias_detection_rate.labels(time_window=time_window).set(rate)
+    
+    def record_discovery_completed(self, discovery_type: str, files_count: int, duration_seconds: float):
+        """Record that GitHub discovery has completed"""
+        self.discovery_duration.labels(discovery_type=discovery_type).observe(duration_seconds)
+        self.files_discovered.labels(discovery_type=discovery_type).inc(files_count)
+    
+    def record_file_change_processed(self, change_type: str, status: str, duration_seconds: float):
+        """Record that a file change has been processed"""
+        # Use existing document processing metrics
+        self.documents_processed.labels(source='github', status=status).inc()
+        self.document_processing_duration.labels(source='github').observe(duration_seconds)
     
     # === PERFORMANCE METRIC HELPERS ===
     

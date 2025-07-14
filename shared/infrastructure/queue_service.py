@@ -115,6 +115,67 @@ class QueueService:
         except Exception as e:
             print(f"[ERROR] Failed to publish task: {e}")
             return False
+    
+    def publish_batch(self, queue_name: str, messages: list) -> bool:
+        """
+        Publish multiple messages to a queue in a batch
+        
+        Args:
+            queue_name: Name of the queue to publish to
+            messages: List of message dictionaries
+            
+        Returns:
+            True if all messages published successfully, False otherwise
+        """
+        try:
+            if not self.channel:
+                if not self.connect():
+                    return False
+            
+            # Publish all messages in the batch
+            for message in messages:
+                message_body = json.dumps(message)
+                self.channel.basic_publish(
+                    exchange='',
+                    routing_key=queue_name,
+                    body=message_body
+                )
+            
+            self.logger.info(f"Published {len(messages)} messages to {queue_name} queue")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to publish batch to {queue_name}: {e}")
+            return False
+    
+    def publish(self, queue_name: str, message: Dict[str, Any]) -> bool:
+        """
+        Publish a single message to a specific queue
+        
+        Args:
+            queue_name: Name of the queue to publish to
+            message: Message dictionary to publish
+            
+        Returns:
+            True if published successfully, False otherwise
+        """
+        try:
+            if not self.channel:
+                if not self.connect():
+                    return False
+            
+            message_body = json.dumps(message)
+            self.channel.basic_publish(
+                exchange='',
+                routing_key=queue_name,
+                body=message_body
+            )
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to publish to {queue_name}: {e}")
+            return False
 
     def consume_tasks(self, callback: Callable[[Dict[str, Any]], None]):
         """

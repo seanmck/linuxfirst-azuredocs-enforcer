@@ -168,9 +168,8 @@ class ApplicationConfig:
     environment: str = "development"
     debug: bool = False
     test_mode: bool = False
-    max_pages: Optional[int] = None
-    rate_limit_per_sec: int = 2
-    user_agent: str = "linuxfirst-crawler"
+    user_agent: str = "Azure-Docs-Enforcer/1.0"
+    # Web crawling configs removed - GitHub-only focus
     
     # Retry mechanism configuration
     max_retries: int = 3
@@ -178,19 +177,14 @@ class ApplicationConfig:
     
     @classmethod
     def from_env(cls) -> 'ApplicationConfig':
-        # Handle unlimited pages option
-        max_pages_env = os.getenv("MAX_PAGES", "")
-        max_pages = None  # Default to unlimited
-        if max_pages_env and max_pages_env.lower() not in ["0", "-1", "unlimited", ""]:
-            max_pages = int(max_pages_env)
+        # Web crawling configs removed - GitHub-only focus
         
         return cls(
             environment=os.getenv("ENVIRONMENT", "development"),
             debug=os.getenv("DEBUG", "false").lower() == "true",
             test_mode=os.getenv("TEST_MODE", "0") == "1",
-            max_pages=max_pages,
-            rate_limit_per_sec=int(os.getenv("RATE_LIMIT_PER_SEC", "2")),
-            user_agent=os.getenv("USER_AGENT", "linuxfirst-crawler"),
+            user_agent=os.getenv("USER_AGENT", "Azure-Docs-Enforcer/1.0"),
+            # Web crawling configs removed - GitHub-only focus
             max_retries=int(os.getenv("MAX_RETRIES", "3")),
             retry_delay_seconds=int(os.getenv("RETRY_DELAY_SECONDS", "60"))
         )

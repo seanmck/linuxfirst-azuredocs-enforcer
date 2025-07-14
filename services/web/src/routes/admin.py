@@ -309,7 +309,7 @@ async def admin_start_scan(request: Request, url: str = Form(""), scan_type: str
     source = detect_url_source(url) if url else "ms-learn"
     
     db = SessionLocal()
-    new_scan = Scan(url=url or None, started_at=datetime.utcnow(), status="running")
+    new_scan = Scan(url=url or None, started_at=datetime.utcnow(), status="in_progress")
     db.add(new_scan)
     db.commit()
     db.refresh(new_scan)
@@ -340,8 +340,8 @@ async def admin_stop_scan(scan_id: int, session_token: str = Cookie(None)):
         if not scan:
             raise HTTPException(status_code=404, detail="Scan not found")
         
-        # Check if scan can be stopped (must be running or processing)
-        if scan.status not in ['running', 'processing']:
+        # Check if scan can be stopped (must be in progress)
+        if scan.status != 'in_progress':
             raise HTTPException(status_code=400, detail=f"Cannot stop scan with status '{scan.status}'")
         
         # Mark scan as cancelled in database

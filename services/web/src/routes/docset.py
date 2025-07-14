@@ -2,8 +2,8 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from shared.utils.database import SessionLocal
-from shared.models import Scan, Page, Snippet
-from datetime import datetime
+from shared.models import Scan, Page, Snippet, BiasSnapshotByDocset
+from datetime import datetime, date, timedelta
 from collections import defaultdict
 import os
 import json
@@ -78,8 +78,42 @@ def format_doc_set_name(doc_set):
     return name_mappings.get(doc_set, doc_set.replace('-', ' ').title())
 
 def get_docset_bias_history(db, doc_set):
-    """Get historical bias data for a specific doc set."""
-    completed_scans = db.query(Scan).filter(Scan.status == 'done').order_by(Scan.started_at.asc()).all()
+    """Get historical bias data for a specific doc set from all scans (including in-progress)."""
+    
+    # Get bias snapshots for this docset for the last 90 days
+    end_date = date.today()
+    start_date = end_date - timedelta(days=90)
+    
+    try:
+        # Try to get data from bias snapshots first
+        snapshots = (
+            db.query(BiasSnapshotByDocset)
+            .filter(
+                BiasSnapshotByDocset.doc_set == doc_set,
+                BiasSnapshotByDocset.date >= start_date
+            )
+            .order_by(BiasSnapshotByDocset.date)
+            .all()
+        )
+        
+        if snapshots:
+            # Use snapshot data
+            bias_history = []
+            for snapshot in snapshots:
+                bias_history.append({
+                    'date': snapshot.date.strftime('%Y-%m-%d'),
+                    'scan_id': None,  # Snapshots aren't tied to specific scans
+                    'total_pages': snapshot.total_pages,
+                    'biased_pages': snapshot.biased_pages,
+                    'bias_percentage': round(snapshot.bias_percentage, 1)
+                })
+            return bias_history
+    except Exception as e:
+        print(f"[WARN] Failed to load bias snapshots for docset {doc_set}: {e}")
+    
+    # Fallback to calculating from scan data if no snapshots exist
+    print(f"[INFO] No bias snapshots found for docset {doc_set}, calculating from scan data")
+    completed_scans = db.query(Scan).order_by(Scan.started_at.asc()).all()
     
     bias_history = []
     for scan in completed_scans:
@@ -111,8 +145,8 @@ def get_docset_bias_history(db, doc_set):
     return bias_history
 
 def get_docset_flagged_pages(db, doc_set):
-    """Get detailed information about flagged pages for a specific doc set."""
-    completed_scans = db.query(Scan).filter(Scan.status == 'done').all()
+    """Get detailed information about flagged pages for a specific doc set from all scans."""
+    completed_scans = db.query(Scan).all()
     
     flagged_pages = []
     seen_urls = set()  # Avoid duplicates across scans
@@ -145,8 +179,8 @@ def get_docset_flagged_pages(db, doc_set):
     return flagged_pages
 
 def get_docset_summary_stats(db, doc_set):
-    """Get summary statistics for a specific doc set."""
-    completed_scans = db.query(Scan).filter(Scan.status == 'done').all()
+    """Get summary statistics for a specific doc set from all scans."""
+    completed_scans = db.query(Scan).all()
     
     all_pages = set()
     biased_pages = set()

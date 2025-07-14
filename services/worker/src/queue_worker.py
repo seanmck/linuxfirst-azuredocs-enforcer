@@ -36,10 +36,10 @@ class RefactoredQueueWorker:
         """
         url = task_data.get('url')
         scan_id = task_data.get('scan_id')
-        source = task_data.get('source', 'web')
+        # All scans are now GitHub-only
         force_rescan = task_data.get('force_rescan', False)
         
-        self.logger.info(f"Processing URL: {url} for scan_id: {scan_id} (source: {source}, force_rescan: {force_rescan})")
+        self.logger.info(f"Processing GitHub URL: {url} for scan_id: {scan_id} (force_rescan: {force_rescan})")
         
         # Create database session
         db_session = SessionLocal()
@@ -53,17 +53,13 @@ class RefactoredQueueWorker:
                 self.logger.info(f"Scan {scan_id} was cancelled, skipping processing")
                 return True  # Return True to acknowledge the message and remove it from queue
             
-            # Process based on source type
-            if source == 'github':
-                success = orchestrator.process_github_scan(url, scan_id, force_rescan)
-            else:
-                # Default to web scan for 'ms-learn' and unknown source types
-                success = orchestrator.process_web_scan(url, scan_id, force_rescan)
+            # Process GitHub scan
+            success = orchestrator.process_github_scan(url, scan_id, force_rescan)
                 
             if success:
-                self.logger.info(f"Successfully completed {source} scan for {url}")
+                self.logger.info(f"Successfully completed GitHub scan for {url}")
             else:
-                self.logger.error(f"Failed to complete {source} scan for {url}")
+                self.logger.error(f"Failed to complete GitHub scan for {url}")
                 
         except Exception as e:
             self.logger.error(f"Unexpected error processing task: {e}", exc_info=True)
