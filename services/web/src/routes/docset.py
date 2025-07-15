@@ -9,73 +9,14 @@ import os
 import json
 from urllib.parse import unquote
 from shared.utils.bias_utils import is_page_biased, count_biased_pages, get_bias_percentage
+from shared.utils.url_utils import extract_doc_set_from_url, format_doc_set_name
 
 router = APIRouter()
 
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "../templates")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
-def extract_doc_set_from_url(url):
-    """Extract the documentation set from a URL."""
-    if not url:
-        return None
-    
-    try:
-        # Handle GitHub URLs (new format)
-        if '/articles/' in url:
-            parts = url.split('/articles/', 1)
-            if len(parts) >= 2:
-                path_parts = parts[1].split('/')
-                if len(path_parts) > 0 and path_parts[0]:
-                    return path_parts[0]
-        
-        # Handle MS Learn URLs (legacy format)
-        elif '/azure/' in url:
-            parts = url.split('/azure/', 1)
-            if len(parts) >= 2:
-                path_parts = parts[1].split('/')
-                if len(path_parts) > 0 and path_parts[0]:
-                    return path_parts[0]
-    except Exception:
-        return None
-    
-    return None
 
-def format_doc_set_name(doc_set):
-    """Convert technical doc set name to user-friendly display name."""
-    if not doc_set:
-        return "Unknown"
-    
-    # Common mappings
-    name_mappings = {
-        'virtual-machines': 'Virtual Machines',
-        'app-service': 'App Service',
-        'storage': 'Storage',
-        'container-instances': 'Container Instances',
-        'kubernetes-service': 'Kubernetes Service (AKS)',
-        'cognitive-services': 'Cognitive Services',
-        'functions': 'Azure Functions',
-        'logic-apps': 'Logic Apps',
-        'service-fabric': 'Service Fabric',
-        'batch': 'Batch',
-        'hdinsight': 'HDInsight',
-        'data-factory': 'Data Factory',
-        'cosmos-db': 'Cosmos DB',
-        'sql-database': 'SQL Database',
-        'postgresql': 'PostgreSQL',
-        'mysql': 'MySQL',
-        'redis': 'Redis Cache',
-        'search': 'Cognitive Search',
-        'machine-learning': 'Machine Learning',
-        'synapse-analytics': 'Synapse Analytics',
-        'stream-analytics': 'Stream Analytics',
-        'event-hubs': 'Event Hubs',
-        'service-bus': 'Service Bus',
-        'notification-hubs': 'Notification Hubs',
-        'vpn-gateway': 'VPN Gateway'
-    }
-    
-    return name_mappings.get(doc_set, doc_set.replace('-', ' ').title())
 
 def get_docset_bias_history(db, doc_set):
     """Get historical bias data for a specific doc set from all scans (including in-progress)."""
