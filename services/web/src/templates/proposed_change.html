@@ -239,6 +239,30 @@
             font-family: 'Fira Mono', 'Consolas', monospace;
             font-size: 0.9em;
         }
+        
+        /* Loading spinner */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            color: #f59e0b;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5em;
+        }
         @media (max-width: 900px) {
             .container { padding: 1em; }
             .grid2x2 { grid-template-columns: 1fr; grid-template-rows: auto; }
@@ -290,13 +314,13 @@
             <div style="flex: 1 1 350px; min-width: 0;">
                 <div class="section-title">Raw New Markdown</div>
                 <div class="markdown-box" id="raw-new-markdown">
-                    <span id="raw-new-loading">Generating updated version of doc...</span>
+                    <span id="raw-new-loading" style="color: #f59e0b;">Generating updated version of doc...</span>
                 </div>
             </div>
             <div style="flex: 1 1 350px; min-width: 0;">
                 <div class="section-title">Rendered New Markdown</div>
                 <div class="markdown-rendered" id="rendered-new-markdown">
-                    <span id="rendered-new-loading">Generating updated version of doc...</span>
+                    <span id="rendered-new-loading" style="color: #f59e0b;">Generating updated version of doc...</span>
                 </div>
             </div>
         </div>
@@ -312,7 +336,8 @@
                     <button id="compute-inline-diff-btn" style="background: #2563eb; color: #fff; border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">
                         Compute Inline Diff
                     </button>
-                    <div id="inline-diff-loading" style="display: none; color: #f59e0b;">
+                    <div id="inline-diff-loading" style="display: none;" class="loading-text">
+                        <span class="loading-spinner"></span>
                         Computing diff...
                     </div>
                 </div>
@@ -330,7 +355,8 @@
                     <button id="compute-split-diff-btn" style="background: #2563eb; color: #fff; border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">
                         Compute Split Diff
                     </button>
-                    <div id="split-diff-loading" style="display: none; color: #f59e0b;">
+                    <div id="split-diff-loading" style="display: none;" class="loading-text">
+                        <span class="loading-spinner"></span>
                         Computing diff...
                     </div>
                 </div>
@@ -349,14 +375,55 @@
             <button id="regenerate-pr-btn" style="margin-left:1em; padding:0.7em 1.5em; background:#f3f4f6; color:#3b82f6; border:1.5px solid #3b82f6; border-radius:6px; font-weight:600; font-size:1.1em; cursor:pointer;">Regenerate PR</button>
         </div>
     </div>
-    <!-- Use CDN for diff visualization libraries -->
-    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" />
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/diff/dist/diff.min.js"></script>
-    <!-- Use CDN for marked.js to guarantee availability -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Load diff visualization libraries with CDN fallback -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" 
+          onerror="this.onerror=null;this.href='/static/libs/diff2html.min.css';" />
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"
+            onerror="this.onerror=null;this.src='/static/libs/diff2html-ui.min.js';"></script>
+    <script src="https://cdn.jsdelivr.net/npm/diff/dist/diff.min.js"
+            onerror="this.onerror=null;this.src='/static/libs/diff.min.js';"></script>
+    <!-- Use CDN for marked.js with fallback -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"
+            onerror="this.onerror=null;this.src='/static/libs/marked.min.js';"></script>
     <script>
+        // Library loading state
+        let librariesLoaded = false;
+        let loadingAttempts = 0;
+        const maxLoadingAttempts = 10;
+        
+        // Check if libraries are loaded
+        function checkLibraries() {
+            // Check for the actual diff2html global
+            const hasDiff2Html = window.Diff2HtmlUI || window.diff2html || window.Diff2Html;
+            if (!hasDiff2Html) {
+                console.log('Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('diff')));
+            }
+            return window.Diff && hasDiff2Html && window.marked && typeof window.marked.parse === 'function';
+        }
+        
+        // Wait for libraries with retries
+        function waitForLibraries(callback, showError = true) {
+            console.log(`waitForLibraries called, attempt ${loadingAttempts + 1}/${maxLoadingAttempts}`);
+            if (checkLibraries()) {
+                librariesLoaded = true;
+                console.log('Libraries loaded successfully');
+                callback();
+            } else if (loadingAttempts < maxLoadingAttempts) {
+                loadingAttempts++;
+                console.log(`Libraries not ready, retrying in 500ms...`);
+                setTimeout(() => waitForLibraries(callback, showError), 500);
+            } else if (showError) {
+                console.error('Failed to load libraries after maximum attempts');
+                // Show error in all diff containers
+                const errorHtml = '<div style="padding: 1em; color: #ef4444; text-align: center;">Error: Required libraries could not be loaded. Please refresh the page or check your internet connection.</div>';
+                document.getElementById('diff-container').innerHTML = errorHtml;
+                document.getElementById('split-diff-container').innerHTML = errorHtml;
+                document.getElementById('rendered-new-markdown').innerHTML = errorHtml;
+            }
+        }
+        
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded event fired');
             let diffComputed = false;
             let splitDiffComputed = false;
             
@@ -370,6 +437,63 @@
                 }
             }
             
+            // Show initial loading state for libraries
+            function showLibraryLoadingState() {
+                const loadingHtml = '<div style="padding: 1em; text-align: center;" class="loading-text">' +
+                    '<span class="loading-spinner" style="border-color: rgba(245,158,11,.3); border-top-color: #f59e0b;"></span>' +
+                    'Loading diff libraries...' +
+                    '</div>';
+                
+                document.getElementById('diff-container').innerHTML = loadingHtml;
+                document.getElementById('split-diff-container').innerHTML = loadingHtml;
+            }
+            
+            // Initialize library loading state
+            console.log('Checking initial library state:', {
+                Diff: !!window.Diff,
+                Diff2Html: !!window.Diff2Html,
+                marked: !!window.marked,
+                markedParse: window.marked && typeof window.marked.parse === 'function'
+            });
+            
+            if (!checkLibraries()) {
+                console.log('Libraries not loaded, starting wait cycle');
+                showLibraryLoadingState();
+                waitForLibraries(() => {
+                    // Reset to initial state once libraries are loaded
+                    document.getElementById('diff-container').innerHTML = 
+                        '<div style="padding: 1em; color: #6b7280; text-align: center;">' +
+                        '<button id="compute-inline-diff-btn" style="background: #2563eb; color: #fff; border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">' +
+                        'Compute Inline Diff' +
+                        '</button>' +
+                        '<div id="inline-diff-loading" style="display: none;" class="loading-text">' +
+                        '<span class="loading-spinner"></span>' +
+                        'Computing diff...' +
+                        '</div>' +
+                        '</div>';
+                    
+                    document.getElementById('split-diff-container').innerHTML = 
+                        '<div style="padding: 1em; color: #6b7280; text-align: center;">' +
+                        '<button id="compute-split-diff-btn" style="background: #2563eb; color: #fff; border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">' +
+                        'Compute Split Diff' +
+                        '</button>' +
+                        '<div id="split-diff-loading" style="display: none;" class="loading-text">' +
+                        '<span class="loading-spinner"></span>' +
+                        'Computing diff...' +
+                        '</div>' +
+                        '</div>';
+                    
+                    // Re-attach event handlers
+                    document.getElementById('compute-inline-diff-btn').addEventListener('click', () => {
+                        tryComputeDiff(true);
+                    });
+                    
+                    document.getElementById('compute-split-diff-btn').addEventListener('click', () => {
+                        tryComputeDiff(false);
+                    });
+                }, false);
+            }
+            
             // Diff computation and rendering
             function computeAndRenderDiff(original, updated, isInline = true) {
                 const loadingId = isInline ? 'inline-diff-loading' : 'split-diff-loading';
@@ -378,14 +502,17 @@
                 // Show loading state
                 const loadingEl = document.getElementById(loadingId);
                 const buttonEl = document.getElementById(buttonId);
-                if (loadingEl) loadingEl.style.display = 'block';
+                if (loadingEl) loadingEl.style.display = 'flex';
                 if (buttonEl) buttonEl.style.display = 'none';
                 
-                if (!window.Diff || !window.Diff2Html) {
+                if (!checkLibraries()) {
                     console.error('Diff libraries not loaded');
                     const containerId = isInline ? 'diff-container' : 'split-diff-container';
                     document.getElementById(containerId).innerHTML = 
-                        '<div style="padding: 1em; color: #ef4444;">Error: Diff libraries not loaded</div>';
+                        '<div style="padding: 1em; color: #ef4444; text-align: center;">' +
+                        'Error: Diff libraries not loaded<br>' +
+                        '<button onclick="location.reload()" style="margin-top: 0.5em; background: #2563eb; color: #fff; border: none; padding: 0.5em 1em; border-radius: 4px; cursor: pointer;">Reload Page</button>' +
+                        '</div>';
                     return;
                 }
                 
@@ -423,9 +550,41 @@
                         highlight: true
                     };
                     
-                    // Render diff
-                    const diffHtml = Diff2Html.html(diff, configuration);
+                    // Render diff - try different APIs based on what's available
                     const containerId = isInline ? 'diff-container' : 'split-diff-container';
+                    let diffHtml;
+                    
+                    // Log what's available for debugging
+                    console.log('Diff2HtmlUI available, type:', typeof window.Diff2HtmlUI);
+                    if (window.Diff2HtmlUI) {
+                        console.log('Diff2HtmlUI properties:', Object.keys(window.Diff2HtmlUI));
+                    }
+                    
+                    // The diff2html-ui bundle exposes Diff2HtmlUI as a constructor
+                    try {
+                        if (typeof window.Diff2HtmlUI === 'function') {
+                            // Clear the container first
+                            document.getElementById(containerId).innerHTML = '';
+                            
+                            // Create the Diff2HtmlUI instance with the container element
+                            const targetElement = document.getElementById(containerId);
+                            const ui = new window.Diff2HtmlUI(targetElement, diff, configuration);
+                            
+                            // Draw the diff
+                            ui.draw();
+                            
+                            // Hide loading state
+                            if (loadingEl) loadingEl.style.display = 'none';
+                            return;
+                        } else {
+                            throw new Error('Diff2HtmlUI is not a function/constructor');
+                        }
+                    } catch (e) {
+                        console.error('Error using Diff2HtmlUI:', e);
+                        console.error('Diff string preview:', diff.substring(0, 200));
+                        throw e;
+                    }
+                    
                     document.getElementById(containerId).innerHTML = diffHtml;
                     
                     // Hide loading state
@@ -435,11 +594,9 @@
                     console.error('Error computing diff:', error);
                     const containerId = isInline ? 'diff-container' : 'split-diff-container';
                     document.getElementById(containerId).innerHTML = 
-                        '<div style="padding: 1em; color: #ef4444;">Error computing diff: ' + error.message + '</div>';
-                    
-                    // Hide loading state and show button again
-                    if (loadingEl) loadingEl.style.display = 'none';
-                    if (buttonEl) buttonEl.style.display = 'inline-block';
+                        '<div style="padding: 1em; color: #ef4444; text-align: center;">Error computing diff: ' + error.message + '<br>' +
+                        '<button onclick="location.reload()" style="margin-top: 0.5em; background: #2563eb; color: #fff; border: none; padding: 0.5em 1em; border-radius: 4px; cursor: pointer;">Reload Page</button>' +
+                        '</div>';
                 }
             }
             
@@ -496,26 +653,50 @@
                     
                     // Compute diff if needed and content is available
                     if (tabName === 'inline-diff' && !diffComputed) {
-                        tryComputeDiff(true, false); // No alerts when switching tabs
+                        if (checkLibraries()) {
+                            tryComputeDiff(true, false); // No alerts when switching tabs
+                        }
                     } else if (tabName === 'split-diff' && !splitDiffComputed) {
-                        tryComputeDiff(false, false); // No alerts when switching tabs
+                        if (checkLibraries()) {
+                            tryComputeDiff(false, false); // No alerts when switching tabs
+                        }
                     }
                 });
             });
             
-            // Add click handlers for diff computation buttons
-            document.getElementById('compute-inline-diff-btn').addEventListener('click', () => {
-                tryComputeDiff(true);
-            });
+            // Add click handlers for diff computation buttons with library check
+            const inlineDiffBtn = document.getElementById('compute-inline-diff-btn');
+            if (inlineDiffBtn) {
+                inlineDiffBtn.addEventListener('click', () => {
+                    if (!checkLibraries()) {
+                        waitForLibraries(() => tryComputeDiff(true));
+                    } else {
+                        tryComputeDiff(true);
+                    }
+                });
+            }
             
-            document.getElementById('compute-split-diff-btn').addEventListener('click', () => {
-                tryComputeDiff(false);
-            });
+            const splitDiffBtn = document.getElementById('compute-split-diff-btn');
+            if (splitDiffBtn) {
+                splitDiffBtn.addEventListener('click', () => {
+                    if (!checkLibraries()) {
+                        waitForLibraries(() => tryComputeDiff(false));
+                    } else {
+                        tryComputeDiff(false);
+                    }
+                });
+            }
             
             const pageId = new URLSearchParams(window.location.search).get('page_id');
-            if (!pageId) return;
+            console.log('Page ID:', pageId);
+            if (!pageId) {
+                console.error('No page_id parameter found in URL');
+                return;
+            }
             
-            function fetchUpdatedMarkdown(force) {
+            // Make function available globally for retry button
+            window.fetchUpdatedMarkdown = function(force) {
+                console.log('fetchUpdatedMarkdown called with force:', force);
                 let url = `/generate_updated_markdown?page_id=${pageId}`;
                 if (force) url += '&force=true';
                 
@@ -526,8 +707,22 @@
                 diffComputed = false;
                 splitDiffComputed = false;
                 
-                fetch(url)
-                    .then(resp => resp.json())
+                // Create AbortController for timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    controller.abort();
+                    console.error('Request timed out after 120 seconds');
+                }, 120000); // 2 minute timeout
+                
+                console.log('Making fetch request to:', url);
+                fetch(url, { signal: controller.signal })
+                    .then(resp => {
+                        clearTimeout(timeoutId);
+                        if (!resp.ok) {
+                            throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+                        }
+                        return resp.json();
+                    })
                     .then(data => {
                         if (data.updated_markdown !== undefined) {
                             document.getElementById('raw-new-markdown').textContent = data.updated_markdown;
@@ -544,9 +739,9 @@
                             
                             // If we're currently viewing a diff tab, recompute the diff
                             const activeTab = document.querySelector('.tab-button.active').dataset.tab;
-                            if (activeTab === 'inline-diff') {
+                            if (activeTab === 'inline-diff' && checkLibraries()) {
                                 tryComputeDiff(true, false); // No alerts when content updates
-                            } else if (activeTab === 'split-diff') {
+                            } else if (activeTab === 'split-diff' && checkLibraries()) {
                                 tryComputeDiff(false, false); // No alerts when content updates
                             }
                         } else {
@@ -563,17 +758,47 @@
                                 (data.cached ? '<span style="color:#22c55e;">(Loaded from cache)</span>' : '');
                         }
                     })
-                    .catch(() => {
-                        document.getElementById('raw-new-markdown').textContent = '[Error generating updated markdown]';
-                        document.getElementById('rendered-new-markdown').textContent = '[Error generating updated markdown]';
+                    .catch((error) => {
+                        clearTimeout(timeoutId);
+                        console.error('Error fetching updated markdown:', error);
+                        
+                        let errorMessage = '[Error generating updated markdown]';
+                        if (error.name === 'AbortError') {
+                            errorMessage = '[Request timed out after 2 minutes. The server may be busy or there might be a network issue.]';
+                        } else if (error.message) {
+                            errorMessage = `[Error: ${error.message}]`;
+                        }
+                        
+                        document.getElementById('raw-new-markdown').innerHTML = 
+                            `<span style="color: #ef4444;">${errorMessage}</span><br>` +
+                            `<button onclick="fetchUpdatedMarkdown(${force})" style="margin-top: 0.5em; background: #2563eb; color: #fff; border: none; padding: 0.5em 1em; border-radius: 4px; cursor: pointer;">Retry</button>`;
+                        document.getElementById('rendered-new-markdown').innerHTML = 
+                            `<span style="color: #ef4444;">${errorMessage}</span><br>` +
+                            `<button onclick="location.reload()" style="margin-top: 0.5em; background: #2563eb; color: #fff; border: none; padding: 0.5em 1em; border-radius: 4px; cursor: pointer;">Reload Page</button>`;
+                        
+                        // Show error in debug box if available
+                        if (document.querySelector('.debug-box')) {
+                            document.querySelector('.debug-box').innerHTML =
+                                `<summary><strong>Error Info</strong></summary>` +
+                                `Error Type: ${error.name || 'Unknown'}<br>` +
+                                `Error Message: ${error.message || 'Unknown error'}<br>` +
+                                `<span style="color:#ef4444;">Please check browser console for details</span>`;
+                        }
                     });
             }
             
+            console.log('About to call fetchUpdatedMarkdown(false)');
             fetchUpdatedMarkdown(false);
             
-            document.getElementById('regenerate-pr-btn').addEventListener('click', function() {
-                fetchUpdatedMarkdown(true);
-            });
+            const regenerateBtn = document.getElementById('regenerate-pr-btn');
+            if (regenerateBtn) {
+                regenerateBtn.addEventListener('click', function() {
+                    console.log('Regenerate button clicked');
+                    fetchUpdatedMarkdown(true);
+                });
+            } else {
+                console.error('Regenerate button not found');
+            }
         });
     </script>
 </body>
