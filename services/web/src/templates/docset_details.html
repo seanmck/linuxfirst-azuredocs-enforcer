@@ -166,6 +166,25 @@
         .bias-type-windows-tools { background: #f3e8ff; color: #7c3aed; }
         .bias-type-windows-syntax { background: #ecfdf5; color: #059669; }
         .bias-type-missing-linux { background: #fdf2f8; color: #be185d; }
+        
+        .snippet-label {
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 0.5em;
+            font-size: 0.95em;
+        }
+        
+        .explanation-text {
+            color: #374151;
+            line-height: 1.6;
+            font-size: 0.95em;
+            background: rgba(59, 130, 246, 0.05);
+            padding: 1em;
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6;
+            margin-bottom: 1em;
+        }
+        
         .snippet-card {
             background: #f8fafc;
             border-radius: 6px;
@@ -360,10 +379,27 @@
                                     {% endfor %}
                                 </div>
                             {% endif %}
+                            {% if page.bias_details.mcp_holistic.summary %}
+                                <div class="snippet-label">Summary:</div>
+                                <div class="explanation-text">{{ page.bias_details.mcp_holistic.summary }}</div>
+                            {% endif %}
+                            
+                            {% if page.bias_details.mcp_holistic.recommendations %}
+                                <div class="snippet-label">Recommendations:</div>
+                                {% if page.bias_details.mcp_holistic.get('recommendations') is string %}
+                                <div class="explanation-text">{{ page.bias_details.mcp_holistic.recommendations }}</div>
+                                {% else %}
+                                <ul class="explanation-text">
+                                {% for rec in page.bias_details.mcp_holistic.get('recommendations', []) %}
+                                    <li>{{ rec }}</li>
+                                {% endfor %}
+                                </ul>
+                                {% endif %}
+                            {% endif %}
+                            
                             {% if page.bias_details.mcp_holistic.explanation %}
-                                <p class="snippet-explanation">
-                                    <strong>Analysis:</strong> {{ page.bias_details.mcp_holistic.explanation }}
-                                </p>
+                                <div class="snippet-label">Detailed Analysis:</div>
+                                <div class="explanation-text">{{ page.bias_details.mcp_holistic.explanation }}</div>
                             {% endif %}
                         </div>
                         {% endif %}
