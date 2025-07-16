@@ -414,7 +414,7 @@ async def create_github_pr(
     # Get user's GitHub token from session
     session_token = request.cookies.get("session_token")
     session_storage = get_session_storage()
-    session_data = session_storage.get(f"session:{session_token}")
+    session_data = session_storage.get(session_token)
     
     if not session_data or "github_token" not in session_data:
         raise HTTPException(401, "GitHub token not found in session")
