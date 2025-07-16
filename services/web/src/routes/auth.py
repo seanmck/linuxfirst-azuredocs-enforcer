@@ -46,7 +46,7 @@ async def get_current_user(
         return None
     
     # Check session storage
-    session_data = session_storage.get(f"session:{session_token}")
+    session_data = session_storage.get(session_token)
     if not session_data:
         return None
     
