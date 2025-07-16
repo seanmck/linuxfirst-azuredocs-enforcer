@@ -364,9 +364,75 @@
         window.onbeforeunload = function() {
             stopPolling();
         };
+
+        // Authentication functions
+        let currentUser = null;
+
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/auth/status');
+                const data = await response.json();
+                currentUser = data.authenticated ? data.user : null;
+                updateAuthUI();
+            } catch (error) {
+                console.error('Failed to check auth status:', error);
+                updateAuthUI();
+            }
+        }
+
+        function updateAuthUI() {
+            const authStatus = document.getElementById('auth-status');
+            const authLoading = document.getElementById('auth-loading');
+            const authLoggedOut = document.getElementById('auth-logged-out');
+            const authLoggedIn = document.getElementById('auth-logged-in');
+
+            authStatus.style.display = 'flex';
+            authLoading.style.display = 'none';
+
+            if (currentUser) {
+                authLoggedOut.style.display = 'none';
+                authLoggedIn.style.display = 'flex';
+                document.getElementById('user-avatar').src = currentUser.avatar_url || '';
+                document.getElementById('user-name').textContent = currentUser.username || 'GitHub User';
+            } else {
+                authLoggedOut.style.display = 'flex';
+                authLoggedIn.style.display = 'none';
+            }
+        }
+
+        async function logout() {
+            try {
+                await fetch('/auth/logout', { method: 'POST' });
+                currentUser = null;
+                updateAuthUI();
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
+        }
+
+        // Initialize auth check when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuthStatus();
+        });
     </script>
 </head>
 <body>
+    <!-- Authentication Status -->
+    <div id="auth-status" class="auth-status" style="display: none;">
+        <div id="auth-loading">Checking authentication...</div>
+        <div id="auth-logged-out" style="display: none;">
+            <a href="/auth/github/login" class="auth-btn">
+                <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 16px; height: 16px;">
+                Login with GitHub
+            </a>
+        </div>
+        <div id="auth-logged-in" style="display: none;">
+            <img id="user-avatar" src="" alt="User avatar">
+            <span id="user-name"></span>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
 <div class="container">
     <!-- Mobile Navigation -->
     <div class="mobile-nav-overlay" id="mobileNavOverlay"></div>
@@ -940,6 +1006,78 @@
 
 .toggle-button.expanded .toggle-icon {
     transform: rotate(180deg);
+}
+
+/* Authentication styles */
+.auth-status {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    background: linear-gradient(135deg, #ffffff, #f3f4f6);
+    border: 1px solid #d1d5db;
+    border-radius: 16px;
+    padding: 1.5em 2em;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 2em;
+    font-size: 1em;
+}
+
+.auth-status img {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 3px solid #d1d5db;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.auth-status span {
+    font-weight: 600;
+    color: #374151;
+    font-size: 1em;
+    display: flex;
+    align-items: center;
+    margin-right: 1em;
+}
+
+.auth-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.8em 1.5em;
+    background: #24292e;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 0.9em;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.auth-btn:hover {
+    background: #2f363d;
+}
+
+.logout-btn {
+    background-color: #ef4444 !important;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 0.8em 1.5em;
+    cursor: pointer;
+    font-size: 0.95em;
+    font-weight: 600;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.logout-btn:hover {
+    background-color: #dc2626 !important;
+    box-shadow: 0 4px 12px rgba(220,38,38,0.3);
 }
 </style>
 <!-- ...rest of file... -->
