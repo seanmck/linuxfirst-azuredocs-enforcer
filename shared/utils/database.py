@@ -72,3 +72,17 @@ def get_or_create(session: Session, model, **kwargs):
         instance = model(**kwargs)
         session.add(instance)
         return instance, True
+
+
+def get_db():
+    """
+    FastAPI dependency for database sessions
+    
+    Yields:
+        Database session that is automatically closed
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

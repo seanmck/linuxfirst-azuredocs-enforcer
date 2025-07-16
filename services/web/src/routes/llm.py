@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Request, Body, Query, HTTPException
+from fastapi import APIRouter, Request, Body, Query, HTTPException, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
-from shared.utils.database import SessionLocal
-from shared.models import Page
+from shared.utils.database import SessionLocal, get_db
+from shared.models import Page, User, UserFeedback, Snippet
+from shared.config import config
+from sqlalchemy import func
 from packages.scorer.llm_client import LLMClient
 from jinja_env import templates
 import os
@@ -11,6 +13,9 @@ import httpx
 import urllib.parse
 import json as pyjson
 import logging
+from typing import Optional
+from pydantic import BaseModel
+from datetime import datetime
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -52,6 +57,7 @@ async def proposed_change(request: Request, page_id: int = Query(...)):
     parsed = urllib.parse.urlparse(page.url)
     path = parsed.path
     github_raw_url = None
+    repo_path = None
     if 'github.com' in parsed.netloc and '/blob/main/' in path:
         repo_path = path.split('/blob/main/', 1)[-1]
         github_raw_url = f"https://raw.githubusercontent.com/microsoftdocs/azure-docs/main/{repo_path}"
@@ -88,6 +94,7 @@ async def proposed_change(request: Request, page_id: int = Query(...)):
         "yaml_header_orig": yaml_dict_orig,
         "yaml_header_str_orig": yaml_str_orig,
         "debug_info": {},
+        "file_path": repo_path or "unknown-file.md",
     })
 
 @router.get("/generate_updated_markdown")
@@ -131,6 +138,7 @@ async def generate_updated_markdown(page_id: int = Query(...), force: bool = Que
     parsed = urllib.parse.urlparse(page.url)
     path = parsed.path
     github_raw_url = None
+    repo_path = None
     if 'github.com' in parsed.netloc and '/blob/main/' in path:
         repo_path = path.split('/blob/main/', 1)[-1]
         github_raw_url = f"https://raw.githubusercontent.com/microsoftdocs/azure-docs/main/{repo_path}"
@@ -375,3 +383,249 @@ def get_priority_label_and_score(mcp_holistic):
         return ("Low", 1)
     else:
         return ("Low", 1)
+
+
+# Import auth dependencies at the end to avoid circular imports
+from routes.auth import get_current_user
+from shared.infrastructure.github_pr_service import GitHubPRService
+from shared.infrastructure.github_app_service import github_app_service
+from utils.session import get_session_storage
+
+
+class CreatePRRequest(BaseModel):
+    """Request model for creating a GitHub PR"""
+    file_path: str
+    new_content: str
+    title: str
+    body: str
+    base_branch: str = "main"
+
+
+@router.post("/api/create_github_pr")
+async def create_github_pr(
+    request: Request,
+    pr_request: CreatePRRequest,
+    current_user: Optional[User] = Depends(get_current_user)
+):
+    """Create a GitHub PR from the authenticated user's account"""
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+    
+    # Get user's GitHub token from session
+    session_token = request.cookies.get("session_token")
+    session_storage = get_session_storage()
+    session_data = session_storage.get(session_token)
+    
+    if not session_data or "github_token" not in session_data:
+        raise HTTPException(401, "GitHub token not found in session")
+    
+    github_token = session_data["github_token"]
+    
+    try:
+        # Try GitHub App first, fallback to OAuth
+        pr_service = GitHubPRService(
+            access_token=github_token,
+            username=current_user.github_username
+        )
+        
+        # Use private repository for Microsoft employees
+        source_repo = "microsoftdocs/azure-docs-pr"
+        
+        try:
+            # Create the pull request (will fork source repo, make changes, and create PR back to source)
+            pr_url = await pr_service.create_pr_from_user_account(
+                source_repo=source_repo,
+                file_path=pr_request.file_path,
+                new_content=pr_request.new_content,
+                pr_title=pr_request.title,
+                pr_body=pr_request.body,
+                base_branch=pr_request.base_branch
+            )
+        except Exception as e:
+            # If we get organization access restrictions, try public repo
+            if "OAuth App access restrictions" in str(e) or "403" in str(e):
+                logger.warning(f"Private repo access restricted, falling back to public repo: {e}")
+                source_repo = "microsoftdocs/azure-docs"
+                pr_url = await pr_service.create_pr_from_user_account(
+                    source_repo=source_repo,
+                    file_path=pr_request.file_path,
+                    new_content=pr_request.new_content,
+                    pr_title=pr_request.title,
+                    pr_body=pr_request.body,
+                    base_branch=pr_request.base_branch
+                )
+            else:
+                raise  # Re-raise if it's not an access restriction error
+        
+        return JSONResponse({
+            "success": True,
+            "pr_url": pr_url,
+            "message": "Pull request created successfully"
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to create PR: {str(e)}")
+        
+        # Provide user-friendly error messages
+        error_message = str(e)
+        if "403" in error_message or "permission" in error_message.lower():
+            if "OAuth App access restrictions" in error_message:
+                error_message = "Please install the GitHub App to access private repositories. Contact your administrator for the installation link."
+            else:
+                error_message = "Permission denied. Please ensure you have access to create pull requests."
+        elif "404" in error_message:
+            error_message = "Repository not found. Please check the repository name."
+        elif "rate limit" in error_message.lower():
+            error_message = "GitHub API rate limit exceeded. Please try again later."
+        
+        return JSONResponse({
+            "success": False,
+            "error": error_message,
+            "error_code": "PR_CREATION_FAILED"
+        }, status_code=400)
+
+
+@router.get("/api/github_app_status")
+async def github_app_status(
+    current_user: Optional[User] = Depends(get_current_user)
+):
+    """Check GitHub App installation status for the current user"""
+    if not current_user:
+        return JSONResponse({
+            "app_configured": False,
+            "user_has_installation": False,
+            "installation_url": None,
+            "username": None
+        })
+    
+    # Get detailed status for debugging
+    has_installation = github_app_service.is_user_installation_available(current_user.github_username)
+    
+    return JSONResponse({
+        "app_configured": github_app_service.configured,
+        "user_has_installation": has_installation,
+        "installation_url": github_app_service.get_installation_url(),
+        "username": current_user.github_username,
+        "app_id": config.github_app.app_id,
+        "private_key_configured": bool(config.github_app.private_key)
+    })
+
+
+class FeedbackRequest(BaseModel):
+    """Request model for user feedback"""
+    snippet_id: int
+    rating: str  # 'thumbs_up' or 'thumbs_down'
+    comment: Optional[str] = None
+
+
+@router.post("/api/feedback/rate")
+async def rate_snippet(
+    feedback: FeedbackRequest,
+    current_user: Optional[User] = Depends(get_current_user),
+    db: SessionLocal = Depends(get_db)
+):
+    """Submit user feedback on a snippet"""
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+    
+    # Validate rating
+    if feedback.rating not in ['thumbs_up', 'thumbs_down']:
+        raise HTTPException(400, "Invalid rating. Must be 'thumbs_up' or 'thumbs_down'")
+    
+    # Check if snippet exists
+    snippet = db.query(Snippet).filter(Snippet.id == feedback.snippet_id).first()
+    if not snippet:
+        raise HTTPException(404, "Snippet not found")
+    
+    # Check if user already provided feedback
+    existing_feedback = db.query(UserFeedback).filter(
+        UserFeedback.user_id == current_user.id,
+        UserFeedback.snippet_id == feedback.snippet_id
+    ).first()
+    
+    if existing_feedback:
+        # Update existing feedback
+        existing_feedback.rating = feedback.rating
+        existing_feedback.comment = feedback.comment
+        existing_feedback.created_at = datetime.utcnow()
+    else:
+        # Create new feedback
+        new_feedback = UserFeedback(
+            user_id=current_user.id,
+            snippet_id=feedback.snippet_id,
+            rating=feedback.rating,
+            comment=feedback.comment
+        )
+        db.add(new_feedback)
+    
+    db.commit()
+    
+    # Get updated feedback counts
+    feedback_counts = db.query(
+        UserFeedback.rating,
+        func.count(UserFeedback.id)
+    ).filter(
+        UserFeedback.snippet_id == feedback.snippet_id
+    ).group_by(UserFeedback.rating).all()
+    
+    counts = {
+        "thumbs_up": 0,
+        "thumbs_down": 0
+    }
+    for rating, count in feedback_counts:
+        counts[rating] = count
+    
+    return JSONResponse({
+        "success": True,
+        "message": "Feedback submitted successfully",
+        "feedback_counts": counts
+    })
+
+
+@router.get("/api/feedback/stats/{snippet_id}")
+async def get_feedback_stats(
+    snippet_id: int,
+    db: SessionLocal = Depends(get_db)
+):
+    """Get feedback statistics for a snippet"""
+    # Check if snippet exists
+    snippet = db.query(Snippet).filter(Snippet.id == snippet_id).first()
+    if not snippet:
+        raise HTTPException(404, "Snippet not found")
+    
+    # Get feedback counts
+    feedback_counts = db.query(
+        UserFeedback.rating,
+        func.count(UserFeedback.id)
+    ).filter(
+        UserFeedback.snippet_id == snippet_id
+    ).group_by(UserFeedback.rating).all()
+    
+    counts = {
+        "thumbs_up": 0,
+        "thumbs_down": 0
+    }
+    for rating, count in feedback_counts:
+        counts[rating] = count
+    
+    # Get recent comments
+    recent_feedback = db.query(UserFeedback).filter(
+        UserFeedback.snippet_id == snippet_id,
+        UserFeedback.comment.isnot(None)
+    ).order_by(UserFeedback.created_at.desc()).limit(5).all()
+    
+    comments = [
+        {
+            "user": feedback.user.github_username,
+            "rating": feedback.rating,
+            "comment": feedback.comment,
+            "created_at": feedback.created_at.isoformat() if hasattr(feedback.created_at, 'isoformat') else str(feedback.created_at)
+        }
+        for feedback in recent_feedback
+    ]
+    
+    return JSONResponse({
+        "snippet_id": snippet_id,
+        "feedback_counts": counts,
+        "recent_comments": comments
+    })

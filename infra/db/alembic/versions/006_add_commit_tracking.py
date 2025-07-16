@@ -1,6 +1,6 @@
 """Add commit tracking for safe incremental scans
 
-Revision ID: 006_commit_tracking
+Revision ID: 006_add_commit_tracking
 Revises: 005_add_page_unique_constraint
 Create Date: 2025-01-09 12:00:00.000000
 
@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '006_commit_tracking'
+revision = '006_add_commit_tracking'
 down_revision = '005_add_page_unique_constraint'
 branch_labels = None
 depends_on = None

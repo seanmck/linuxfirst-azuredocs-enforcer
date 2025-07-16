@@ -21,7 +21,7 @@ import re
 import httpx
 from markdown import markdown as md_lib
 from functools import lru_cache
-from routes import admin, scan, llm, websocket, docset
+from routes import admin, scan, llm, websocket, docset, auth
 from routes.scan import enqueue_scan_task
 from shared.utils.url_utils import extract_doc_set_from_url, format_doc_set_name
 from jinja_env import templates
@@ -52,8 +52,8 @@ metrics = get_metrics()
 metrics.set_service_health("webui", True)
 
 # Ensure the static directory path is absolute
-# In container: __file__ is /app/web/main.py, so we want /app/web/static
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+# Static directory is at services/web/static, while this file is at services/web/src/main.py
+STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Register markdown filter for Jinja2
@@ -570,6 +570,7 @@ app.include_router(scan.router)
 app.include_router(llm.router)
 app.include_router(websocket.router)
 app.include_router(docset.router)
+app.include_router(auth.router)
 
 # Add metrics endpoint
 app.get("/metrics")(create_metrics_endpoint())

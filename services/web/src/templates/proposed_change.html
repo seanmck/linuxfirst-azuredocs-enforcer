@@ -18,6 +18,52 @@
             box-shadow: 0 4px 24px rgba(0,0,0,0.08);
             padding: 2.5em 2em 2em 2em;
         }
+        .auth-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: linear-gradient(135deg, #ffffff, #f3f4f6);
+            border: 1px solid #d1d5db;
+            border-radius: 16px;
+            padding: 1.5em 2em;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            gap: 2em;
+            font-size: 1em;
+        }
+        .auth-status img {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 3px solid #d1d5db;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        .auth-status span {
+            font-weight: 600;
+            color: #374151;
+            font-size: 1em;
+            display: flex;
+            align-items: center;
+            margin-right: 1em;
+        }
+        .auth-status .logout-btn {
+            background-color: #ef4444;
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            padding: 0.8em 1.5em;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 600;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        .auth-status .logout-btn:hover {
+            background-color: #dc2626;
+            box-shadow: 0 4px 12px rgba(220,38,38,0.3);
+        }
         h1 {
             text-align: center;
             color: #2d3a4a;
@@ -157,11 +203,47 @@
             font-size: 1.1em;
             box-shadow: 0 2px 8px rgba(36,41,47,0.08);
             transition: background 0.2s, box-shadow 0.2s;
+            border: none;
+            cursor: pointer;
         }
         .github-pr-btn:hover {
             background: #3b82f6;
             color: #fff;
             box-shadow: 0 4px 16px rgba(59,130,246,0.12);
+        }
+        .github-pr-btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        .loading-spinner {
+            display: none;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .success-message {
+            background: #10b981;
+            color: white;
+            padding: 1em;
+            border-radius: 6px;
+            margin-top: 1em;
+            display: none;
+        }
+        .error-message {
+            background: #ef4444;
+            color: white;
+            padding: 1em;
+            border-radius: 6px;
+            margin-top: 1em;
+            display: none;
         }
         .collapsible-original summary::-webkit-details-marker { display: initial; } /* Show default marker */
         /* Remove custom arrow to avoid double toggles */
@@ -270,6 +352,22 @@
     </style>
 </head>
 <body>
+    <!-- Authentication Status -->
+    <div id="auth-status" class="auth-status" style="display: none;">
+        <div id="auth-loading">Checking authentication...</div>
+        <div id="auth-logged-out" style="display: none;">
+            <a href="/auth/github/login" class="auth-btn">
+                <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 16px; height: 16px;">
+                Login with GitHub
+            </a>
+        </div>
+        <div id="auth-logged-in" style="display: none;">
+            <img id="user-avatar" src="" alt="User avatar">
+            <span id="user-name"></span>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
     <div class="container">
         <h1>Proposed Pull Request Change</h1>
       
@@ -355,11 +453,20 @@
             <div id="raw-original-markdown">{{ original_markdown }}</div>
         </div>
         <div style="margin-top:2em; text-align:right;">
-            <a href="https://github.com/<your-org>/<your-repo>/compare" target="_blank" class="github-pr-btn">
-                <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 20px; height: 20px; vertical-align: middle;">
-                Create pull request
-            </a>
+            <button id="create-pr-btn" class="github-pr-btn" onclick="createPullRequest()">
+                <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 20px; height: 20px;">
+                <span id="pr-btn-text">Create Pull Request</span>
+                <div class="loading-spinner"></div>
+            </button>
             <button id="regenerate-pr-btn" style="margin-left:1em; padding:0.7em 1.5em; background:#f3f4f6; color:#3b82f6; border:1.5px solid #3b82f6; border-radius:6px; font-weight:600; font-size:1.1em; cursor:pointer;">Regenerate PR</button>
+        </div>
+        
+        <!-- Status Messages -->
+        <div id="pr-success" class="success-message">
+            <strong>Success!</strong> Pull request created successfully. <a id="pr-link" href="#" target="_blank" style="color: #dcfce7; text-decoration: underline;">View on GitHub</a>
+        </div>
+        <div id="pr-error" class="error-message">
+            <strong>Error:</strong> <span id="pr-error-text"></span>
         </div>
     </div>
     <!-- Load diff visualization libraries with CDN fallback -->
@@ -792,6 +899,135 @@
                 console.error('Regenerate button not found');
             }
         });
+
+        // Authentication and PR creation functions
+        let currentUser = null;
+
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/auth/status');
+                const data = await response.json();
+                currentUser = data.authenticated ? data.user : null;
+                updateAuthUI();
+            } catch (error) {
+                console.error('Failed to check auth status:', error);
+                updateAuthUI();
+            }
+        }
+
+        function updateAuthUI() {
+            const authStatus = document.getElementById('auth-status');
+            const authLoading = document.getElementById('auth-loading');
+            const authLoggedOut = document.getElementById('auth-logged-out');
+            const authLoggedIn = document.getElementById('auth-logged-in');
+            const createPrBtn = document.getElementById('create-pr-btn');
+
+            authStatus.style.display = 'flex';
+            authLoading.style.display = 'none';
+
+            if (currentUser) {
+                authLoggedOut.style.display = 'none';
+                authLoggedIn.style.display = 'flex';
+                document.getElementById('user-avatar').src = currentUser.avatar_url || '';
+                document.getElementById('user-name').textContent = currentUser.username || 'GitHub User';
+                createPrBtn.style.display = 'inline-flex';
+            } else {
+                authLoggedOut.style.display = 'flex';
+                authLoggedIn.style.display = 'none';
+                createPrBtn.style.display = 'none';
+            }
+        }
+
+        async function logout() {
+            try {
+                await fetch('/auth/logout', { method: 'POST' });
+                currentUser = null;
+                updateAuthUI();
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
+        }
+
+        async function createPullRequest() {
+            if (!currentUser) {
+                window.location.href = '/auth/github/login?redirect=' + encodeURIComponent(window.location.pathname);
+                return;
+            }
+
+            const button = document.getElementById('create-pr-btn');
+            const buttonText = document.getElementById('pr-btn-text');
+            const spinner = button.querySelector('.loading-spinner');
+            const successDiv = document.getElementById('pr-success');
+            const errorDiv = document.getElementById('pr-error');
+
+            // Show loading state
+            button.disabled = true;
+            buttonText.textContent = 'Creating PR...';
+            spinner.style.display = 'block';
+            successDiv.style.display = 'none';
+            errorDiv.style.display = 'none';
+
+            try {
+                // Get the updated markdown content
+                const rawNewMarkdown = document.getElementById('raw-new-markdown');
+                const newContent = rawNewMarkdown ? rawNewMarkdown.textContent : '';
+
+                if (!newContent.trim()) {
+                    throw new Error('No content to create PR with');
+                }
+
+                // Use file path passed from backend
+                const filePath = '{{ file_path }}';
+
+                // Create PR request
+                const response = await fetch('/api/create_github_pr', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        file_path: filePath,
+                        new_content: newContent,
+                        title: `Fix Linux-first bias in ${filePath}`,
+                        body: `This PR fixes Linux-first bias in the documentation by providing cross-platform examples and removing Windows-specific assumptions.
+
+## Changes Made
+- Updated code examples to be cross-platform
+- Added Linux/macOS alternatives where appropriate
+- Removed Windows-specific assumptions
+
+Generated by Linux First Azure Docs Enforcer.`
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Show success message
+                    successDiv.style.display = 'block';
+                    document.getElementById('pr-link').href = result.pr_url;
+                    buttonText.textContent = 'PR Created!';
+                } else {
+                    // Show error message
+                    errorDiv.style.display = 'block';
+                    document.getElementById('pr-error-text').textContent = result.error || 'Unknown error occurred';
+                    buttonText.textContent = 'Create Pull Request';
+                }
+
+            } catch (error) {
+                console.error('PR creation failed:', error);
+                errorDiv.style.display = 'block';
+                document.getElementById('pr-error-text').textContent = error.message || 'Failed to create pull request';
+                buttonText.textContent = 'Create Pull Request';
+            } finally {
+                // Reset loading state
+                button.disabled = false;
+                spinner.style.display = 'none';
+            }
+        }
+
+        // Initialize auth check on page load
+        document.addEventListener('DOMContentLoaded', checkAuthStatus);
     </script>
 </body>
 </html>
