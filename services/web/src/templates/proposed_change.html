@@ -380,8 +380,8 @@
         
         // Check if libraries are loaded
         function checkLibraries() {
-            // Check for the actual diff2html global - try multiple possible names
-            const hasDiff2Html = window.Diff2HtmlUI || window.diff2html || window.Diff2Html || window.Diff2HtmlConfiguration;
+            // Check for the actual diff2html global - use the documented global variable name
+            const hasDiff2Html = window.Diff2HtmlUI; // Use the documented global variable name for the pinned version
             if (!hasDiff2Html) {
                 console.log('Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('diff')));
             }
