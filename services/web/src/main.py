@@ -51,7 +51,8 @@ metrics = get_metrics()
 metrics.set_service_health("webui", True)
 
 # Ensure the static directory path is absolute
-STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+# In container: __file__ is /app/web/main.py, so we want /app/web/static
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Register markdown filter for Jinja2

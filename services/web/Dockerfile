@@ -15,7 +15,7 @@ COPY infra ./infra
 
 # Copy web service code
 COPY services/web/src ./web
-COPY services/web/static ./static
+COPY services/web/static ./web/static
 
 # Set PYTHONPATH so modules are importable
 ENV PYTHONPATH=/app

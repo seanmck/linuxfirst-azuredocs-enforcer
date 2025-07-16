@@ -156,9 +156,13 @@ async def generate_updated_markdown(page_id: int = Query(...), force: bool = Que
             logger.error(f"Error fetching from GitHub for update: {e}")
     else:
         original_markdown = f"[Unrecognized URL format: {page.url}]"
-    llm = LLMClient()
-    debug_info = {}
-    debug_info['llm_api_available'] = llm.api_available
+    try:
+        llm = LLMClient()
+        debug_info = {}
+        debug_info['llm_api_available'] = llm.api_available
+    except Exception as e:
+        logger.error(f"Failed to initialize LLMClient: {e}")
+        return JSONResponse({"error": f"Failed to initialize LLM client: {str(e)}"}, status_code=500)
     debug_info['recommendations'] = recommendations
     debug_info['llm_prompt'] = None
     debug_info['llm_response'] = None

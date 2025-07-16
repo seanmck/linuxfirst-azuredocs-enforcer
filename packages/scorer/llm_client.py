@@ -24,6 +24,9 @@ class LLMClient:
         # Initialize logger
         self.logger = get_logger(__name__)
         
+        # Check if API is available
+        self.api_available = bool(self.api_base and (self.api_key or self.client_id))
+        
         # Rate limiting: Azure OpenAI typical limits
         # Adjust these based on your actual limits
         self.requests_per_minute = int(os.getenv("AZURE_OPENAI_RPM", "60"))  # Default 60 RPM

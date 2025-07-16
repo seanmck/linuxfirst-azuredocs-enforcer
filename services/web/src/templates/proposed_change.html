@@ -393,8 +393,8 @@
         
         // Check if libraries are loaded
         function checkLibraries() {
-            // Check for the actual diff2html global
-            const hasDiff2Html = window.Diff2HtmlUI || window.diff2html || window.Diff2Html;
+            // Check for the actual diff2html global - try multiple possible names
+            const hasDiff2Html = window.Diff2HtmlUI || window.diff2html || window.Diff2Html || window.Diff2HtmlConfiguration;
             if (!hasDiff2Html) {
                 console.log('Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('diff')));
             }
@@ -452,6 +452,8 @@
             console.log('Checking initial library state:', {
                 Diff: !!window.Diff,
                 Diff2Html: !!window.Diff2Html,
+                Diff2HtmlUI: !!window.Diff2HtmlUI,
+                diff2html: !!window.diff2html,
                 marked: !!window.marked,
                 markedParse: window.marked && typeof window.marked.parse === 'function'
             });
