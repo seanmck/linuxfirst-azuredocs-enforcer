@@ -36,19 +36,6 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# Log environment variables at startup
-logger.info("=== ADMIN PASSWORD CONFIGURATION ===")
-logger.info(f"ADMIN_PASSWORD environment variable: '{os.getenv('ADMIN_PASSWORD', 'NOT SET')}'")
-logger.info(f"ADMIN_PASSWORD length: {len(os.getenv('ADMIN_PASSWORD', ''))}")
-logger.info(f"ADMIN_SESSION_SECRET length: {len(os.getenv('ADMIN_SESSION_SECRET', ''))}")
-logger.info("=====================================")
-
-# Test the password hashing function
-test_password = "admin123"
-test_hash = hashlib.sha256(test_password.encode()).hexdigest()
-logger.info(f"Test hash for 'admin123': {test_hash}")
-logger.info(f"Expected hash: {hashlib.sha256(os.getenv('ADMIN_PASSWORD', 'admin123').encode()).hexdigest()}")
-logger.info("=====================================")
 
 # Add security middleware first (processes requests before other middleware)
 app.add_middleware(
@@ -65,7 +52,8 @@ metrics = get_metrics()
 metrics.set_service_health("webui", True)
 
 # Ensure the static directory path is absolute
-STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+# In container: __file__ is /app/web/main.py, so we want /app/web/static
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Register markdown filter for Jinja2
@@ -585,3 +573,50 @@ app.include_router(docset.router)
 
 # Add metrics endpoint
 app.get("/metrics")(create_metrics_endpoint())
+
+@app.on_event("startup")
+async def startup_event():
+    """Log environment variables at startup"""
+    logger.info("=== ADMIN PASSWORD CONFIGURATION ===")
+    logger.info(f"ADMIN_PASSWORD environment variable: '{os.getenv('ADMIN_PASSWORD', 'NOT SET')}'")
+    logger.info(f"ADMIN_PASSWORD length: {len(os.getenv('ADMIN_PASSWORD', ''))}")
+    logger.info(f"ADMIN_SESSION_SECRET length: {len(os.getenv('ADMIN_SESSION_SECRET', ''))}")
+    logger.info("=====================================")
+
+    # Test the password hashing function
+    test_password = "admin123"
+    test_hash = hashlib.sha256(test_password.encode()).hexdigest()
+    logger.info(f"Test hash for 'admin123': {test_hash}")
+    logger.info(f"Expected hash: {hashlib.sha256(os.getenv('ADMIN_PASSWORD', 'admin123').encode()).hexdigest()}")
+    logger.info("=====================================")
+
+    # Log Azure OpenAI environment variables at startup
+    logger.info("=== AZURE OPENAI CONFIGURATION ===")
+    azure_openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
+    azure_openai_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "")
+    azure_openai_key = os.getenv("AZURE_OPENAI_KEY", "")
+    azure_openai_clientid = os.getenv("AZURE_OPENAI_CLIENTID", "")
+
+    logger.info(f"AZURE_OPENAI_ENDPOINT: '{azure_openai_endpoint}'")
+    logger.info(f"AZURE_OPENAI_DEPLOYMENT: '{azure_openai_deployment}'")
+    logger.info(f"AZURE_OPENAI_CLIENTID: '{azure_openai_clientid}'")
+
+    if azure_openai_key:
+        logger.info(f"AZURE_OPENAI_KEY (masked): {azure_openai_key[:4]}...{azure_openai_key[-4:]}")
+    else:
+        logger.info("AZURE_OPENAI_KEY: NOT SET")
+
+    # Determine authentication method
+    if azure_openai_endpoint and (azure_openai_key or azure_openai_clientid):
+        if azure_openai_clientid and not azure_openai_key:
+            auth_method = "managed_identity"
+        elif azure_openai_key:
+            auth_method = "api_key"
+        else:
+            auth_method = "unknown"
+        logger.info(f"Azure OpenAI authentication method: {auth_method}")
+        logger.info("Azure OpenAI should be AVAILABLE")
+    else:
+        logger.info("Azure OpenAI authentication method: none")
+        logger.info("Azure OpenAI will NOT be available - missing endpoint or credentials")
+    logger.info("===================================")

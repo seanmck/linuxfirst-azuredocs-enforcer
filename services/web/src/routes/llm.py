@@ -10,6 +10,10 @@ import re
 import httpx
 import urllib.parse
 import json as pyjson
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -58,16 +62,26 @@ async def proposed_change(request: Request, page_id: int = Query(...)):
         repo_path = f"articles/{path}"
         github_raw_url = f"https://raw.githubusercontent.com/microsoftdocs/azure-docs/main/{repo_path}"
     if github_raw_url:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(github_raw_url)
-            if resp.status_code == 200:
-                original_markdown = resp.text
-            else:
-                original_markdown = f"[Could not fetch markdown from GitHub: {github_raw_url} (HTTP {resp.status_code})]"
+        logger.info(f"Fetching markdown from GitHub: {github_raw_url}")
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.get(github_raw_url)
+                if resp.status_code == 200:
+                    original_markdown = resp.text
+                    logger.info(f"Successfully fetched {len(resp.text)} bytes from GitHub")
+                else:
+                    original_markdown = f"[Could not fetch markdown from GitHub: {github_raw_url} (HTTP {resp.status_code})]"
+                    logger.warning(f"GitHub fetch failed with status {resp.status_code}")
+        except httpx.TimeoutException:
+            original_markdown = f"[Timeout fetching markdown from GitHub: {github_raw_url}]"
+            logger.error(f"Timeout fetching from GitHub after 30 seconds: {github_raw_url}")
+        except Exception as e:
+            original_markdown = f"[Error fetching markdown from GitHub: {github_raw_url} - {str(e)}]"
+            logger.error(f"Error fetching from GitHub: {e}")
     else:
         original_markdown = f"[Unrecognized URL format: {page.url}]"
     yaml_dict_orig, yaml_str_orig, md_body_orig = extract_yaml_header(original_markdown)
-    original_markdown_content = md_body_orig
+    original_markdown_content = original_markdown  # Keep full original markdown with YAML header
     return templates.TemplateResponse("proposed_change.html", {
         "request": request,
         "original_markdown": original_markdown_content,
@@ -87,8 +101,11 @@ async def generate_updated_markdown(page_id: int = Query(...), force: bool = Que
         if now - ts < CACHE_TTL_SECONDS:
             debug_info = debug_info or {}
             debug_info['debug_log'] = debug_log
+            # Extract body for cached response
+            _, _, cached_md_body = extract_yaml_header(updated_markdown)
             return JSONResponse({
                 "updated_markdown": updated_markdown,
+                "updated_markdown_body": cached_md_body,
                 "debug_info": debug_info,
                 "cached": True
             })
@@ -124,17 +141,31 @@ async def generate_updated_markdown(page_id: int = Query(...), force: bool = Que
         repo_path = f"articles/{path}"
         github_raw_url = f"https://raw.githubusercontent.com/microsoftdocs/azure-docs/main/{repo_path}"
     if github_raw_url:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(github_raw_url)
-            if resp.status_code == 200:
-                original_markdown = resp.text
-            else:
-                original_markdown = f"[Could not fetch markdown from GitHub: {github_raw_url} (HTTP {resp.status_code})]"
+        logger.info(f"Fetching markdown from GitHub for update: {github_raw_url}")
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.get(github_raw_url)
+                if resp.status_code == 200:
+                    original_markdown = resp.text
+                    logger.info(f"Successfully fetched {len(resp.text)} bytes from GitHub for update")
+                else:
+                    original_markdown = f"[Could not fetch markdown from GitHub: {github_raw_url} (HTTP {resp.status_code})]"
+                    logger.warning(f"GitHub fetch failed with status {resp.status_code} for update")
+        except httpx.TimeoutException:
+            original_markdown = f"[Timeout fetching markdown from GitHub: {github_raw_url}]"
+            logger.error(f"Timeout fetching from GitHub after 30 seconds for update: {github_raw_url}")
+        except Exception as e:
+            original_markdown = f"[Error fetching markdown from GitHub: {github_raw_url} - {str(e)}]"
+            logger.error(f"Error fetching from GitHub for update: {e}")
     else:
         original_markdown = f"[Unrecognized URL format: {page.url}]"
-    llm = LLMClient()
-    debug_info = {}
-    debug_info['llm_api_available'] = llm.api_available
+    try:
+        llm = LLMClient()
+        debug_info = {}
+        debug_info['llm_api_available'] = llm.api_available
+    except Exception as e:
+        logger.error(f"Failed to initialize LLMClient: {e}")
+        return JSONResponse({"error": f"Failed to initialize LLM client: {str(e)}"}, status_code=500)
     debug_info['recommendations'] = recommendations
     debug_info['llm_prompt'] = None
     debug_info['llm_response'] = None
@@ -153,6 +184,7 @@ async def generate_updated_markdown(page_id: int = Query(...), force: bool = Que
     else:
         prompt = f"""
 You are an expert technical writer. Given the following original markdown and a set of recommendations, rewrite the markdown to address the recommendations. Output the complete Markdown file contents, ready for direct replacement. All unchanged content must be included in full. Maintain correct Markdown syntax and Azure style guide consistency. \n\nOriginal Markdown:\n{original_markdown}\n\nRecommendations:\n{recommendations}\n\nUpdated Markdown:"""
+        logger.info(f"Calling LLM with {len(prompt)} character prompt")
         debug_info['llm_prompt'] = prompt
         try:
             response = llm.client.chat.completions.create(
@@ -178,11 +210,56 @@ You are an expert technical writer. Given the following original markdown and a 
     debug_info['debug_log'] = debug_log
     return JSONResponse({
         "updated_markdown": updated_markdown_content,
+        "updated_markdown_body": md_body,
         "yaml_header": yaml_dict,
         "yaml_header_str": yaml_str,
         "debug_info": debug_info,
         "cached": False
     })
+
+@router.post("/api/compute_diff")
+async def compute_diff(
+    request: Request,
+    body: dict = Body(...)
+):
+    """Compute unified diff between original and updated markdown"""
+    try:
+        original = body.get('original', '')
+        updated = body.get('updated', '')
+        context_lines = body.get('context_lines', 3)
+        
+        if not original or not updated:
+            return JSONResponse({"error": "Missing original or updated content"}, status_code=400)
+        
+        import difflib
+        
+        diff = difflib.unified_diff(
+            original.splitlines(keepends=True),
+            updated.splitlines(keepends=True),
+            fromfile='original.md',
+            tofile='updated.md',
+            n=context_lines
+        )
+        
+        diff_text = ''.join(diff)
+        
+        # Count additions and deletions
+        additions = 0
+        deletions = 0
+        for line in diff_text.split('\n'):
+            if line.startswith('+') and not line.startswith('+++'):
+                additions += 1
+            elif line.startswith('-') and not line.startswith('---'):
+                deletions += 1
+        
+        return JSONResponse({
+            "diff": diff_text,
+            "additions": additions,
+            "deletions": deletions
+        })
+        
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 @router.post("/score_page_holistic")
 async def score_page_holistic(request: Request, body: dict = Body(...)):
@@ -192,8 +269,9 @@ async def score_page_holistic(request: Request, body: dict = Body(...)):
     if not page_content:
         return JSONResponse({"error": "Missing page_content"}, status_code=400)
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(mcp_url, json={"page_content": page_content, "metadata": metadata}, timeout=60)
+        logger.info(f"Calling MCP server at {mcp_url}")
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(mcp_url, json={"page_content": page_content, "metadata": metadata})
             if resp.status_code == 200:
                 return JSONResponse(resp.json())
             else:

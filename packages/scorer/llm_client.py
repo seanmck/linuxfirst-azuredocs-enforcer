@@ -9,6 +9,8 @@ import time
 import random
 import threading
 from collections import deque
+import asyncio
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from shared.utils.metrics import get_metrics
 from shared.utils.logging import get_logger
 
@@ -22,16 +24,16 @@ class LLMClient:
         # Initialize logger
         self.logger = get_logger(__name__)
         
+        # Check if API is available
+        self.api_available = bool(self.api_base and (self.api_key or self.client_id))
+        
         # Rate limiting: Azure OpenAI typical limits
         # Adjust these based on your actual limits
         self.requests_per_minute = int(os.getenv("AZURE_OPENAI_RPM", "60"))  # Default 60 RPM
         self.min_request_interval = 60.0 / self.requests_per_minute
         self.request_times = deque(maxlen=self.requests_per_minute)
         self.rate_limit_lock = threading.Lock()
-        
-        # Check if we have the required credentials (either API key or managed identity)
-        self.api_available = self.api_base and (self.api_key or self.client_id)
-        
+                
         if self.api_available:
             try:
                 if self.client_id and not self.api_key:
@@ -40,7 +42,21 @@ class LLMClient:
                     credential = ManagedIdentityCredential(client_id=self.client_id)
                     
                     def get_bearer_token_provider():
-                        return credential.get_token("https://cognitiveservices.azure.com/.default").token
+                        # Add timeout to token acquisition
+                        with ThreadPoolExecutor(max_workers=1) as executor:
+                            future = executor.submit(
+                                credential.get_token, 
+                                "https://cognitiveservices.azure.com/.default"
+                            )
+                            try:
+                                token_response = future.result(timeout=10)  # 10 second timeout
+                                return token_response.token
+                            except FutureTimeoutError:
+                                self.logger.error("Timeout acquiring managed identity token after 10 seconds")
+                                raise Exception("Managed identity token acquisition timed out")
+                            except Exception as e:
+                                self.logger.error(f"Failed to acquire managed identity token: {e}")
+                                raise
                     
                     self.client = openai.AzureOpenAI(
                         azure_ad_token_provider=get_bearer_token_provider,
@@ -48,6 +64,7 @@ class LLMClient:
                         azure_endpoint=self.api_base
                     )
                     self.auth_method = "managed_identity"
+                    self.logger.info("Successfully initialized Azure OpenAI client with managed identity")
                 else:
                     # Use API key authentication (for local development)
                     self.client = openai.AzureOpenAI(
@@ -56,6 +73,7 @@ class LLMClient:
                         azure_endpoint=self.api_base
                     )
                     self.auth_method = "api_key"
+                    self.logger.info("Successfully initialized Azure OpenAI client with API key")
             except Exception as e:
                 self.logger.warning(f"Failed to initialize Azure OpenAI client: {e}")
                 self.api_available = False
@@ -184,57 +202,26 @@ Code:
         
         for attempt in range(max_retries):
             try:
-                # Apply rate limiting before making request
-                self._wait_for_rate_limit()
+                response = self.client.chat.completions.create(
+                    model=self.deployment,  # Azure OpenAI: use deployment name as model
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0,
+                    timeout=60  # 60 second timeout for LLM calls
+                )
+                self.logger.info(f"LLM call completed successfully in {time.time() - start_time:.2f} seconds")
+                # Record successful API call
+                self.metrics.record_api_request('azure_openai', 'POST', 200, time.time() - start_time)
+            except Exception as api_error:
+                # Record failed API call
+                status_code = getattr(api_error, 'status_code', 500)
+                self.metrics.record_api_request('azure_openai', 'POST', status_code, time.time() - start_time)
                 
-                # Record API request metrics
-                start_time = time.time()
-                try:
-                    response = self.client.chat.completions.create(
-                        model=self.deployment,  # Azure OpenAI: use deployment name as model
-                        messages=[{"role": "user", "content": prompt}],
-                        temperature=0
-                    )
-                    # Record successful API call
-                    self.metrics.record_api_request('azure_openai', 'POST', 200, time.time() - start_time)
-                    break  # Success, exit retry loop
-                except Exception as api_error:
-                    # Record failed API call
-                    status_code = getattr(api_error, 'status_code', 500)
-                    self.metrics.record_api_request('azure_openai', 'POST', status_code, time.time() - start_time)
-                    
-                    # Check if it's a rate limit error
-                    if status_code == 429:
-                        if attempt < max_retries - 1:
-                            # Extract retry-after from error message if available
-                            retry_after = base_delay
-                            error_msg = str(api_error)
-                            if 'Try again in' in error_msg:
-                                try:
-                                    # Extract seconds from error message
-                                    import re
-                                    match = re.search(r'Try again in (\d+) seconds', error_msg)
-                                    if match:
-                                        retry_after = int(match.group(1))
-                                except:
-                                    pass
-                            
-                            # Add jitter to prevent thundering herd
-                            delay = retry_after + random.uniform(0, 1)
-                            self.logger.warning(f"Rate limited. Retrying in {delay:.1f} seconds (attempt {attempt + 1}/{max_retries})")
-                            time.sleep(delay)
-                            
-                            # Exponential backoff for subsequent retries
-                            base_delay = min(base_delay * 2, 60)
-                            continue
-                    raise
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    self.logger.warning(f"API call failed after {max_retries} attempts, falling back to heuristics: {e}")
-                    return self._heuristic_score(snippet_dict)
-        
-        # Process the response if we got one
-        if response:
+                # Log specific error details
+                if hasattr(api_error, '__class__') and 'Timeout' in api_error.__class__.__name__:
+                    self.logger.error(f"LLM call timed out after 60 seconds: {api_error}")
+                else:
+                    self.logger.error(f"LLM call failed: {api_error}")
+                raise
             content = response.choices[0].message.content
             try:
                 json_str = re.search(r'\{.*\}', content, re.DOTALL).group(0)

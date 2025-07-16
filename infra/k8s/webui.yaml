@@ -34,8 +34,10 @@ spec:
       serviceAccountName: sc-account-fefa7dd8-f9d3-4524-8a35-c1123a838df0
       containers:
         - name: webui
-          image: seanmckdemo.azurecr.io/webui:0.0.42
+          image: seanmckdemo.azurecr.io/webui:0.0.48
           env:
+          - name: AZURE_OPENAI_DEPLOYMENT
+            value: "gpt-4.1"
           - name: ADMIN_PASSWORD
             valueFrom:
               secretKeyRef:
