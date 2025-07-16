@@ -81,7 +81,7 @@ async def proposed_change(request: Request, page_id: int = Query(...)):
     else:
         original_markdown = f"[Unrecognized URL format: {page.url}]"
     yaml_dict_orig, yaml_str_orig, md_body_orig = extract_yaml_header(original_markdown)
-    original_markdown_content = md_body_orig
+    original_markdown_content = original_markdown  # Keep full original markdown with YAML header
     return templates.TemplateResponse("proposed_change.html", {
         "request": request,
         "original_markdown": original_markdown_content,
@@ -101,8 +101,11 @@ async def generate_updated_markdown(page_id: int = Query(...), force: bool = Que
         if now - ts < CACHE_TTL_SECONDS:
             debug_info = debug_info or {}
             debug_info['debug_log'] = debug_log
+            # Extract body for cached response
+            _, _, cached_md_body = extract_yaml_header(updated_markdown)
             return JSONResponse({
                 "updated_markdown": updated_markdown,
+                "updated_markdown_body": cached_md_body,
                 "debug_info": debug_info,
                 "cached": True
             })
@@ -207,6 +210,7 @@ You are an expert technical writer. Given the following original markdown and a 
     debug_info['debug_log'] = debug_log
     return JSONResponse({
         "updated_markdown": updated_markdown_content,
+        "updated_markdown_body": md_body,
         "yaml_header": yaml_dict,
         "yaml_header_str": yaml_str,
         "debug_info": debug_info,

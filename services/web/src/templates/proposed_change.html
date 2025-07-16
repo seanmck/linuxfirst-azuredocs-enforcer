@@ -288,19 +288,6 @@
           </tr>
         </table>
         {% endif %}
-        <details open class="collapsible-original" style="margin-bottom: 1.5em;">
-            <summary style="font-size:1.1em; font-weight:600; color:#3b82f6; cursor:pointer; outline:none; padding:0.5em 0;">Show Original Markdown</summary>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2em; margin-top:1em;">
-                <div>
-                    <div class="section-title">Raw Old Markdown</div>
-                    <div class="markdown-box">{{ original_markdown }}</div>
-                </div>
-                <div>
-                    <div class="section-title">Rendered Old Markdown</div>
-                    <div class="markdown-rendered">{{ original_markdown|markdown|safe }}</div>
-                </div>
-            </div>
-        </details>
         
         <!-- Tab navigation -->
         <div class="tab-navigation">
@@ -726,16 +713,19 @@
                         return resp.json();
                     })
                     .then(data => {
+                        console.log('Received response data:', data);
                         if (data.updated_markdown !== undefined) {
+                            console.log('Setting raw markdown content, length:', data.updated_markdown.length);
                             document.getElementById('raw-new-markdown').textContent = data.updated_markdown;
                             
-                            // Use YAML-stripped body for rendered preview if available
-                            let md = (data.yaml_body || data.updated_markdown || '').trim();
+                            // Use the markdown body only for rendering (consistent with original)
+                            let md = (data.updated_markdown_body || data.updated_markdown || '').trim();
                             if (!md.includes('\n')) {
                                 md = md.replace(/(#+\s.*?)(?=\s[A-Z#]|$)/g, '$1\n');
                             }
                             
                             waitForMarked(() => {
+                                console.log('Rendering markdown, length:', md.length);
                                 document.getElementById('rendered-new-markdown').innerHTML = window.marked.parse(md);
                             });
                             
