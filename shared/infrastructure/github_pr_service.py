@@ -298,23 +298,17 @@ class GitHubPRService:
         try:
             self.logger.info(f"Starting PR creation flow for {source_repo}")
             
-            # Get username depending on auth method for logging
-            if self.auth_method == "github_app":
-                username = self.username
-            else:
-                username = self.user.login
-                
-            self.logger.info(f"User: {username}, Auth: {self.auth_method}, Source: {source_repo}, File: {file_path}")
-            
-            # Extract repository name from full path (e.g., "microsoftdocs/azure-docs-pr" -> "azure-docs-pr")
-            repo_name = "azure-docs-pr"
-            
             # Get username depending on auth method
             if self.auth_method == "github_app":
                 username = self.username
             else:
                 username = self.user.login
-                
+            
+            self.logger.info(f"User: {username}, Auth: {self.auth_method}, Source: {source_repo}, File: {file_path}")
+            
+            # Extract repository name from full path (e.g., "microsoftdocs/azure-docs-pr" -> "azure-docs-pr")
+            repo_name = "azure-docs-pr"
+            
             user_fork_name = f"{username}/{repo_name}"
             
             self.logger.info(f"Step 1: Assuming user fork exists at {user_fork_name}")
