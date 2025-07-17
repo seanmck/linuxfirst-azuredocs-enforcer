@@ -5,7 +5,7 @@ from sqlalchemy import func, and_, select, distinct
 from sqlalchemy.orm import Session
 from shared.models import Page, Scan, BiasSnapshot, BiasSnapshotByDocset
 from shared.utils.bias_utils import is_page_biased
-from services.web.src.routes.docset import extract_doc_set_from_url
+from shared.utils.url_utils import extract_doc_set_from_url
 
 
 class BiasSnapshotService:

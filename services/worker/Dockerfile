@@ -24,6 +24,7 @@ COPY scripts/enqueue_github_scan.py /app/scripts/
 
 # Copy worker service code (most likely to change - keep last)
 COPY services/worker/src /app/worker
+COPY scripts/update_bias_snapshots.py /app/scripts/
 
 # Create a non-root user
 RUN useradd --create-home --shell /bin/bash app && \

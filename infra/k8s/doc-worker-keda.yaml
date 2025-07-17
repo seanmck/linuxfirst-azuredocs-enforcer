@@ -22,7 +22,7 @@ spec:
       terminationGracePeriodSeconds: 1800
       containers:
       - name: doc-worker
-        image: seanmckdemo.azurecr.io/queue-worker:0.0.52
+        image: seanmckdemo.azurecr.io/queue-worker:0.0.54
         imagePullPolicy: Always
         command: ["python", "worker/document_worker.py"]
         env:

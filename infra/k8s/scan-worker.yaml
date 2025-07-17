@@ -21,7 +21,7 @@ spec:
       serviceAccountName: sc-account-fefa7dd8-f9d3-4524-8a35-c1123a838df0
       containers:
       - name: scan-worker
-        image: seanmckdemo.azurecr.io/queue-worker:0.0.52
+        image: seanmckdemo.azurecr.io/queue-worker:0.0.54
         imagePullPolicy: Always
         command: ["python", "worker/queue_worker.py"]
         env:

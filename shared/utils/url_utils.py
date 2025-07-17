@@ -46,6 +46,7 @@ def extract_doc_set_from_url(url: str) -> Optional[str]:
     Returns:
         The doc set name or None if not found
     """
+
     if not url:
         return None
     
