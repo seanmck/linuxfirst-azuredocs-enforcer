@@ -36,6 +36,8 @@ spec:
         - name: webui
           image: seanmckdemo.azurecr.io/webui:0.0.42
           env:
+          - name: AZURE_OPENAI_DEPLOYMENT
+            value: "gpt-4.1"
           - name: ADMIN_PASSWORD
             valueFrom:
               secretKeyRef:

@@ -15,7 +15,7 @@ declare -A SERVICE_CONFIG=(
     ["web,context"]="."
     
     ["worker,dockerfile"]="services/worker/Dockerfile"
-    ["worker,manifests"]="infra/k8s/scan-worker.yaml infra/k8s/doc-worker-keda.yaml"
+    ["worker,manifests"]="infra/k8s/scan-worker.yaml infra/k8s/doc-worker-keda.yaml infra/k8s/doc-collector-cronjob.yaml infra/k8s/bias-snapshot-cronjob.yaml"
     ["worker,image_name"]="queue-worker"
     ["worker,context"]="."
     
