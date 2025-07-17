@@ -35,6 +35,15 @@ class DatabaseConfig:
             else:
                 url = svc_conn_url
             
+            # For local development, disable SSL if needed
+            if "localhost" in url or "127.0.0.1" in url:
+                if "sslmode=" not in url:
+                    url += "&sslmode=disable" if "?" in url else "?sslmode=disable"
+                else:
+                    # Replace any existing sslmode with disable
+                    import re
+                    url = re.sub(r'sslmode=\w+', 'sslmode=disable', url)
+            
             return cls(
                 url=url,
                 mode="service_connector"
@@ -191,12 +200,64 @@ class ApplicationConfig:
 
 
 @dataclass
+class GitHubOAuthConfig:
+    """GitHub OAuth configuration settings"""
+    client_id: str
+    client_secret: str
+    redirect_uri: str
+    scopes: str = "repo"  # Need 'repo' scope for private repositories
+    
+    @classmethod
+    def from_env(cls) -> 'GitHubOAuthConfig':
+        """Create configuration from environment variables"""
+        client_id = os.environ.get("GITHUB_CLIENT_ID", "")
+        client_secret = os.environ.get("GITHUB_CLIENT_SECRET", "")
+        redirect_uri = os.environ.get("GITHUB_OAUTH_REDIRECT_URI", "/auth/github/callback")
+        scopes = os.environ.get("GITHUB_OAUTH_SCOPES", "repo")  # Default to 'repo' for private repos
+        
+        # Make redirect URI absolute if it's relative
+        if redirect_uri.startswith("/"):
+            base_url = os.environ.get("BASE_URL", "http://localhost:8000")
+            redirect_uri = f"{base_url.rstrip('/')}{redirect_uri}"
+        
+        return cls(
+            client_id=client_id,
+            client_secret=client_secret,
+            redirect_uri=redirect_uri,
+            scopes=scopes
+        )
+
+
+@dataclass
+class GitHubAppConfig:
+    """GitHub App configuration settings"""
+    app_id: str
+    private_key: str
+    installation_url: str
+    
+    @classmethod
+    def from_env(cls) -> 'GitHubAppConfig':
+        """Create configuration from environment variables"""
+        app_id = os.environ.get("GITHUB_APP_ID", "")
+        private_key = os.environ.get("GITHUB_APP_PRIVATE_KEY", "")
+        installation_url = os.environ.get("GITHUB_APP_INSTALLATION_URL", "")
+        
+        return cls(
+            app_id=app_id,
+            private_key=private_key,
+            installation_url=installation_url
+        )
+
+
+@dataclass
 class Config:
     """Main configuration class that combines all configuration sections"""
     database: DatabaseConfig
     azure_openai: AzureOpenAIConfig
     rabbitmq: RabbitMQConfig
     application: ApplicationConfig
+    github_oauth: GitHubOAuthConfig
+    github_app: GitHubAppConfig
     
     @classmethod
     def from_env(cls) -> 'Config':
@@ -205,7 +266,9 @@ class Config:
             database=DatabaseConfig.from_env(),
             azure_openai=AzureOpenAIConfig.from_env(),
             rabbitmq=RabbitMQConfig.from_env(),
-            application=ApplicationConfig.from_env()
+            application=ApplicationConfig.from_env(),
+            github_oauth=GitHubOAuthConfig.from_env(),
+            github_app=GitHubAppConfig.from_env()
         )
 
 

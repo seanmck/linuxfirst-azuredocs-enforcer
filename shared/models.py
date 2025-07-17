@@ -93,7 +93,9 @@ class Snippet(Base):
     context = Column(Text)
     code = Column(Text)
     llm_score = Column(JSON)
+    proposed_change_id = Column(String(255), nullable=True)  # Link to proposed changes
     page = relationship("Page", back_populates="snippets")
+    feedback = relationship("UserFeedback", back_populates="snippet", cascade="all, delete-orphan")
 
 class BiasSnapshot(Base):
     __tablename__ = 'bias_snapshots'
@@ -133,4 +135,51 @@ class FileProcessingHistory(Base):
     # Unique constraint
     __table_args__ = (
         sa.UniqueConstraint('file_path', 'github_sha', 'scan_id', name='uq_file_processing_history'),
+    )
+
+
+class User(Base):
+    __tablename__ = 'users'
+    id = Column(Integer, primary_key=True)
+    github_username = Column(String(255), unique=True, nullable=False)
+    github_id = Column(Integer, unique=True, nullable=False)
+    email = Column(String(255), nullable=True)
+    avatar_url = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    last_login = Column(DateTime, nullable=True)
+    
+    # Relationships
+    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+    feedback = relationship("UserFeedback", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserSession(Base):
+    __tablename__ = 'user_sessions'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    session_token = Column(String(255), unique=True, nullable=False)
+    github_access_token = Column(Text, nullable=True)  # Encrypted in application
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="sessions")
+
+
+class UserFeedback(Base):
+    __tablename__ = 'user_feedback'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    snippet_id = Column(Integer, ForeignKey('snippets.id', ondelete='CASCADE'), nullable=False)
+    rating = Column(String(10), nullable=False)  # 'thumbs_up' or 'thumbs_down'
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="feedback")
+    snippet = relationship("Snippet", back_populates="feedback")
+    
+    # Constraints
+    __table_args__ = (
+        sa.CheckConstraint("rating IN ('thumbs_up', 'thumbs_down')", name='check_rating_value'),
     )

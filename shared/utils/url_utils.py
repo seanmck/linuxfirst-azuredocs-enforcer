@@ -2,6 +2,7 @@
 
 from urllib.parse import urlparse
 from typing import Optional
+import re
 
 
 def detect_url_source(url: Optional[str]) -> str:
@@ -35,65 +36,88 @@ def detect_url_source(url: Optional[str]) -> str:
         return "unknown"
 
 
-def extract_doc_set_from_url(url: Optional[str]) -> Optional[str]:
-    """Extract the documentation set from a URL."""
+def extract_doc_set_from_url(url: str) -> Optional[str]:
+    """
+    Extract the documentation set name from a URL.
+    
+    Args:
+        url: The URL to extract from
+        
+    Returns:
+        The doc set name or None if not found
+    """
+
     if not url:
         return None
     
     try:
-        # Handle GitHub URLs (new format)
-        if '/articles/' in url:
-            parts = url.split('/articles/', 1)
-            if len(parts) >= 2:
-                path_parts = parts[1].split('/')
-                if len(path_parts) > 0 and path_parts[0]:
-                    return path_parts[0]
+        # For GitHub URLs, extract repo name
+        if 'github.com' in url:
+            match = re.search(r'github\.com/[^/]+/([^/]+)', url)
+            if match:
+                return match.group(1)
         
-        # Handle MS Learn URLs (legacy format)
-        elif '/azure/' in url:
-            parts = url.split('/azure/', 1)
-            if len(parts) >= 2:
-                path_parts = parts[1].split('/')
-                if len(path_parts) > 0 and path_parts[0]:
-                    return path_parts[0]
+        # For learn.microsoft.com URLs, extract the product/service
+        elif 'learn.microsoft.com' in url:
+            # Pattern: learn.microsoft.com/{locale}/azure/{service}/...
+            match = re.search(r'learn\.microsoft\.com/[^/]+/azure/([^/]+)', url)
+            if match:
+                return match.group(1)
+            # Pattern: learn.microsoft.com/{locale}/{product}/...
+            match = re.search(r'learn\.microsoft\.com/[^/]+/([^/]+)', url)
+            if match:
+                return match.group(1)
+        
+        return None
     except Exception:
         return None
-    
-    return None
 
 
 def format_doc_set_name(doc_set: Optional[str]) -> str:
-    """Convert technical doc set name to user-friendly display name."""
+    """
+    Format a documentation set name for display.
+    
+    Args:
+        doc_set: The doc set name to format
+        
+    Returns:
+        Formatted name for display
+    """
     if not doc_set:
         return "Unknown"
     
-    # Common mappings
-    name_mappings = {
-        'virtual-machines': 'Virtual Machines',
-        'app-service': 'App Service',
-        'storage': 'Storage',
-        'container-instances': 'Container Instances',
-        'kubernetes-service': 'Kubernetes Service (AKS)',
-        'cognitive-services': 'Cognitive Services',
-        'functions': 'Azure Functions',
-        'logic-apps': 'Logic Apps',
-        'service-fabric': 'Service Fabric',
-        'batch': 'Batch',
-        'hdinsight': 'HDInsight',
-        'data-factory': 'Data Factory',
-        'cosmos-db': 'Cosmos DB',
-        'sql-database': 'SQL Database',
-        'postgresql': 'PostgreSQL',
-        'mysql': 'MySQL',
-        'redis': 'Redis Cache',
-        'search': 'Cognitive Search',
-        'machine-learning': 'Machine Learning',
-        'synapse-analytics': 'Synapse Analytics',
-        'stream-analytics': 'Stream Analytics',
-        'event-hubs': 'Event Hubs',
-        'service-bus': 'Service Bus',
-        'notification-hubs': 'Notification Hubs',
-        'vpn-gateway': 'VPN Gateway'
+    # Replace hyphens and underscores with spaces
+    formatted = doc_set.replace('-', ' ').replace('_', ' ')
+    
+    # Title case
+    formatted = formatted.title()
+    
+    # Special cases
+    replacements = {
+        'Api': 'API',
+        'Ai': 'AI',
+        'Ml': 'ML',
+        'Iot': 'IoT',
+        'Sql': 'SQL',
+        'Vm': 'VM',
+        'Vms': 'VMs',
+        'Cli': 'CLI',
+        'Sdk': 'SDK',
+        'Id': 'ID',
+        'Ip': 'IP',
+        'Dns': 'DNS',
+        'Vpn': 'VPN',
+        'Cdn': 'CDN',
+        'Http': 'HTTP',
+        'Https': 'HTTPS',
+        'Json': 'JSON',
+        'Xml': 'XML',
+        'Yaml': 'YAML',
+        'Rest': 'REST',
+        'Blob': 'Blob'
     }
     
-    return name_mappings.get(doc_set, doc_set.replace('-', ' ').title())
+    for old, new in replacements.items():
+        formatted = re.sub(r'\b' + old + r'\b', new, formatted)
+    
+    return formatted

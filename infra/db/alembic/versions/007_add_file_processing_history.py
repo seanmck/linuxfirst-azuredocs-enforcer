@@ -1,7 +1,7 @@
 """Add file processing history for recovery and audit trails
 
-Revision ID: 007_processing_history
-Revises: 006_commit_tracking
+Revision ID: 007_add_file_processing_history
+Revises: 006_add_commit_tracking
 Create Date: 2025-01-09 14:00:00.000000
 
 """
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '007_processing_history'
-down_revision = '006_commit_tracking'
+revision = '007_add_file_processing_history'
+down_revision = '006_add_commit_tracking'
 branch_labels = None
 depends_on = None
 
