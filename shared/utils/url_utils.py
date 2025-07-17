@@ -51,8 +51,20 @@ def extract_doc_set_from_url(url: str) -> Optional[str]:
         return None
     
     try:
-        # For GitHub URLs, extract repo name
+        # For GitHub URLs, extract more granular info
         if 'github.com' in url:
+            # Check if it's azure-docs with a specific service
+            if 'MicrosoftDocs/azure-docs' in url:
+                # Pattern: github.com/MicrosoftDocs/azure-docs/blob/main/articles/{service}/...
+                match = re.search(r'azure-docs/blob/[^/]+/articles/([^/]+)', url)
+                if match:
+                    service = match.group(1)
+                    # Return the specific Azure service as the docset
+                    return service
+                # Fallback to repo name if no service found
+                return 'azure-docs'
+            
+            # For other GitHub repos, extract repo name
             match = re.search(r'github\.com/[^/]+/([^/]+)', url)
             if match:
                 return match.group(1)

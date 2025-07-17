@@ -52,8 +52,17 @@ metrics = get_metrics()
 metrics.set_service_health("webui", True)
 
 # Ensure the static directory path is absolute
-# Static directory is at services/web/static, while this file is at services/web/src/main.py
-STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+# In Docker: static files are at /app/web/static (working dir is /app/web)
+# In local dev: services/web/static, while this file is at services/web/src/main.py
+if os.path.exists("static"):
+    # Docker environment - static directory is relative to working directory
+    STATIC_DIR = os.path.abspath("static")
+else:
+    # Local development - static directory is one level up from src
+    STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+
+print(f"[DEBUG] Static directory: {STATIC_DIR}")
+print(f"[DEBUG] Static directory exists: {os.path.exists(STATIC_DIR)}")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Register markdown filter for Jinja2

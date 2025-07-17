@@ -1,0 +1,10 @@
+# Database migration dependencies
+alembic==1.13.1
+SQLAlchemy==2.0.25
+psycopg2-binary==2.9.9
+
+# Azure authentication for managed identity
+azure-identity==1.15.0
+
+# For JSON parsing in migration scripts
+# (using standard library json module - no additional deps needed)

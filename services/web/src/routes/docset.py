@@ -106,7 +106,36 @@ def get_docset_flagged_pages(db, doc_set):
             page_is_biased = is_page_biased(page)
             
             if page_is_biased:
-                bias_details = {'mcp_holistic': page.mcp_holistic}
+                # Get snippets for this page
+                snippets = db.query(Snippet).filter(Snippet.page_id == page.id).all()
+                
+                # Parse mcp_holistic JSON if it's a string (same logic as scan.py)
+                mcp_holistic = page.mcp_holistic
+                if isinstance(mcp_holistic, str):
+                    try:
+                        import json
+                        mcp_holistic = json.loads(mcp_holistic)
+                    except Exception:
+                        mcp_holistic = None
+                
+                # Debug logging to see what's in the data (limited to first page only)
+                if len(flagged_pages) == 0:  # Only log for the first flagged page
+                    print(f"[DEBUG] First flagged page {page.url}")
+                    print(f"[DEBUG] mcp_holistic type: {type(mcp_holistic)}")
+                    if mcp_holistic and isinstance(mcp_holistic, dict):
+                        print(f"[DEBUG] mcp_holistic keys: {list(mcp_holistic.keys())}")
+                        print(f"[DEBUG] has summary: {'summary' in mcp_holistic}")
+                        print(f"[DEBUG] has recommendations: {'recommendations' in mcp_holistic}")
+                        if 'summary' in mcp_holistic:
+                            print(f"[DEBUG] summary value: {mcp_holistic.get('summary', 'None')[:100]}...")
+                        if 'recommendations' in mcp_holistic:
+                            print(f"[DEBUG] recommendations value: {mcp_holistic.get('recommendations', 'None')}")
+                
+                # Build bias_details structure that matches template expectations
+                bias_details = {
+                    'mcp_holistic': mcp_holistic,
+                    'snippets': snippets
+                }
                 seen_urls.add(page.url)
                 flagged_pages.append({
                     'url': page.url,
@@ -121,27 +150,37 @@ def get_docset_flagged_pages(db, doc_set):
 
 def get_docset_summary_stats(db, doc_set):
     """Get summary statistics for a specific doc set from all scans."""
+    print(f"[DEBUG] get_docset_summary_stats called with doc_set: '{doc_set}'")
+    
     completed_scans = db.query(Scan).all()
+    print(f"[DEBUG] Found {len(completed_scans)} total scans")
     
     all_pages = set()
     biased_pages = set()
     
     for scan in completed_scans:
         pages = db.query(Page).filter(Page.scan_id == scan.id).all()
+        print(f"[DEBUG] Scan {scan.id}: {len(pages)} pages")
         
+        docset_pages_in_scan = 0
         for page in pages:
-            if extract_doc_set_from_url(page.url) != doc_set:
-                continue
+            extracted_docset = extract_doc_set_from_url(page.url)
+            if extracted_docset == doc_set:
+                docset_pages_in_scan += 1
+                all_pages.add(page.url)
                 
-            all_pages.add(page.url)
-            
-            # Check if page has bias using unified logic
-            if is_page_biased(page):
-                biased_pages.add(page.url)
+                # Check if page has bias using unified logic
+                if is_page_biased(page):
+                    biased_pages.add(page.url)
+        
+        if docset_pages_in_scan > 0:
+            print(f"[DEBUG] Scan {scan.id}: {docset_pages_in_scan} pages match docset '{doc_set}'")
     
     total_pages = len(all_pages)
     total_biased = len(biased_pages)
     bias_percentage = (total_biased / total_pages * 100) if total_pages > 0 else 0
+    
+    print(f"[DEBUG] Final stats: {total_pages} total pages, {total_biased} biased pages")
     
     return {
         'total_pages': total_pages,
@@ -166,6 +205,15 @@ async def docset_details(doc_set_name: str, request: Request):
     try:
         print(f"[DEBUG] Docset request for: '{doc_set}'")
         
+        # Debug: Check what docsets actually exist in the database
+        all_docsets = set()
+        sample_pages = db.query(Page).limit(100).all()
+        for page in sample_pages:
+            extracted_docset = extract_doc_set_from_url(page.url)
+            if extracted_docset:
+                all_docsets.add(extracted_docset)
+        print(f"[DEBUG] Available docsets in database: {sorted(list(all_docsets))}")
+        
         # Get summary statistics
         summary_stats = get_docset_summary_stats(db, doc_set)
         print(f"[DEBUG] Summary stats: {summary_stats}")
@@ -185,14 +233,19 @@ async def docset_details(doc_set_name: str, request: Request):
         else:
             # Get bias history for charts
             bias_history = get_docset_bias_history(db, doc_set)
+            print(f"[DEBUG] Bias history: {len(bias_history) if bias_history else 0} entries")
             
             # Get flagged pages with details
             flagged_pages = get_docset_flagged_pages(db, doc_set)
+            print(f"[DEBUG] Flagged pages: {len(flagged_pages) if flagged_pages else 0} pages")
         
         # Format display name
         display_name = format_doc_set_name(doc_set)
+        print(f"[DEBUG] Display name: {display_name}")
         
-        return templates.TemplateResponse("docset_details.html", {
+        print(f"[DEBUG] About to render template...")
+        
+        result = templates.TemplateResponse("docset_details.html", {
             "request": request,
             "doc_set": doc_set,
             "display_name": display_name,
@@ -200,6 +253,15 @@ async def docset_details(doc_set_name: str, request: Request):
             "bias_history": bias_history,
             "flagged_pages": flagged_pages
         })
+        
+        print(f"[DEBUG] Template rendered successfully")
+        return result
+        
+    except Exception as e:
+        print(f"[ERROR] Exception in docset_details: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
         
     finally:
         db.close()
