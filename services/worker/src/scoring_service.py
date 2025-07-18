@@ -16,7 +16,7 @@ class ScoringService:
     
     def __init__(self, mcp_server_url: Optional[str] = None):
         self.llm_client = LLMClient()
-        self.mcp_server_url = mcp_server_url or os.getenv("MCP_SERVER_URL", "http://localhost:9000/score_page")
+        self.mcp_server_url = mcp_server_url or os.getenv("MCP_SERVER_URL", "http://localhost:8009/score_page")
         self.metrics = get_metrics()
 
     def apply_heuristic_scoring(self, snippets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

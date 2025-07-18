@@ -3,6 +3,43 @@ Shared utilities for page-based bias detection.
 Provides consistent logic across all UI components.
 """
 
+import json
+from typing import Dict, Any, Optional
+
+
+def get_parsed_mcp_holistic(page) -> Optional[Dict[str, Any]]:
+    """
+    Parse and cache the mcp_holistic data for a page.
+    
+    Args:
+        page: Page model instance with mcp_holistic field
+        
+    Returns:
+        Parsed mcp_holistic data as dict, or None if parsing fails
+    """
+    if not page.mcp_holistic:
+        return None
+    
+    # Check if we already have parsed data cached on the page object
+    if hasattr(page, '_parsed_mcp_holistic'):
+        return page._parsed_mcp_holistic
+    
+    # Parse the data
+    mcp_data = page.mcp_holistic
+    if isinstance(mcp_data, str):
+        try:
+            mcp_data = json.loads(mcp_data)
+        except (json.JSONDecodeError, TypeError):
+            mcp_data = None
+    
+    if not isinstance(mcp_data, dict):
+        mcp_data = None
+    
+    # Cache the parsed result on the page object
+    page._parsed_mcp_holistic = mcp_data
+    
+    return mcp_data
+
 def is_page_biased(page):
     """
     Determine if a page needs attention based on holistic bias analysis.
@@ -13,19 +50,8 @@ def is_page_biased(page):
     Returns:
         bool: True if page has bias_types (needs attention), False otherwise
     """
-    if not page.mcp_holistic:
-        return False
-        
-    # Handle both dict and string mcp_holistic data
-    mcp_data = page.mcp_holistic
-    if isinstance(mcp_data, str):
-        try:
-            import json
-            mcp_data = json.loads(mcp_data)
-        except (json.JSONDecodeError, TypeError):
-            return False
-    
-    if not isinstance(mcp_data, dict):
+    mcp_data = get_parsed_mcp_holistic(page)
+    if not mcp_data:
         return False
     
     # A page needs attention if it has any bias_types
@@ -47,19 +73,8 @@ def get_page_priority(page):
         tuple: (priority_label, priority_score) where label is High/Medium/Low 
                and score is 3/2/1 respectively
     """
-    if not page.mcp_holistic:
-        return ("Low", 1)
-        
-    # Handle both dict and string mcp_holistic data
-    mcp_data = page.mcp_holistic
-    if isinstance(mcp_data, str):
-        try:
-            import json
-            mcp_data = json.loads(mcp_data)
-        except (json.JSONDecodeError, TypeError):
-            return ("Low", 1)
-    
-    if not isinstance(mcp_data, dict):
+    mcp_data = get_parsed_mcp_holistic(page)
+    if not mcp_data:
         return ("Low", 1)
     
     bias_types = mcp_data.get('bias_types', [])

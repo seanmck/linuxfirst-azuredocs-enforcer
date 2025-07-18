@@ -10,6 +10,7 @@ import json
 from urllib.parse import unquote
 from shared.utils.bias_utils import is_page_biased, count_biased_pages, get_bias_percentage
 from shared.utils.url_utils import extract_doc_set_from_url, format_doc_set_name
+from utils.docset_queries import get_docset_complete_data, get_available_docsets
 
 router = APIRouter()
 
@@ -138,6 +139,7 @@ def get_docset_flagged_pages(db, doc_set):
                 }
                 seen_urls.add(page.url)
                 flagged_pages.append({
+                    'id': page.id,  # Add page ID for pull request functionality
                     'url': page.url,
                     'scan_id': scan.id,
                     'scan_date': scan.started_at,
@@ -205,39 +207,24 @@ async def docset_details(doc_set_name: str, request: Request):
     try:
         print(f"[DEBUG] Docset request for: '{doc_set}'")
         
-        # Debug: Check what docsets actually exist in the database
-        all_docsets = set()
-        sample_pages = db.query(Page).limit(100).all()
-        for page in sample_pages:
-            extracted_docset = extract_doc_set_from_url(page.url)
-            if extracted_docset:
-                all_docsets.add(extracted_docset)
-        print(f"[DEBUG] Available docsets in database: {sorted(list(all_docsets))}")
+        # Get all docset data in a single optimized query
+        docset_data = get_docset_complete_data(db, doc_set)
         
-        # Get summary statistics
-        summary_stats = get_docset_summary_stats(db, doc_set)
+        summary_stats = docset_data['summary_stats']
+        bias_history = docset_data['bias_history']
+        flagged_pages = docset_data['flagged_pages']
+        use_doc_set_column = docset_data['use_doc_set_column']
+        
         print(f"[DEBUG] Summary stats: {summary_stats}")
+        print(f"[DEBUG] Bias history: {len(bias_history)} entries")
+        print(f"[DEBUG] Flagged pages: {len(flagged_pages)} pages")
+        print(f"[DEBUG] Using doc_set column: {use_doc_set_column}")
         
-        # If no pages found, show empty state instead of 404
+        # Debug: Show available docsets if no pages found
         if summary_stats['total_pages'] == 0:
             print(f"[DEBUG] No pages found for doc_set: '{doc_set}' - showing empty state")
-            # Create empty data structures for template
-            bias_history = []
-            flagged_pages = []
-            summary_stats = {
-                'total_pages': 0,
-                'biased_pages': 0,
-                'bias_percentage': 0,
-                'clean_pages': 0
-            }
-        else:
-            # Get bias history for charts
-            bias_history = get_docset_bias_history(db, doc_set)
-            print(f"[DEBUG] Bias history: {len(bias_history) if bias_history else 0} entries")
-            
-            # Get flagged pages with details
-            flagged_pages = get_docset_flagged_pages(db, doc_set)
-            print(f"[DEBUG] Flagged pages: {len(flagged_pages) if flagged_pages else 0} pages")
+            available_docsets = get_available_docsets(db)
+            print(f"[DEBUG] Available docsets in database: {sorted(available_docsets)}")
         
         # Format display name
         display_name = format_doc_set_name(doc_set)

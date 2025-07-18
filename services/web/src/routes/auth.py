@@ -56,7 +56,7 @@ async def get_current_user(
         return None
     
     # Update last activity
-    session_storage.set(f"session:{session_token}", session_data, ttl=86400)  # 24 hours
+    session_storage.set(session_token, session_data, ttl=86400)  # 24 hours
     
     return user
 
@@ -263,7 +263,7 @@ async def github_callback(
         # Store session in cache
         logger.info("Storing session in cache...")
         try:
-            session_storage.set(f"session:{session_token}", {
+            session_storage.set(session_token, {
                 "user_id": user.id,
                 "github_token": access_token,
                 "created_at": datetime.utcnow().isoformat()
@@ -299,7 +299,7 @@ async def logout(request: Request, response: Response, db: Session = Depends(get
     session_token = request.cookies.get("session_token")
     if session_token:
         # Remove from cache
-        session_storage.delete(f"session:{session_token}")
+        session_storage.delete(session_token)
         
         # Remove from database
         db.query(UserSession).filter(UserSession.session_token == session_token).delete()
@@ -328,6 +328,60 @@ async def auth_status(current_user: Optional[User] = Depends(get_current_user)):
     }
 
 
+@router.get("/auth/github/config-status")
+async def github_config_status():
+    """Check GitHub OAuth and App configuration status - useful for debugging"""
+    import os
+    
+    # Check raw environment variables
+    raw_env = {
+        "GITHUB_CLIENT_ID": os.environ.get("GITHUB_CLIENT_ID", ""),
+        "GITHUB_CLIENT_SECRET": os.environ.get("GITHUB_CLIENT_SECRET", ""),
+        "GITHUB_OAUTH_REDIRECT_URI": os.environ.get("GITHUB_OAUTH_REDIRECT_URI", ""),
+        "GITHUB_OAUTH_SCOPES": os.environ.get("GITHUB_OAUTH_SCOPES", ""),
+        "BASE_URL": os.environ.get("BASE_URL", ""),
+        "GITHUB_APP_ID": os.environ.get("GITHUB_APP_ID", ""),
+        "GITHUB_APP_PRIVATE_KEY": bool(os.environ.get("GITHUB_APP_PRIVATE_KEY", "")),  # Don't expose the key
+        "GITHUB_APP_INSTALLATION_URL": os.environ.get("GITHUB_APP_INSTALLATION_URL", "")
+    }
+    
+    # Check parsed configuration
+    oauth_config = {
+        "client_id": config.github_oauth.client_id,
+        "client_secret": bool(config.github_oauth.client_secret),  # Don't expose the secret
+        "redirect_uri": config.github_oauth.redirect_uri,
+        "scopes": config.github_oauth.scopes
+    }
+    
+    app_config = {
+        "app_id": config.github_app.app_id,
+        "private_key_configured": bool(config.github_app.private_key),
+        "installation_url": config.github_app.installation_url
+    }
+    
+    # Validation checks
+    oauth_valid = bool(config.github_oauth.client_id and config.github_oauth.client_secret)
+    app_valid = bool(config.github_app.app_id and config.github_app.private_key)
+    
+    return {
+        "oauth": {
+            "configured": oauth_valid,
+            "config": oauth_config,
+            "raw_env_vars": {k: bool(v) if k.endswith("SECRET") or k.endswith("KEY") else v for k, v in raw_env.items() if k.startswith("GITHUB_") and "APP" not in k}
+        },
+        "github_app": {
+            "configured": app_valid,
+            "config": app_config,
+            "raw_env_vars": {k: bool(v) if k.endswith("KEY") else v for k, v in raw_env.items() if "APP" in k}
+        },
+        "overall_status": {
+            "oauth_ready": oauth_valid,
+            "app_ready": app_valid,
+            "at_least_one_configured": oauth_valid or app_valid
+        }
+    }
+
+
 @router.get("/auth/github/token")
 async def get_github_token(
     request: Request,
@@ -339,7 +393,7 @@ async def get_github_token(
         raise HTTPException(401, "Not authenticated")
     
     session_token = request.cookies.get("session_token")
-    session_data = session_storage.get(f"session:{session_token}")
+    session_data = session_storage.get(session_token)
     
     if not session_data or "github_token" not in session_data:
         # Try to get from database

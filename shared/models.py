@@ -53,6 +53,7 @@ class Page(Base):
     url = Column(String)
     status = Column(String)
     mcp_holistic = Column(JSON)  # Holistic MCP result per page
+    doc_set = Column(String(255), nullable=True)  # Pre-computed docset for performance
     
     # Change detection fields
     content_hash = Column(String, nullable=True)  # SHA256 hash of document content
