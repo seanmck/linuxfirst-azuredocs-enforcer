@@ -3,6 +3,7 @@
 <head>
     <title>{{ display_name }} Bias Analysis - Linux-first Docs for Azure</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="stylesheet" href="/static/dashboard.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -402,6 +403,9 @@
                                     Create pull request
                                 </a>
                             </div>
+                            
+                            <!-- Feedback Widget -->
+                            {% include 'feedback_widget.html' %}
                         </div>
                         {% endif %}
                     </div>

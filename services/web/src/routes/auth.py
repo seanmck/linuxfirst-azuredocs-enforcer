@@ -385,7 +385,7 @@ async def github_config_status():
 @router.get("/auth/github/token")
 async def get_github_token(
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get the current user's GitHub access token (for internal API use only)"""

@@ -67,6 +67,29 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             re.compile(r'call_user_func', re.IGNORECASE),
         ]
     
+    def get_real_client_ip(self, request: Request) -> str:
+        """Get the real client IP, handling nginx reverse proxy headers."""
+        # Check nginx and common proxy headers in order of preference
+        headers_to_check = [
+            'x-forwarded-for',      # Standard header, nginx sets this with client IP
+            'x-real-ip',            # Nginx-specific header
+            'x-client-ip',          # Some proxies use this
+            'cf-connecting-ip',     # Cloudflare (if behind CDN)
+        ]
+        
+        for header in headers_to_check:
+            ip = request.headers.get(header)
+            if ip:
+                # X-Forwarded-For can contain multiple IPs, take the first one
+                if ',' in ip:
+                    ip = ip.split(',')[0].strip()
+                # Basic validation - ensure it's not empty and looks like an IP
+                if ip and not ip.startswith('192.168.') and not ip.startswith('10.') and not ip.startswith('172.'):
+                    return ip
+        
+        # Fallback to direct connection IP
+        return request.client.host
+    
     def is_request_malicious(self, request: Request) -> bool:
         """Check if the request matches any malicious patterns."""
         path = request.url.path
@@ -116,8 +139,8 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         logger.warning(f"Blocked IP {client_ip} until {block_until}")
     
     async def dispatch(self, request: Request, call_next):
-        # Get client IP
-        client_ip = request.client.host
+        # Get client IP (handle reverse proxy headers)
+        client_ip = self.get_real_client_ip(request)
         
         # Check if IP is blocked
         if self.is_ip_blocked(client_ip):

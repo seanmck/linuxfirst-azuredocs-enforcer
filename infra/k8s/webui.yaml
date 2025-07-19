@@ -31,10 +31,11 @@ spec:
         prometheus.io/port: "8000"
         prometheus.io/path: "/metrics"
     spec:
+      priorityClassName: webui-high-priority
       serviceAccountName: sc-account-fefa7dd8-f9d3-4524-8a35-c1123a838df0
       containers:
         - name: webui
-          image: seanmckdemo.azurecr.io/webui:0.0.57
+          image: seanmckdemo.azurecr.io/webui:0.0.63
           env:
           - name: AZURE_OPENAI_DEPLOYMENT
             value: "gpt-4.1"
@@ -74,7 +75,7 @@ spec:
               secretKeyRef:
                 name: azuredocs-secrets
                 key: GITHUB_APP_ID
-          - name: GITHUB_PRIVATE_KEY
+          - name: GITHUB_APP_PRIVATE_KEY
             valueFrom:
               secretKeyRef:
                 name: azuredocs-secrets
@@ -93,6 +94,8 @@ spec:
             value: "https://linuxdocs.seanmck.dev"
           - name: GITHUB_OAUTH_REDIRECT_URI
             value: "https://linuxdocs.seanmck.dev/auth/github/callback"
+          - name: GITHUB_APP_INSTALLATION_URL
+            value: "https://github.com/apps/linux-first-docs-prod/installations/new"
           envFrom:
           - secretRef:
               name: sc-azuredocsdbconnection-secret

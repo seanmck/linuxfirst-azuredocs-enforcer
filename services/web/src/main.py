@@ -21,7 +21,7 @@ import re
 import httpx
 from markdown import markdown as md_lib
 from functools import lru_cache
-from routes import admin, scan, llm, websocket, docset, auth
+from routes import admin, scan, llm, websocket, docset, auth, feedback
 from routes.scan import enqueue_scan_task
 from shared.utils.url_utils import extract_doc_set_from_url, format_doc_set_name
 from jinja_env import templates
@@ -40,8 +40,8 @@ app = FastAPI()
 # Add security middleware first (processes requests before other middleware)
 app.add_middleware(
     SecurityMiddleware,
-    rate_limit_per_minute=60,  # Adjust based on your needs
-    block_duration_minutes=30
+    rate_limit_per_minute=120,  # Increased limit
+    block_duration_minutes=5   # Reduced block time
 )
 
 # Add Prometheus metrics middleware
@@ -580,6 +580,7 @@ app.include_router(llm.router)
 app.include_router(websocket.router)
 app.include_router(docset.router)
 app.include_router(auth.router)
+app.include_router(feedback.router)
 
 # Add metrics endpoint
 app.get("/metrics")(create_metrics_endpoint())

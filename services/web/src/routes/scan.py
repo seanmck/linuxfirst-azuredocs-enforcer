@@ -1,15 +1,17 @@
-from fastapi import APIRouter, Request, HTTPException, Cookie
+from fastapi import APIRouter, Request, HTTPException, Cookie, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from shared.utils.database import SessionLocal
-from shared.models import Scan, Page, Snippet
+from shared.models import Scan, Page, Snippet, User
 from datetime import datetime
+from typing import Optional
 import os
 import requests
 import pprint
 import pika
 import json
 from shared.utils.bias_utils import is_page_biased, get_page_priority
+from routes.auth import get_current_user
 
 router = APIRouter()
 
@@ -18,7 +20,7 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 
 @router.get("/scan/{scan_id}")
-async def scan_details(scan_id: int, request: Request):
+async def scan_details(scan_id: int, request: Request, current_user: Optional[User] = Depends(get_current_user)):
     db = SessionLocal()
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
     if not scan:
@@ -97,7 +99,8 @@ async def scan_details(scan_id: int, request: Request):
         "changed_pages_count": changed_pages_count,
         "percent_flagged": round(percent_flagged, 1),
         "initial_progress": round(initial_progress, 1),
-        "bias_icon_map": bias_icon_map
+        "bias_icon_map": bias_icon_map,
+        "user": current_user
     })
 
 @router.get("/scan/{scan_id}/json")

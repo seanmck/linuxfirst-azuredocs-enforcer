@@ -5,6 +5,7 @@ import os
 import re
 import time
 import asyncio
+import urllib.parse
 from typing import Optional, Dict, Any
 from datetime import datetime
 from github import Github, GithubException
@@ -342,19 +343,30 @@ class GitHubPRService:
                 commit_message
             )
             
-            # 5. Create pull request from user's fork TO the source repository
-            self.logger.info("Step 4: Creating pull request from fork to source")
-            pr_result = await self.create_pull_request(
-                base_repo=source_repo,  # PR target: the original Microsoft repo
-                base_branch=base_branch,
-                head_repo=fork.full_name,  # PR source: user's fork
-                head_branch=branch_name,
-                title=pr_title,
-                body=pr_body
+            # 5. Generate URL for user to manually create pull request
+            self.logger.info("Step 4: Generating PR creation URL for manual submission")
+            
+            # Extract owner from source repo (e.g., "microsoftdocs/azure-docs-pr" -> "microsoftdocs")
+            source_owner = source_repo.split('/')[0]
+            source_repo_name = source_repo.split('/')[1]
+            
+            # Generate GitHub PR creation URL with pre-filled information
+            pr_creation_url = (
+                f"https://github.com/{source_repo}/compare/{base_branch}..."
+                f"{username}:{repo_name}:{branch_name}"
+                f"?expand=1"
+                f"&title={urllib.parse.quote(pr_title)}"
+                f"&body={urllib.parse.quote(pr_body)}"
             )
             
-            self.logger.info(f"PR creation completed successfully: {pr_result['html_url']}")
-            return pr_result["html_url"]
+            # Also provide the direct branch URL
+            branch_url = f"https://github.com/{fork.full_name}/tree/{branch_name}"
+            
+            self.logger.info(f"Branch created at: {branch_url}")
+            self.logger.info(f"PR creation URL: {pr_creation_url}")
+            
+            # Return the PR creation URL so user can manually create the PR
+            return pr_creation_url
             
         except Exception as e:
             self.logger.error(f"Error in PR creation flow: {e}")

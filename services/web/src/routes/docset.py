@@ -1,16 +1,18 @@
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from shared.utils.database import SessionLocal
-from shared.models import Scan, Page, Snippet, BiasSnapshotByDocset
+from shared.models import Scan, Page, Snippet, BiasSnapshotByDocset, User
 from datetime import datetime, date, timedelta
 from collections import defaultdict
+from typing import Optional
 import os
 import json
 from urllib.parse import unquote
 from shared.utils.bias_utils import is_page_biased, count_biased_pages, get_bias_percentage
 from shared.utils.url_utils import extract_doc_set_from_url, format_doc_set_name
 from utils.docset_queries import get_docset_complete_data, get_available_docsets
+from routes.auth import get_current_user
 
 router = APIRouter()
 
@@ -197,7 +199,7 @@ async def docset_test(request: Request):
     return HTMLResponse("<h1>Docset router is working!</h1>")
 
 @router.get("/docset/{doc_set_name}")
-async def docset_details(doc_set_name: str, request: Request):
+async def docset_details(doc_set_name: str, request: Request, current_user: Optional[User] = Depends(get_current_user)):
     """Show detailed bias analysis for a specific documentation set."""
     # URL decode the doc set name
     doc_set = unquote(doc_set_name)
@@ -238,7 +240,8 @@ async def docset_details(doc_set_name: str, request: Request):
             "display_name": display_name,
             "summary_stats": summary_stats,
             "bias_history": bias_history,
-            "flagged_pages": flagged_pages
+            "flagged_pages": flagged_pages,
+            "user": current_user
         })
         
         print(f"[DEBUG] Template rendered successfully")

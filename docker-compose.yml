@@ -53,7 +53,7 @@ services:
       - DATABASE_URL=postgresql://azuredocs_user:azuredocs_pass@db:5432/azuredocs
       - RABBITMQ_HOST=rabbitmq
     ports:
-      - "8009:8009"
+      - "9000:9000"
     restart: always
 volumes:
   pgdata:

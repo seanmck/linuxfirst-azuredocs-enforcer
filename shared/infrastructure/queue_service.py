@@ -5,7 +5,8 @@ Extracted from the monolithic queue_worker.py
 import json
 import time
 import pika
-from typing import Callable, Dict, Any
+import threading
+from typing import Callable, Dict, Any, Optional
 from shared.config import config
 from shared.utils.logging import get_logger
 
@@ -177,19 +178,29 @@ class QueueService:
             self.logger.error(f"Failed to publish to {queue_name}: {e}")
             return False
 
-    def consume_tasks(self, callback: Callable[[Dict[str, Any]], None]):
+    def consume_tasks(self, callback: Callable[[Dict[str, Any]], None], shutdown_event: Optional[threading.Event] = None):
         """
         Start consuming tasks from the queue with automatic reconnection
         
         Args:
             callback: Function to call for each received task
+            shutdown_event: Optional event to signal graceful shutdown
         """
         while True:
+            if shutdown_event and shutdown_event.is_set():
+                self.logger.info("Shutdown event received, stopping task consumption")
+                break
             try:
                 if not self.channel or self.connection.is_closed:
                     if not self.connect():
                         self.logger.error("Failed to connect to RabbitMQ, waiting before retry...")
-                        time.sleep(self.retry_delay_base)
+                        if shutdown_event:
+                            for _ in range(self.retry_delay_base):
+                                if shutdown_event.is_set():
+                                    return
+                                time.sleep(1)
+                        else:
+                            time.sleep(self.retry_delay_base)
                         continue
                         
                 def message_callback(ch, method, properties, body):
@@ -269,11 +280,23 @@ class QueueService:
                    pika.exceptions.ConnectionWrongStateError) as e:
                 self.logger.warning(f"Connection lost: {e}. Attempting to reconnect...")
                 self._cleanup_connection()
-                time.sleep(self.retry_delay_base)
+                if shutdown_event:
+                    for _ in range(self.retry_delay_base):
+                        if shutdown_event.is_set():
+                            return
+                        time.sleep(1)
+                else:
+                    time.sleep(self.retry_delay_base)
             except Exception as e:
                 self.logger.error(f"Unexpected error in consume_tasks: {e}", exc_info=True)
                 self._cleanup_connection()
-                time.sleep(self.retry_delay_base)
+                if shutdown_event:
+                    for _ in range(self.retry_delay_base):
+                        if shutdown_event.is_set():
+                            return
+                        time.sleep(1)
+                else:
+                    time.sleep(self.retry_delay_base)
         
         self.disconnect()
 

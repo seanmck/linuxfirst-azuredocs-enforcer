@@ -44,10 +44,14 @@ class GitHubAppService:
             'iss': self.app_id  # Issuer (App ID)
         }
         
-        # Generate JWT token
-        token = jwt.encode(payload, self.private_key, algorithm='RS256')
-        logger.info(f"Generated JWT token for app {self.app_id}")
-        return token
+        try:
+            # Generate JWT token
+            token = jwt.encode(payload, self.private_key, algorithm='RS256')
+            logger.info(f"Generated JWT token for app {self.app_id}")
+            return token
+        except Exception as e:
+            logger.error(f"Failed to generate JWT token for app {self.app_id}: {type(e).__name__}: {e}")
+            raise
     
     def get_installation_for_user(self, username: str) -> Optional[Dict[str, Any]]:
         """Get installation information for a specific user"""
@@ -137,11 +141,16 @@ class GitHubAppService:
     def create_github_client(self, username: str) -> Optional[Github]:
         """Create authenticated GitHub client using installation token"""
         if not self.configured:
+            logger.error(f"Cannot create GitHub client for {username}: GitHub App not configured")
             return None
         
         try:
+            logger.info(f"Creating GitHub App client for {username} with App ID {self.app_id}")
+            
+            # Generate installation token
             installation_token = self.generate_installation_token(username)
             if not installation_token:
+                logger.error(f"Failed to generate installation token for {username}")
                 return None
             
             # Create GitHub client with installation token
@@ -170,7 +179,8 @@ class GitHubAppService:
             return client
             
         except Exception as e:
-            logger.error(f"Error creating GitHub App client for {username}: {e}")
+            logger.error(f"Error creating GitHub App client for {username}: {type(e).__name__}: {e}")
+            logger.exception("Full traceback:")
             return None
     
     def is_user_installation_available(self, username: str) -> bool:

@@ -75,6 +75,7 @@ class Page(Base):
     
     scan = relationship("Scan", back_populates="pages")
     snippets = relationship("Snippet", back_populates="page")
+    feedback = relationship("UserFeedback", back_populates="page", cascade="all, delete-orphan")
 
 class ProcessingUrl(Base):
     __tablename__ = 'processing_urls'
@@ -171,16 +172,18 @@ class UserFeedback(Base):
     __tablename__ = 'user_feedback'
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
-    snippet_id = Column(Integer, ForeignKey('snippets.id', ondelete='CASCADE'), nullable=False)
-    rating = Column(String(10), nullable=False)  # 'thumbs_up' or 'thumbs_down'
+    snippet_id = Column(Integer, ForeignKey('snippets.id', ondelete='CASCADE'), nullable=True)
+    page_id = Column(Integer, ForeignKey('pages.id', ondelete='CASCADE'), nullable=True)
+    rating = Column(Boolean, nullable=False)  # True = thumbs_up, False = thumbs_down
     comment = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     # Relationships
     user = relationship("User", back_populates="feedback")
     snippet = relationship("Snippet", back_populates="feedback")
+    page = relationship("Page", back_populates="feedback")
     
     # Constraints
     __table_args__ = (
-        sa.CheckConstraint("rating IN ('thumbs_up', 'thumbs_down')", name='check_rating_value'),
+        sa.CheckConstraint("(snippet_id IS NOT NULL AND page_id IS NULL) OR (snippet_id IS NULL AND page_id IS NOT NULL)", name='check_feedback_target'),
     )

@@ -271,7 +271,7 @@ async def compute_diff(
 
 @router.post("/score_page_holistic")
 async def score_page_holistic(request: Request, body: dict = Body(...)):
-    mcp_url = os.getenv("MCP_SERVER_URL", "http://localhost:8009/score_page")
+    mcp_url = os.getenv("MCP_SERVER_URL", "http://localhost:9000/score_page")
     page_content = body.get("page_content")
     metadata = body.get("metadata", {})
     if not page_content:
