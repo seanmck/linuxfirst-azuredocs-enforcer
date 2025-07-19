@@ -34,10 +34,10 @@ def get_docset_complete_data(db: Session, doc_set: str) -> Dict[str, Any]:
     # Try to get cached data first
     cached_data = get_cached_docset_data(doc_set)
     if cached_data is not None:
-        print(f"[DEBUG] Using cached data for docset: {doc_set}")
+        logger.debug(f"Using cached data for docset: {doc_set}")
         return cached_data
     
-    print(f"[DEBUG] Cache miss for docset: {doc_set}, querying database")
+    logger.debug(f"Cache miss for docset: {doc_set}, querying database")
     
     # Try to get recent bias history from snapshots first (last 90 days)
     end_date = date.today()
