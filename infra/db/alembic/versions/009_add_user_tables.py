@@ -7,6 +7,7 @@ Create Date: 2025-07-16
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import text
 from sqlalchemy.dialects import postgresql
 
 
@@ -26,59 +27,146 @@ def upgrade():
     """
     
     # Create users table
-    op.create_table('users',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('github_username', sa.String(length=255), nullable=False),
-        sa.Column('github_id', sa.Integer(), nullable=False),
-        sa.Column('email', sa.String(length=255), nullable=True),
-        sa.Column('avatar_url', sa.Text(), nullable=True),
-        sa.Column('created_at', sa.TIMESTAMP(), server_default=sa.text('now()'), nullable=False),
-        sa.Column('last_login', sa.TIMESTAMP(), nullable=True),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('github_username'),
-        sa.UniqueConstraint('github_id')
-    )
+    # Check if users table exists
+    connection = op.get_bind()
+    table_exists = connection.execute(text("""
+        SELECT COUNT(*) 
+        FROM information_schema.tables 
+        WHERE table_name = 'users'
+    """)).scalar() > 0
+    
+    if not table_exists:
+        print("Creating users table...")
+        op.create_table('users',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('github_username', sa.String(length=255), nullable=False),
+            sa.Column('github_id', sa.Integer(), nullable=False),
+            sa.Column('email', sa.String(length=255), nullable=True),
+            sa.Column('avatar_url', sa.Text(), nullable=True),
+            sa.Column('created_at', sa.TIMESTAMP(), server_default=sa.text('now()'), nullable=False),
+            sa.Column('last_login', sa.TIMESTAMP(), nullable=True),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('github_username'),
+            sa.UniqueConstraint('github_id')
+        )
+        print("users table added successfully.")
+    else:
+        print("users table already exists, skipping...")
+
     
     # Create index on github_id for fast lookups during OAuth
-    op.create_index('idx_users_github_id', 'users', ['github_id'])
+    # Create index if it doesn't exist
+    try:
+        op.create_index('idx_users_github_id', 'users', ['github_id'])
+        print("Index idx_users_github_id created successfully.")
+    except Exception:
+        print("Index idx_users_github_id already exists, skipping...")
+
     
     # Create user_sessions table
-    op.create_table('user_sessions',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('user_id', sa.Integer(), nullable=False),
-        sa.Column('session_token', sa.String(length=255), nullable=False),
-        sa.Column('github_access_token', sa.Text(), nullable=True),  # Will be encrypted
-        sa.Column('expires_at', sa.TIMESTAMP(), nullable=False),
-        sa.Column('created_at', sa.TIMESTAMP(), server_default=sa.text('now()'), nullable=False),
-        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('session_token')
-    )
+    # Check if user_sessions table exists
+    connection = op.get_bind()
+    table_exists = connection.execute(text("""
+        SELECT COUNT(*) 
+        FROM information_schema.tables 
+        WHERE table_name = 'user_sessions'
+    """)).scalar() > 0
+    
+    if not table_exists:
+        print("Creating user_sessions table...")
+        op.create_table('user_sessions',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('user_id', sa.Integer(), nullable=False),
+            sa.Column('session_token', sa.String(length=255), nullable=False),
+            sa.Column('github_access_token', sa.Text(), nullable=True),  # Will be encrypted
+            sa.Column('expires_at', sa.TIMESTAMP(), nullable=False),
+            sa.Column('created_at', sa.TIMESTAMP(), server_default=sa.text('now()'), nullable=False),
+            sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('session_token')
+        )
+        print("user_sessions table added successfully.")
+    else:
+        print("user_sessions table already exists, skipping...")
+
     
     # Create indexes for session lookups and cleanup
-    op.create_index('idx_user_sessions_token', 'user_sessions', ['session_token'])
-    op.create_index('idx_user_sessions_expires', 'user_sessions', ['expires_at'])
+    # Create index if it doesn't exist
+    try:
+        op.create_index('idx_user_sessions_token', 'user_sessions', ['session_token'])
+        print("Index idx_user_sessions_token created successfully.")
+    except Exception:
+        print("Index idx_user_sessions_token already exists, skipping...")
+
+    # Create index if it doesn't exist
+    try:
+        op.create_index('idx_user_sessions_expires', 'user_sessions', ['expires_at'])
+        print("Index idx_user_sessions_expires created successfully.")
+    except Exception:
+        print("Index idx_user_sessions_expires already exists, skipping...")
+
     
     # Create user_feedback table
-    op.create_table('user_feedback',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('user_id', sa.Integer(), nullable=False),
-        sa.Column('snippet_id', sa.Integer(), nullable=False),
-        sa.Column('rating', sa.String(length=10), nullable=False),  # 'thumbs_up' or 'thumbs_down'
-        sa.Column('comment', sa.Text(), nullable=True),
-        sa.Column('created_at', sa.TIMESTAMP(), server_default=sa.text('now()'), nullable=False),
-        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['snippet_id'], ['snippets.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id'),
-        sa.CheckConstraint("rating IN ('thumbs_up', 'thumbs_down')", name='check_rating_value')
-    )
+    # Check if user_feedback table exists
+    connection = op.get_bind()
+    table_exists = connection.execute(text("""
+        SELECT COUNT(*) 
+        FROM information_schema.tables 
+        WHERE table_name = 'user_feedback'
+    """)).scalar() > 0
+    
+    if not table_exists:
+        print("Creating user_feedback table...")
+        op.create_table('user_feedback',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('user_id', sa.Integer(), nullable=False),
+            sa.Column('snippet_id', sa.Integer(), nullable=False),
+            sa.Column('rating', sa.String(length=10), nullable=False),  # 'thumbs_up' or 'thumbs_down'
+            sa.Column('comment', sa.Text(), nullable=True),
+            sa.Column('created_at', sa.TIMESTAMP(), server_default=sa.text('now()'), nullable=False),
+            sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+            sa.ForeignKeyConstraint(['snippet_id'], ['snippets.id'], ondelete='CASCADE'),
+            sa.PrimaryKeyConstraint('id'),
+            sa.CheckConstraint("rating IN ('thumbs_up', 'thumbs_down')", name='check_rating_value')
+        )
+        print("user_feedback table added successfully.")
+    else:
+        print("user_feedback table already exists, skipping...")
+
     
     # Create composite index for checking if user already provided feedback
-    op.create_index('idx_user_feedback_user_snippet', 'user_feedback', ['user_id', 'snippet_id'])
+    # Create index if it doesn't exist
+    try:
+        op.create_index('idx_user_feedback_user_snippet', 'user_feedback', ['user_id', 'snippet_id'])
+        print("Index idx_user_feedback_user_snippet created successfully.")
+    except Exception:
+        print("Index idx_user_feedback_user_snippet already exists, skipping...")
+
     
     # Add proposed_change_id column to snippets table to link feedback to specific proposed changes
-    op.add_column('snippets', sa.Column('proposed_change_id', sa.String(length=255), nullable=True))
-    op.create_index('idx_snippets_proposed_change', 'snippets', ['proposed_change_id'])
+    # Check if proposed_change_id column exists in snippets
+    connection = op.get_bind()
+    column_exists = connection.execute(text("""
+        SELECT COUNT(*) 
+        FROM information_schema.columns 
+        WHERE table_name = 'snippets' 
+        AND column_name = 'proposed_change_id'
+    """)).scalar() > 0
+    
+    if not column_exists:
+        print("Adding proposed_change_id column to snippets...")
+        op.add_column('snippets', sa.Column('proposed_change_id', sa.String(length=255), nullable=True))
+        print("proposed_change_id column added successfully.")
+    else:
+        print("proposed_change_id column already exists in snippets, skipping...")
+
+    # Create index if it doesn't exist
+    try:
+        op.create_index('idx_snippets_proposed_change', 'snippets', ['proposed_change_id'])
+        print("Index idx_snippets_proposed_change created successfully.")
+    except Exception:
+        print("Index idx_snippets_proposed_change already exists, skipping...")
+
 
 
 def downgrade():

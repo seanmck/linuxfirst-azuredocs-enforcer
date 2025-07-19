@@ -7,6 +7,8 @@ import os
 import time
 import datetime
 import hashlib
+import signal
+import threading
 from typing import Dict, Any, List, Optional
 
 # Add the project root to the Python path
@@ -40,6 +42,17 @@ class DocumentWorker:
         self.logger = get_logger(__name__)
         self.metrics = get_metrics()
         self.worker_id = f"document_worker_{os.getpid()}_{int(time.time())}"
+        self.shutdown_event = threading.Event()
+        self.setup_signal_handlers()
+
+    def setup_signal_handlers(self):
+        """Setup signal handlers for graceful shutdown"""
+        def signal_handler(signum, frame):
+            self.logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+            self.shutdown_event.set()
+        
+        signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(signal.SIGINT, signal_handler)
 
     def process_document_task(self, message: Dict[str, Any]) -> bool:
         """
@@ -509,12 +522,13 @@ class DocumentWorker:
             
         try:
             self.logger.info("Starting to consume document tasks...")
-            self.queue_service.consume_tasks(self.process_document_task)
+            self.queue_service.consume_tasks(self.process_document_task, shutdown_event=self.shutdown_event)
             
         except Exception as e:
             self.logger.error(f"Error during document task consumption: {e}", exc_info=True)
             
         finally:
+            self.logger.info("Document worker shutting down gracefully...")
             self.queue_service.disconnect()
 
 

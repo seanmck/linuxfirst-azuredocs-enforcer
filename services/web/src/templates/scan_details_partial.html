@@ -331,7 +331,10 @@
                 {% set has_flagged = true %}
                 <div class="page-section">
                     <div class="page-header">
-                        <div class="page-url"><a href="{{ page.url }}" target="_blank" rel="noopener noreferrer">{{ page.url }}</a></div>
+                        <div class="page-url">
+                            <a href="{{ page.url }}" target="_blank" rel="noopener noreferrer">{{ page.url }}</a>
+                            <a href="/docpage/{{ page.id }}" style="margin-left: 0.5em; color: #2563eb; text-decoration: none; font-size: 0.9em;">[View Details]</a>
+                        </div>
                         
                         <span class="priority-badge priority-{{ page['priority_label']|lower }}">{{ page['priority_label'] }} Priority</span>
                     </div>
@@ -365,6 +368,9 @@
                             Create pull request
                         </a>
                     </div>
+                    
+                    <!-- Feedback Widget -->
+                    {% include 'feedback_widget.html' %}
                 </div>
             {% endif %}
         {% endfor %}

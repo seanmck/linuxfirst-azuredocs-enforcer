@@ -16,6 +16,7 @@ import logging
 from typing import Optional
 from pydantic import BaseModel
 from datetime import datetime
+from shared.utils.date_utils import get_current_date_mmddyyyy, update_ms_date_in_content
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -88,6 +89,26 @@ async def proposed_change(request: Request, page_id: int = Query(...)):
         original_markdown = f"[Unrecognized URL format: {page.url}]"
     yaml_dict_orig, yaml_str_orig, md_body_orig = extract_yaml_header(original_markdown)
     original_markdown_content = original_markdown  # Keep full original markdown with YAML header
+    
+    # Construct GitHub blob URL and MS Learn URL for template
+    github_url = None
+    mslearn_url = None
+    
+    if repo_path:
+        # Construct GitHub blob URL
+        github_url = f"https://github.com/microsoftdocs/azure-docs/blob/main/{repo_path}"
+        
+        # Construct MS Learn URL from repo path
+        if repo_path.startswith('articles/'):
+            article_path = repo_path[9:]  # Remove 'articles/' prefix
+            if article_path.endswith('.md'):
+                article_path = article_path[:-3]  # Remove .md extension
+            mslearn_url = f"https://learn.microsoft.com/en-us/azure/{article_path}"
+    
+    # If original page URL is already MS Learn, use that
+    if 'learn.microsoft.com' in page.url:
+        mslearn_url = page.url
+    
     return templates.TemplateResponse("proposed_change.html", {
         "request": request,
         "original_markdown": original_markdown_content,
@@ -95,6 +116,8 @@ async def proposed_change(request: Request, page_id: int = Query(...)):
         "yaml_header_str_orig": yaml_str_orig,
         "debug_info": {},
         "file_path": repo_path or "unknown-file.md",
+        "github_url": github_url,
+        "mslearn_url": mslearn_url,
     })
 
 @router.get("/generate_updated_markdown")
@@ -330,7 +353,7 @@ async def suggest_linux_pr(request: Request, body: dict = Body(...)):
         "Original:\n"
         "---\n"
         "title: 'Create a resource group'\n"
-        "ms.date: 01/01/2024\n"
+        f"ms.date: {get_current_date_mmddyyyy()}\n"
         "---\n"
         "\n"
         "# Create a resource group (PowerShell)\n"
@@ -340,7 +363,7 @@ async def suggest_linux_pr(request: Request, body: dict = Body(...)):
         "```\n"
         "---\n"
         "title: 'Create a resource group'\n"
-        "ms.date: 01/01/2024\n"
+        f"ms.date: {get_current_date_mmddyyyy()}\n"
         "---\n"
         "\n"
         "# Create a resource group (PowerShell)\n"
@@ -362,6 +385,10 @@ async def suggest_linux_pr(request: Request, body: dict = Body(...)):
             proposed = match.group(1).strip()
         else:
             proposed = raw_response
+        
+        # Ensure the ms.date field is updated to current date in the proposed content
+        proposed = update_ms_date_in_content(proposed)
+        
     except Exception as e:
         proposed = f"Error generating suggestion: {e}"
     return JSONResponse({"original": doc_content, "proposed": proposed})

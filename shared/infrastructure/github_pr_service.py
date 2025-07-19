@@ -5,6 +5,7 @@ import os
 import re
 import time
 import asyncio
+import urllib.parse
 from typing import Optional, Dict, Any
 from datetime import datetime
 from github import Github, GithubException
@@ -16,6 +17,7 @@ import logging
 from shared.config import config
 from shared.utils.logging import get_logger
 from shared.infrastructure.github_app_service import github_app_service
+from shared.utils.date_utils import update_ms_date_in_content
 import requests
 
 logger = get_logger(__name__)
@@ -67,6 +69,112 @@ class GitHubPRService:
                 self.logger.warning(f"Failed to fetch user info for scope check: {response.status_code}")
         except Exception as e:
             self.logger.error(f"Error checking user permissions: {e}")
+    
+    def extract_doc_name_from_path(self, file_path: str) -> str:
+        """Extract a clean document name from file path for branch naming
+        
+        Args:
+            file_path: Path like 'articles/storage/storage-account-create.md'
+            
+        Returns:
+            Clean document name like 'storage-account-create'
+        """
+        try:
+            # Handle None or empty paths
+            if not file_path:
+                return "unknown-doc"
+            
+            # Remove 'articles/' prefix if present
+            path = file_path
+            if path.startswith('articles/'):
+                path = path[9:]  # Remove 'articles/' prefix
+            
+            # Get the filename without directory
+            if '/' in path:
+                filename = path.split('/')[-1]  # Get last part after final slash
+            else:
+                filename = path
+            
+            # Remove .md extension
+            if filename.endswith('.md'):
+                doc_name = filename[:-3]
+            elif filename.endswith('.markdown'):
+                doc_name = filename[:-9]
+            else:
+                doc_name = filename
+            
+            # Sanitize for Git branch naming
+            # Convert to lowercase, replace spaces/underscores/dots with hyphens
+            doc_name = doc_name.lower()
+            doc_name = re.sub(r'[_\s\.]+', '-', doc_name)  # Replace spaces, underscores, dots with hyphens
+            doc_name = re.sub(r'[^a-z0-9\-]', '', doc_name)  # Remove special characters except hyphens
+            doc_name = re.sub(r'-+', '-', doc_name)  # Replace multiple consecutive hyphens with single hyphen
+            doc_name = doc_name.strip('-')  # Remove leading/trailing hyphens
+            
+            # Ensure we have something and limit length
+            if not doc_name:
+                doc_name = "unknown-doc"
+            
+            # Limit length to avoid overly long branch names (keep under 40 chars for the doc part)
+            if len(doc_name) > 40:
+                doc_name = doc_name[:40].rstrip('-')
+            
+            return doc_name
+            
+        except Exception as e:
+            self.logger.warning(f"Error extracting doc name from '{file_path}': {e}")
+            return "unknown-doc"
+    
+    async def generate_unique_branch_name(self, repo: Repository, base_branch_name: str) -> str:
+        """Generate a unique branch name by adding suffix if needed
+        
+        Args:
+            repo: Repository to check for existing branches
+            base_branch_name: Desired branch name like 'linuxfirstdocs-storage-account-20241219'
+            
+        Returns:
+            Unique branch name, possibly with suffix like 'linuxfirstdocs-storage-account-20241219-2'
+        """
+        try:
+            # Check if base name is available
+            try:
+                repo.get_branch(base_branch_name)
+                # Branch exists, need to find alternative
+            except GithubException as e:
+                if e.status == 404:
+                    # Branch doesn't exist, we can use the base name
+                    return base_branch_name
+                else:
+                    # Other error, just use base name and let caller handle it
+                    return base_branch_name
+            
+            # Base name exists, try with incremental suffixes
+            for i in range(2, 100):  # Try up to 99 variations
+                candidate_name = f"{base_branch_name}-{i}"
+                try:
+                    repo.get_branch(candidate_name)
+                    # This one exists too, continue
+                    continue
+                except GithubException as e:
+                    if e.status == 404:
+                        # This name is available
+                        self.logger.info(f"Branch name conflict resolved: using {candidate_name}")
+                        return candidate_name
+                    else:
+                        # Error checking, just use this name
+                        return candidate_name
+            
+            # Fallback: use timestamp suffix
+            timestamp_suffix = datetime.utcnow().strftime("%H%M%S")
+            fallback_name = f"{base_branch_name}-{timestamp_suffix}"
+            self.logger.warning(f"Could not find unique branch name, using timestamp fallback: {fallback_name}")
+            return fallback_name
+            
+        except Exception as e:
+            self.logger.error(f"Error generating unique branch name: {e}")
+            # Final fallback: add random timestamp
+            timestamp_suffix = datetime.utcnow().strftime("%H%M%S")
+            return f"{base_branch_name}-{timestamp_suffix}"
         
     async def check_user_fork(self, repo_full_name: str) -> Optional[Repository]:
         """Check if user has a fork of the repository"""
@@ -213,6 +321,11 @@ class GitHubPRService:
     ) -> Dict[str, Any]:
         """Commit a file change to a branch"""
         try:
+            # Update ms.date field in content if it's a markdown file with frontmatter
+            if file_path.endswith(('.md', '.markdown')) and content.strip().startswith('---'):
+                content = update_ms_date_in_content(content)
+                self.logger.info(f"Updated ms.date field for {file_path}")
+            
             # Get the current file (if it exists) to get its SHA
             try:
                 current_file = repo.get_contents(file_path, ref=branch_name)
@@ -323,10 +436,12 @@ class GitHubPRService:
             # - Sync fork with upstream
             # For now, we assume the fork exists and is reasonably up to date
             
-            # 2. Create unique branch name
-            timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
-            branch_name = f"linuxfirst-fix-{timestamp}"
-            self.logger.info(f"Step 2: Creating branch {branch_name}")
+            # 2. Create unique branch name with document name
+            date_str = datetime.utcnow().strftime("%Y%m%d")
+            doc_name = self.extract_doc_name_from_path(file_path)
+            base_branch_name = f"linuxfirstdocs-{doc_name}-{date_str}"
+            branch_name = await self.generate_unique_branch_name(fork, base_branch_name)
+            self.logger.info(f"Step 2: Creating branch {branch_name} for document: {file_path}")
             
             # 3. Create branch in the user's fork
             await self.create_branch(fork, branch_name, base_branch)
@@ -342,19 +457,30 @@ class GitHubPRService:
                 commit_message
             )
             
-            # 5. Create pull request from user's fork TO the source repository
-            self.logger.info("Step 4: Creating pull request from fork to source")
-            pr_result = await self.create_pull_request(
-                base_repo=source_repo,  # PR target: the original Microsoft repo
-                base_branch=base_branch,
-                head_repo=fork.full_name,  # PR source: user's fork
-                head_branch=branch_name,
-                title=pr_title,
-                body=pr_body
+            # 5. Generate URL for user to manually create pull request
+            self.logger.info("Step 4: Generating PR creation URL for manual submission")
+            
+            # Extract owner from source repo (e.g., "microsoftdocs/azure-docs-pr" -> "microsoftdocs")
+            source_owner = source_repo.split('/')[0]
+            source_repo_name = source_repo.split('/')[1]
+            
+            # Generate GitHub PR creation URL with pre-filled information
+            pr_creation_url = (
+                f"https://github.com/{source_repo}/compare/{base_branch}..."
+                f"{username}:{repo_name}:{branch_name}"
+                f"?expand=1"
+                f"&title={urllib.parse.quote(pr_title)}"
+                f"&body={urllib.parse.quote(pr_body)}"
             )
             
-            self.logger.info(f"PR creation completed successfully: {pr_result['html_url']}")
-            return pr_result["html_url"]
+            # Also provide the direct branch URL
+            branch_url = f"https://github.com/{fork.full_name}/tree/{branch_name}"
+            
+            self.logger.info(f"Branch created at: {branch_url}")
+            self.logger.info(f"PR creation URL: {pr_creation_url}")
+            
+            # Return the PR creation URL so user can manually create the PR
+            return pr_creation_url
             
         except Exception as e:
             self.logger.error(f"Error in PR creation flow: {e}")

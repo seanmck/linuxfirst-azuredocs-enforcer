@@ -3,8 +3,51 @@
 <head>
     <title>Admin Dashboard - Linux-first Docs for Azure</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="stylesheet" href="/static/dashboard.css">
     <!-- Removed inline <style> block, now using external CSS -->
+    <style>
+        .feedback-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1em;
+            margin-bottom: 1.5em;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5em;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 0.5em;
+        }
+        .stat-label {
+            color: #6b7280;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+        .feedback-details {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5em;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .admin-section {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 2em;
+            margin-bottom: 2em;
+        }
+        .admin-section h2 {
+            margin-top: 0;
+            color: #1f2937;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -81,6 +124,32 @@
                         {% endif %}
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Feedback Analytics -->
+        <div class="admin-section">
+            <h2>User Feedback Analytics</h2>
+            <div class="feedback-stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="total-feedback">0</div>
+                    <div class="stat-label">Total Feedback</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="thumbs-up">0</div>
+                    <div class="stat-label">Thumbs Up</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="thumbs-down">0</div>
+                    <div class="stat-label">Thumbs Down</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="feedback-accuracy">0%</div>
+                    <div class="stat-label">Accuracy Rate</div>
+                </div>
+            </div>
+            <div class="feedback-details" id="feedback-details">
+                <p>Loading feedback data...</p>
             </div>
         </div>
 
@@ -201,7 +270,53 @@
             urlInput.addEventListener('input', updateDetectedSource);
             updateDetectedSource(); // Initial update
         }
+        
+        // Load feedback data
+        loadFeedbackData();
     });
+    
+    // Load feedback analytics data
+    async function loadFeedbackData() {
+        try {
+            const response = await fetch('/api/feedback/stats');
+            if (response.ok) {
+                const data = await response.json();
+                
+                // Update stats
+                document.getElementById('total-feedback').textContent = data.total_feedback;
+                document.getElementById('thumbs-up').textContent = data.thumbs_up;
+                document.getElementById('thumbs-down').textContent = data.thumbs_down;
+                document.getElementById('feedback-accuracy').textContent = data.thumbs_up_percentage.toFixed(1) + '%';
+                
+                // Update details
+                const detailsDiv = document.getElementById('feedback-details');
+                if (data.total_feedback > 0) {
+                    detailsDiv.innerHTML = `
+                        <h3>Feedback Summary</h3>
+                        <p><strong>Total Feedback Received:</strong> ${data.total_feedback}</p>
+                        <p><strong>Positive Feedback:</strong> ${data.thumbs_up} (${data.thumbs_up_percentage.toFixed(1)}%)</p>
+                        <p><strong>Negative Feedback:</strong> ${data.thumbs_down} (${(100 - data.thumbs_up_percentage).toFixed(1)}%)</p>
+                        <p><strong>Feedback with Comments:</strong> ${data.has_comments}</p>
+                        <p><em>Use this feedback to improve the bias detection accuracy and assessment quality.</em></p>
+                    `;
+                } else {
+                    detailsDiv.innerHTML = `
+                        <h3>No Feedback Yet</h3>
+                        <p>No user feedback has been received yet. Feedback will appear here once users start rating bias assessments.</p>
+                        <p><em>Encourage users to sign in and provide feedback to help improve the system.</em></p>
+                    `;
+                }
+            } else {
+                throw new Error('Failed to fetch feedback data');
+            }
+        } catch (error) {
+            console.error('Error loading feedback data:', error);
+            document.getElementById('feedback-details').innerHTML = `
+                <h3>Error Loading Feedback</h3>
+                <p>Unable to load feedback data. Please try refreshing the page.</p>
+            `;
+        }
+    }
     
     function confirmDatabaseWipe() {
         // First confirmation

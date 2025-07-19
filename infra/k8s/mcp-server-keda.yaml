@@ -28,15 +28,13 @@ spec:
       labels:
         app: mcp-server
     spec:
+      priorityClassName: worker-normal-priority
       containers:
         - name: mcp-server
-          image: seanmckdemo.azurecr.io/mcp-server:0.0.6
+          image: seanmckdemo.azurecr.io/mcp-server:0.0.8
           env:            
             - name: AZURE_OPENAI_DEPLOYMENT
-              valueFrom:
-                secretKeyRef:
-                  name: azuredocs-secrets
-                  key: AZURE_OPENAI_DEPLOYMENT
+              value: "gpt-4.1"
           envFrom:
             - secretRef:
                 name: sc-linuxdocsazureopenai-secret
@@ -72,7 +70,7 @@ metadata:
 spec:
   scaleTargetRef:
     name: mcp-server
-  minReplicaCount: 3
+  minReplicaCount: 1
   maxReplicaCount: 10
   cooldownPeriod: 60
   triggers:

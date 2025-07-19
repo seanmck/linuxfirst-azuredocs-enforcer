@@ -3,6 +3,7 @@
 <head>
     <title>{{ display_name }} Bias Analysis - Linux-first Docs for Azure</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="stylesheet" href="/static/dashboard.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -185,29 +186,25 @@
             margin-bottom: 1em;
         }
         
-        .snippet-card {
-            background: #f8fafc;
-            border-radius: 6px;
-            padding: 1em;
-            margin: 1em 0;
-            border-left: 4px solid #e74c3c;
+        .github-pr-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5em;
+            padding: 0.5em 1em;
+            background: #24292f;
+            color: #fff;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background-color 0.2s;
         }
-        .snippet-code {
-            background: #1f2937;
-            color: #f9fafb;
-            padding: 1em;
-            border-radius: 4px;
-            font-family: 'Monaco', 'Menlo', monospace;
-            font-size: 0.85em;
-            overflow-x: auto;
-            margin: 0.5em 0;
+        
+        .github-pr-btn:hover {
+            background: #32383e;
+            color: #fff;
+            text-decoration: none;
         }
-        .snippet-explanation {
-            color: #374151;
-            font-size: 0.9em;
-            line-height: 1.5;
-            margin-top: 0.5em;
-        }
+        
         .empty-state {
             text-align: center;
             padding: 3em 2em;
@@ -352,14 +349,14 @@
                 <div class="flagged-page" data-page-index="{{ loop.index0 }}">
                     <div class="page-header" onclick="togglePageDetails({{ loop.index0 }})">
                         <div>
-                            <div class="page-url">{{ page.url }}</div>
+                            <div class="page-url">
+                                {{ page.url }}
+                                <a href="/docpage/{{ page.id }}" style="margin-left: 0.5em; color: #2563eb; text-decoration: none; font-size: 0.9em;" onclick="event.stopPropagation();">[View Details]</a>
+                            </div>
                             <div class="page-summary">
-                                Scanned: {{ page.scan_date.strftime('%Y-%m-%d %H:%M') }} •
+                                Scanned: {{ page.scan_date.strftime('%Y-%m-%d %H:%M') }}
                                 {% if page.bias_details.mcp_holistic %}
-                                    Page-level bias detected
-                                {% endif %}
-                                {% if page.bias_details.snippets %}
-                                    {{ page.bias_details.snippets|length }} biased snippet(s)
+                                     • Page-level bias detected
                                 {% endif %}
                             </div>
                         </div>
@@ -401,49 +398,17 @@
                                 <div class="snippet-label">Detailed Analysis:</div>
                                 <div class="explanation-text">{{ page.bias_details.mcp_holistic.explanation }}</div>
                             {% endif %}
-                        </div>
-                        {% endif %}
-                        
-                        {% if page.bias_details.snippets %}
-                        <div>
-                            <h4>Code Snippet Issues</h4>
-                            {% for snippet in page.bias_details.snippets %}
-                            <div class="snippet-card">
-                                {% if snippet.context %}
-                                    <div><strong>Context:</strong> {{ snippet.context[:200] }}{% if snippet.context|length > 200 %}...{% endif %}</div>
-                                {% endif %}
-                                
-                                {% if snippet.code %}
-                                    <div class="snippet-code">{{ snippet.code[:500] }}{% if snippet.code|length > 500 %}...{% endif %}</div>
-                                {% endif %}
-                                
-                                {% if snippet.llm_score %}
-                                    {% if snippet.llm_score.bias_types %}
-                                        <div style="margin: 0.5em 0;">
-                                            {% for bias_type, detected in snippet.llm_score.bias_types.items() %}
-                                                {% if detected %}
-                                                    <span class="bias-type-badge bias-type-{{ bias_type.replace('_', '-') }}">
-                                                        {{ bias_type.replace('_', ' ').title() }}
-                                                    </span>
-                                                {% endif %}
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                    
-                                    {% if snippet.llm_score.explanation %}
-                                        <div class="snippet-explanation">
-                                            <strong>Issue:</strong> {{ snippet.llm_score.explanation }}
-                                        </div>
-                                    {% endif %}
-                                    
-                                    {% if snippet.llm_score.suggested_linux_alternative %}
-                                        <div class="snippet-explanation">
-                                            <strong>Linux Alternative:</strong> {{ snippet.llm_score.suggested_linux_alternative }}
-                                        </div>
-                                    {% endif %}
-                                {% endif %}
+                            
+                            <!-- Create Pull Request Button -->
+                            <div style="margin-top: 1em; text-align: right;">
+                                <a href="/proposed_change?page_id={{ page.id }}" class="github-pr-btn">
+                                    <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 20px; height: 20px; vertical-align: middle;">
+                                    Create pull request
+                                </a>
                             </div>
-                            {% endfor %}
+                            
+                            <!-- Feedback Widget -->
+                            {% include 'feedback_widget.html' %}
                         </div>
                         {% endif %}
                     </div>

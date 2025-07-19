@@ -18,6 +18,7 @@ spec:
             component: scheduler
             azure.workload.identity/use: "true"
         spec:
+          priorityClassName: worker-low-priority
           serviceAccountName: sc-account-fefa7dd8-f9d3-4524-8a35-c1123a838df0
           restartPolicy: Never
           containers:

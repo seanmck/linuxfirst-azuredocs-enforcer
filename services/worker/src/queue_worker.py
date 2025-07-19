@@ -5,6 +5,8 @@ This replaces the monolithic crawler/queue_worker.py
 import sys
 import os
 import time
+import signal
+import threading
 
 # Add the project root to the Python path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
@@ -26,6 +28,17 @@ class RefactoredQueueWorker:
     def __init__(self):
         self.queue_service = QueueService()
         self.logger = get_logger(__name__)
+        self.shutdown_event = threading.Event()
+        self.setup_signal_handlers()
+
+    def setup_signal_handlers(self):
+        """Setup signal handlers for graceful shutdown"""
+        def signal_handler(signum, frame):
+            self.logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+            self.shutdown_event.set()
+        
+        signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(signal.SIGINT, signal_handler)
 
     def process_task(self, task_data: Dict[str, Any]):
         """
@@ -75,26 +88,30 @@ class RefactoredQueueWorker:
         max_retries = 3
         base_delay = 5  # seconds
         
-        while retry_count < max_retries:
+        while retry_count < max_retries and not self.shutdown_event.is_set():
             try:
                 self.logger.info(f"Starting to consume tasks (attempt {retry_count + 1}/{max_retries})...")
                 # The queue service now handles its own connection retries
-                self.queue_service.consume_tasks(self.process_task)
+                self.queue_service.consume_tasks(self.process_task, shutdown_event=self.shutdown_event)
                 
-                # If we get here, consumption ended normally (e.g., KeyboardInterrupt)
+                # If we get here, consumption ended normally (e.g., shutdown signal)
                 break
                 
             except Exception as e:
                 retry_count += 1
                 self.logger.error(f"Error during task consumption (attempt {retry_count}/{max_retries}): {e}", exc_info=True)
                 
-                if retry_count < max_retries:
+                if retry_count < max_retries and not self.shutdown_event.is_set():
                     delay = base_delay * (2 ** (retry_count - 1))  # Exponential backoff
                     self.logger.info(f"Retrying in {delay} seconds...")
-                    time.sleep(delay)
+                    for _ in range(delay):
+                        if self.shutdown_event.is_set():
+                            break
+                        time.sleep(1)
                 else:
-                    self.logger.error("Max retries reached. Queue worker shutting down.")
+                    self.logger.error("Max retries reached or shutdown requested. Queue worker shutting down.")
                     
+        self.logger.info("Queue worker shutting down gracefully...")
         self.queue_service.disconnect()
 
 
