@@ -26,6 +26,22 @@ export RABBITMQ_HOST=localhost
 
 echo "Starting all services..."
 
+# Clean up any existing processes first
+echo "Checking for existing processes..."
+if lsof -i :8000 -t >/dev/null; then
+  echo "Killing processes using port 8000..."
+  lsof -i :8000 -t | xargs kill -9
+fi
+
+if pgrep -f "queue_worker.py" > /dev/null; then
+  echo "Killing existing queue worker processes..."
+  pkill -f "queue_worker.py"
+fi
+if pgrep -f "document_worker.py" > /dev/null; then
+  echo "Killing existing document worker processes..."
+  pkill -f "document_worker.py"
+fi
+
 # Start web UI
 ./scripts/start-webui.sh &
 WEBUI_PID=$!

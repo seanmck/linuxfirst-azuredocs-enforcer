@@ -7,7 +7,7 @@ metadata:
     app: doc-collector
     component: scheduler
 spec:
-  schedule: "0 4 * * *"
+  schedule: "0 0 * * *"
   jobTemplate:
     spec:
       ttlSecondsAfterFinished: 3600  # Auto-delete 1 hour after completion

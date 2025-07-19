@@ -347,6 +347,27 @@
             justify-content: center;
             gap: 0.5em;
         }
+        
+        /* Document links styles */
+        .doc-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5em;
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 0.5em 1em;
+            border-radius: 8px;
+            background: rgba(37, 99, 235, 0.1);
+            border: 1px solid rgba(37, 99, 235, 0.2);
+            transition: all 0.3s ease;
+        }
+        .doc-link:hover {
+            background: rgba(37, 99, 235, 0.2);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+        }
+        
         @media (max-width: 900px) {
             .container { padding: 1em; }
             .grid2x2 { grid-template-columns: 1fr; grid-template-rows: auto; }
@@ -387,6 +408,27 @@
             {% endfor %}
           </tr>
         </table>
+        {% endif %}
+        
+        <!-- Document Links Section -->
+        {% if github_url or mslearn_url %}
+        <div style="background: #f8fafc; border: 1.5px solid #e0e4ea; border-radius: 10px; padding: 1.5em; margin-bottom: 2em;">
+            <div style="font-weight: 600; margin-bottom: 1em; color: #3b82f6; font-size: 1.1em;">📄 Document Links</div>
+            <div style="display: flex; gap: 1em; flex-wrap: wrap;">
+                {% if github_url %}
+                <a href="{{ github_url }}" target="_blank" rel="noopener noreferrer" class="doc-link">
+                    <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 20px; height: 20px;">
+                    View on GitHub
+                </a>
+                {% endif %}
+                {% if mslearn_url %}
+                <a href="{{ mslearn_url }}" target="_blank" rel="noopener noreferrer" class="doc-link">
+                    <img src="https://learn.microsoft.com/favicon.ico" alt="Microsoft Learn" style="width: 16px; height: 16px;">
+                    View on Microsoft Learn
+                </a>
+                {% endif %}
+            </div>
+        </div>
         {% endif %}
         
         <!-- Tab navigation -->

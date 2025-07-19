@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ page_title }} - Document Details</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            background: #f7fafd;
+            color: #222;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 2em auto;
+            padding: 0 2em;
+        }
+        .header {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            padding: 2em 2.5em;
+            margin-bottom: 2em;
+            display: flex;
+            align-items: center;
+            gap: 2em;
+        }
+        .tux-logo {
+            max-width: 80px;
+            flex-shrink: 0;
+        }
+        h1 {
+            font-size: 2.2em;
+            font-weight: 700;
+            margin: 0;
+            color: #2563eb;
+            letter-spacing: -1px;
+        }
+        .subtitle {
+            color: #666;
+            font-size: 1.1em;
+            margin: 0.5em 0 0 0;
+        }
+        .breadcrumb {
+            background: #fff;
+            border-radius: 8px;
+            padding: 1em 1.5em;
+            margin-bottom: 2em;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            font-size: 0.9em;
+        }
+        .breadcrumb a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Large bias indicator */
+        .bias-indicator {
+            background: #fff;
+            border-radius: 16px;
+            padding: 3em;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            text-align: center;
+            margin-bottom: 2em;
+        }
+        .bias-status {
+            font-size: 5em;
+            margin-bottom: 0.2em;
+        }
+        .bias-status.biased {
+            color: #dc2626;
+        }
+        .bias-status.clean {
+            color: #16a34a;
+        }
+        .bias-status-text {
+            font-size: 1.5em;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        /* Page summary section */
+        .page-summary-section {
+            background: #fff;
+            border-radius: 12px;
+            padding: 2em;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            margin-bottom: 2em;
+        }
+        .page-summary-section h2 {
+            margin-top: 0;
+            color: #1f2937;
+            font-size: 1.5em;
+            margin-bottom: 1em;
+        }
+        .page-summary {
+            font-size: 1.1em;
+            line-height: 1.6;
+            color: #374151;
+            margin-bottom: 1.5em;
+        }
+        .page-links {
+            display: flex;
+            gap: 1em;
+            flex-wrap: wrap;
+        }
+        .page-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5em;
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 0.5em 1em;
+            border-radius: 8px;
+            background: rgba(37, 99, 235, 0.1);
+            border: 1px solid rgba(37, 99, 235, 0.2);
+            transition: all 0.3s ease;
+        }
+        .page-link:hover {
+            background: rgba(37, 99, 235, 0.2);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+        }
+        
+        /* Bias details section */
+        .bias-details-section {
+            background: #fff;
+            border-radius: 12px;
+            padding: 2em;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            margin-bottom: 2em;
+        }
+        .bias-details-section h2 {
+            margin-top: 0;
+            color: #1f2937;
+            font-size: 1.5em;
+            margin-bottom: 1em;
+        }
+        .bias-types-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5em;
+            margin-bottom: 1.5em;
+        }
+        .bias-type-box {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: 8px;
+            padding: 0.5em 1em;
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            font-size: 0.9em;
+            color: #dc2626;
+            font-weight: 500;
+        }
+        .bias-summary {
+            background: rgba(239, 68, 68, 0.05);
+            border-left: 4px solid #ef4444;
+            padding: 1em;
+            border-radius: 8px;
+            margin-bottom: 1.5em;
+        }
+        .bias-recommendations {
+            background: rgba(59, 130, 246, 0.05);
+            border-left: 4px solid #3b82f6;
+            padding: 1em;
+            border-radius: 8px;
+        }
+        .bias-recommendations ul {
+            margin: 0.5em 0;
+            padding-left: 1.5em;
+        }
+        .github-pr-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5em;
+            padding: 0.6em 1.2em;
+            background: #24292f;
+            color: #fff;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin-top: 1.5em;
+        }
+        .github-pr-btn:hover {
+            background: #1a1e23;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        /* Scan history section */
+        .scan-history-section {
+            background: #fff;
+            border-radius: 12px;
+            padding: 2em;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            margin-bottom: 2em;
+        }
+        .scan-history-section h2 {
+            margin-top: 0;
+            color: #1f2937;
+            font-size: 1.5em;
+            margin-bottom: 1em;
+        }
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .history-table th {
+            text-align: left;
+            padding: 0.8em;
+            border-bottom: 2px solid #e5e7eb;
+            color: #6b7280;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        .history-table td {
+            padding: 0.8em;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .history-table tr:hover {
+            background: #f9fafb;
+        }
+        .bias-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3em;
+            padding: 0.3em 0.8em;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        .bias-badge.biased {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+        .bias-badge.clean {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        .scan-link {
+            color: #2563eb;
+            text-decoration: none;
+        }
+        .scan-link:hover {
+            text-decoration: underline;
+        }
+        
+        /* Code snippets section */
+        .snippets-section {
+            background: #fff;
+            border-radius: 12px;
+            padding: 2em;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            margin-bottom: 2em;
+        }
+        .snippets-section h2 {
+            margin-top: 0;
+            color: #1f2937;
+            font-size: 1.5em;
+            margin-bottom: 1em;
+        }
+        .snippet-card {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 1.5em;
+            margin-bottom: 1em;
+            border: 1px solid #e2e8f0;
+        }
+        .snippet-code {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 1em;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+            margin: 0.5em 0;
+        }
+        .snippet-context {
+            color: #64748b;
+            font-size: 0.9em;
+            margin-bottom: 0.5em;
+        }
+        .label {
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 0.5em;
+            font-size: 0.95em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="/static/tux_reading.png" class="tux-logo" alt="Tux Penguin">
+            <div>
+                <h1>Document Details</h1>
+                <div class="subtitle">{{ page_title }}</div>
+            </div>
+        </div>
+        
+        <!-- Breadcrumb navigation -->
+        <div class="breadcrumb">
+            <a href="/">Home</a> /
+            {% if scan %}
+            <a href="/scan/{{ scan.id }}">Scan {{ scan.id }}</a> /
+            {% endif %}
+            {{ page_title }}
+        </div>
+        
+        <!-- Large bias indicator -->
+        <div class="bias-indicator">
+            {% if is_biased %}
+                <div class="bias-status biased">❌</div>
+                <div class="bias-status-text">This page contains Windows bias</div>
+            {% else %}
+                <div class="bias-status clean">✅</div>
+                <div class="bias-status-text">This page is Linux-friendly!</div>
+            {% endif %}
+        </div>
+        
+        <!-- Page summary and links -->
+        <div class="page-summary-section">
+            <h2>About This Page</h2>
+            <div class="page-summary">{{ page_summary }}</div>
+            <div class="page-links">
+                <a href="{{ github_url }}" target="_blank" rel="noopener noreferrer" class="page-link">
+                    <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 20px; height: 20px;">
+                    View on GitHub
+                </a>
+                <a href="{{ mslearn_url }}" target="_blank" rel="noopener noreferrer" class="page-link">
+                    📚 View on Microsoft Learn
+                </a>
+            </div>
+        </div>
+        
+        <!-- Bias details (if biased) -->
+        {% if is_biased %}
+        <div class="bias-details-section">
+            <h2>Bias Analysis</h2>
+            
+            {% if bias_types %}
+            <div class="label">Bias Types:</div>
+            <div class="bias-types-row">
+                {% for bias_type in bias_types %}
+                <div class="bias-type-box">
+                    <span>⚠️</span>
+                    {{ bias_type }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            {% if bias_summary %}
+            <div class="label">Summary:</div>
+            <div class="bias-summary">{{ bias_summary }}</div>
+            {% endif %}
+            
+            {% if bias_recommendations %}
+            <div class="label">Recommendations:</div>
+            <div class="bias-recommendations">
+                {% if bias_recommendations is string %}
+                    {{ bias_recommendations }}
+                {% else %}
+                    <ul>
+                    {% for rec in bias_recommendations %}
+                        <li>{{ rec }}</li>
+                    {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- Create Pull Request Button -->
+            <a href="/proposed_change?page_id={{ page.id }}" class="github-pr-btn">
+                <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 20px; height: 20px; filter: invert(1);">
+                Create pull request
+            </a>
+        </div>
+        {% endif %}
+        
+        <!-- Scan history -->
+        <div class="scan-history-section">
+            <h2>Scan History</h2>
+            {% if scan_history %}
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Scan ID</th>
+                        <th>Status</th>
+                        <th>Bias Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for history_item in scan_history %}
+                    <tr>
+                        <td>{{ history_item.scan_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <a href="/scan/{{ history_item.scan_id }}" class="scan-link">#{{ history_item.scan_id }}</a>
+                        </td>
+                        <td>{{ history_item.scan_status }}</td>
+                        <td>
+                            {% if history_item.was_biased %}
+                                <span class="bias-badge biased">❌ Biased</span>
+                            {% else %}
+                                <span class="bias-badge clean">✅ Clean</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>No scan history available for this page.</p>
+            {% endif %}
+        </div>
+        
+        <!-- Code snippets (if biased and has snippets) -->
+        {% if is_biased and snippets %}
+        <div class="snippets-section">
+            <h2>Flagged Code Snippets</h2>
+            {% for snippet in snippets %}
+                {% if snippet.llm_score and snippet.llm_score.get('windows_biased') %}
+                <div class="snippet-card">
+                    {% if snippet.context %}
+                    <div class="snippet-context">Context: {{ snippet.context }}</div>
+                    {% endif %}
+                    <div class="snippet-code">{{ snippet.code }}</div>
+                    {% if snippet.llm_score.get('rationale') %}
+                    <div class="label">Analysis:</div>
+                    <div>{{ snippet.llm_score.get('rationale') }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <!-- Feedback Widget -->
+        {% if user %}
+        {% include 'feedback_widget.html' %}
+        {% endif %}
+    </div>
+</body>
+</html>

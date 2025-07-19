@@ -21,7 +21,7 @@ import re
 import httpx
 from markdown import markdown as md_lib
 from functools import lru_cache
-from routes import admin, scan, llm, websocket, docset, auth, feedback
+from routes import admin, scan, llm, websocket, docset, auth, feedback, docpage
 from routes.scan import enqueue_scan_task
 from shared.utils.url_utils import extract_doc_set_from_url, format_doc_set_name
 from jinja_env import templates
@@ -581,6 +581,7 @@ app.include_router(websocket.router)
 app.include_router(docset.router)
 app.include_router(auth.router)
 app.include_router(feedback.router)
+app.include_router(docpage.router)
 
 # Add metrics endpoint
 app.get("/metrics")(create_metrics_endpoint())

@@ -349,7 +349,10 @@
                 <div class="flagged-page" data-page-index="{{ loop.index0 }}">
                     <div class="page-header" onclick="togglePageDetails({{ loop.index0 }})">
                         <div>
-                            <div class="page-url">{{ page.url }}</div>
+                            <div class="page-url">
+                                {{ page.url }}
+                                <a href="/docpage/{{ page.id }}" style="margin-left: 0.5em; color: #2563eb; text-decoration: none; font-size: 0.9em;" onclick="event.stopPropagation();">[View Details]</a>
+                            </div>
                             <div class="page-summary">
                                 Scanned: {{ page.scan_date.strftime('%Y-%m-%d %H:%M') }}
                                 {% if page.bias_details.mcp_holistic %}
