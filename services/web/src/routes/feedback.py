@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 import logging
 
 from shared.utils.database import get_db
-from shared.models import UserFeedback, User, Snippet, Page
+from shared.models import UserFeedback, User, Snippet, Page, RewrittenDocument
 from routes.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -21,6 +21,7 @@ class FeedbackRequest(BaseModel):
     """Request model for submitting feedback"""
     snippet_id: Optional[int] = Field(None, description="ID of the snippet being rated")
     page_id: Optional[int] = Field(None, description="ID of the page being rated")
+    rewritten_document_id: Optional[int] = Field(None, description="ID of the rewritten document being rated")
     rating: str = Field(..., description="Rating: thumbs_up or thumbs_down")
     comment: Optional[str] = Field(None, description="Optional comment for thumbs_down ratings")
 
@@ -58,23 +59,35 @@ async def submit_feedback(
     # Convert string rating to boolean (True = thumbs_up, False = thumbs_down)
     rating_bool = request.rating == 'thumbs_up'
     
-    # Validate that exactly one of snippet_id or page_id is provided
-    if not ((request.snippet_id is not None) ^ (request.page_id is not None)):
-        raise HTTPException(400, "Either snippet_id or page_id must be provided, but not both")
+    # Validate that exactly one target type is provided
+    target_count = sum([
+        request.snippet_id is not None,
+        request.page_id is not None,
+        request.rewritten_document_id is not None
+    ])
     
-    # Verify the target exists
+    if target_count != 1:
+        raise HTTPException(400, "Exactly one of snippet_id, page_id, or rewritten_document_id must be provided")
+    
+    # Verify the target exists and determine target type
     if request.snippet_id:
         target = db.query(Snippet).filter(Snippet.id == request.snippet_id).first()
         if not target:
             raise HTTPException(404, "Snippet not found")
         target_type = "snippet"
         target_id = request.snippet_id
-    else:
+    elif request.page_id:
         target = db.query(Page).filter(Page.id == request.page_id).first()
         if not target:
             raise HTTPException(404, "Page not found")
         target_type = "page"
         target_id = request.page_id
+    else:  # rewritten_document_id
+        target = db.query(RewrittenDocument).filter(RewrittenDocument.id == request.rewritten_document_id).first()
+        if not target:
+            raise HTTPException(404, "Rewritten document not found")
+        target_type = "rewritten_document"
+        target_id = request.rewritten_document_id
     
     try:
         # Check if user already has feedback for this target
@@ -83,10 +96,15 @@ async def submit_feedback(
                 UserFeedback.user_id == current_user.id,
                 UserFeedback.snippet_id == request.snippet_id
             ).first()
-        else:
+        elif request.page_id:
             existing_feedback = db.query(UserFeedback).filter(
                 UserFeedback.user_id == current_user.id,
                 UserFeedback.page_id == request.page_id
+            ).first()
+        else:  # rewritten_document_id
+            existing_feedback = db.query(UserFeedback).filter(
+                UserFeedback.user_id == current_user.id,
+                UserFeedback.rewritten_document_id == request.rewritten_document_id
             ).first()
         
         if existing_feedback:
@@ -102,6 +120,7 @@ async def submit_feedback(
                 user_id=current_user.id,
                 snippet_id=request.snippet_id,
                 page_id=request.page_id,
+                rewritten_document_id=request.rewritten_document_id,
                 rating=rating_bool,
                 comment=request.comment
             )
@@ -205,6 +224,53 @@ async def get_page_feedback(
     
     return {
         "page_id": page_id,
+        "user_feedback": {
+            "rating": "thumbs_up" if user_feedback.rating else "thumbs_down" if user_feedback else None,
+            "comment": user_feedback.comment if user_feedback else None,
+            "created_at": user_feedback.created_at.isoformat() if user_feedback else None
+        } if user_feedback else None,
+        "stats": {
+            "total_feedback": total,
+            "thumbs_up": thumbs_up,
+            "thumbs_down": thumbs_down,
+            "thumbs_up_percentage": (thumbs_up / total * 100) if total > 0 else 0,
+            "has_comments": has_comments
+        }
+    }
+
+
+@router.get("/api/feedback/rewritten/{document_id}")
+async def get_rewritten_document_feedback(
+    document_id: int,
+    current_user: Optional[User] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get feedback for a specific rewritten document"""
+    # Verify rewritten document exists
+    document = db.query(RewrittenDocument).filter(RewrittenDocument.id == document_id).first()
+    if not document:
+        raise HTTPException(404, "Rewritten document not found")
+    
+    # Get user's feedback if authenticated
+    user_feedback = None
+    if current_user:
+        user_feedback = db.query(UserFeedback).filter(
+            UserFeedback.user_id == current_user.id,
+            UserFeedback.rewritten_document_id == document_id
+        ).first()
+    
+    # Get aggregated feedback stats
+    all_feedback = db.query(UserFeedback).filter(
+        UserFeedback.rewritten_document_id == document_id
+    ).all()
+    
+    thumbs_up = sum(1 for f in all_feedback if f.rating == True)
+    thumbs_down = sum(1 for f in all_feedback if f.rating == False)
+    total = len(all_feedback)
+    has_comments = sum(1 for f in all_feedback if f.comment and f.comment.strip())
+    
+    return {
+        "rewritten_document_id": document_id,
         "user_feedback": {
             "rating": "thumbs_up" if user_feedback.rating else "thumbs_down" if user_feedback else None,
             "comment": user_feedback.comment if user_feedback else None,
