@@ -376,21 +376,38 @@
                 gap: 0.5em;
             }
         }
+        
+        /* Page Breadcrumb Styles */
+        .page-breadcrumb {
+            margin-bottom: 1.5rem;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 0.5rem 0;
+            transition: color 0.2s ease;
+        }
+        
+        .back-link:hover {
+            color: #1d4ed8;
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
+    <!-- Include Top Navigation -->
+    {% include 'components/top_nav.html' %}
+    
     <div class="container">
-        <div class="header">
+        <div class="page-breadcrumb">
             <a href="/" class="back-link">
-                &#8592; Back
+                &#8592; Back to Dashboard
             </a>
-            <div class="header-content">
-                <img src="/static/tux_reading.png" class="tux-logo" alt="Tux Penguin">
-                <div>
-                    <h1>Scan Details</h1>
-                    <div class="subtitle">Linux-first Azure Docs Enforcer</div>
-                </div>
-            </div>
         </div>
         <div id="scan-details-root">
         {% include "scan_details_partial.html" %}

@@ -227,19 +227,19 @@
     </style>
 </head>
 <body>
+    <!-- Include Top Navigation -->
+    {% include 'components/top_nav.html' %}
+    
     <div class="container">
         <!-- Breadcrumb Navigation -->
         <div class="breadcrumb">
             <a href="/">Dashboard</a> &gt; {{ display_name }} Bias Analysis
         </div>
 
-        <!-- Header -->
-        <div class="header">
-            <img class="tux-logo" src="/static/tux_reading.png" alt="Tux the Linux penguin reading a book with glasses">
-            <div>
-                <h1>{{ display_name }}</h1>
-                <p class="subtitle">Comprehensive bias analysis and Linux-first recommendations</p>
-            </div>
+        <!-- Page Header -->
+        <div class="page-header">
+            <h1>{{ display_name }}</h1>
+            <p class="subtitle">Comprehensive bias analysis and Linux-first recommendations</p>
         </div>
 
         <!-- Summary Statistics -->

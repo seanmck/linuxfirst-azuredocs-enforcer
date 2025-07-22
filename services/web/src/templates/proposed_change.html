@@ -568,21 +568,8 @@
     </style>
 </head>
 <body>
-    <!-- Authentication Status -->
-    <div id="auth-status" class="auth-status" style="display: none;">
-        <div id="auth-loading">Checking authentication...</div>
-        <div id="auth-logged-out" style="display: none;">
-            <a href="/auth/github/login?redirect={{ request.url | urlencode }}" class="auth-btn">
-                <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 16px; height: 16px;">
-                Login with GitHub
-            </a>
-        </div>
-        <div id="auth-logged-in" style="display: none;">
-            <img id="user-avatar" src="" alt="User avatar">
-            <span id="user-name"></span>
-            <button class="logout-btn" onclick="logout()">Logout</button>
-        </div>
-    </div>
+    <!-- Include Top Navigation -->
+    {% include 'components/top_nav.html' %}
 
     <div class="container">
         <h1>Proposed Pull Request Change</h1>

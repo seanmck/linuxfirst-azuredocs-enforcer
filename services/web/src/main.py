@@ -471,6 +471,36 @@ async def status():
         running = prog.get("stage") != "done"
     return JSONResponse({"running": running})
 
+@app.get("/flagged")
+async def flagged_docs(request: Request):
+    """Placeholder route for flagged documents page"""
+    return templates.TemplateResponse("placeholder.html", {
+        "request": request,
+        "page_title": "Flagged Documents",
+        "message": "This page will show documents that have been flagged for Windows bias.",
+        "coming_soon": True
+    })
+
+@app.get("/pull-requests")
+async def pull_requests(request: Request):
+    """Placeholder route for pull requests page"""
+    return templates.TemplateResponse("placeholder.html", {
+        "request": request,
+        "page_title": "Pull Requests",
+        "message": "This page will show pull requests created to fix Windows bias in documentation.",
+        "coming_soon": True
+    })
+
+@app.get("/stats")
+async def stats(request: Request):
+    """Placeholder route for statistics page"""
+    return templates.TemplateResponse("placeholder.html", {
+        "request": request,
+        "page_title": "Statistics",
+        "message": "This page will show detailed statistics about documentation bias across all Azure services.",
+        "coming_soon": True
+    })
+
 @app.get("/progress")
 async def progress():
     db = SessionLocal()

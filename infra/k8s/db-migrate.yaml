@@ -12,7 +12,7 @@ spec:
       serviceAccountName: sc-account-fefa7dd8-f9d3-4524-8a35-c1123a838df0
       containers:
       - name: migrate
-        image: seanmckdemo.azurecr.io/db-migrate:0.0.50
+        image: seanmckdemo.azurecr.io/db-migrate:0.0.51
         command: ["/bin/sh", "-c"]
         args: ["cd /app/infra/db && ./migrate.sh"]
         envFrom:

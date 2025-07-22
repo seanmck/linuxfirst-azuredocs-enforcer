@@ -366,75 +366,14 @@
             stopPolling();
         };
 
-        // Authentication functions
-        let currentUser = null;
-
-        async function checkAuthStatus() {
-            try {
-                const response = await fetch('/auth/status');
-                const data = await response.json();
-                currentUser = data.authenticated ? data.user : null;
-                updateAuthUI();
-            } catch (error) {
-                console.error('Failed to check auth status:', error);
-                updateAuthUI();
-            }
-        }
-
-        function updateAuthUI() {
-            const authStatus = document.getElementById('auth-status');
-            const authLoading = document.getElementById('auth-loading');
-            const authLoggedOut = document.getElementById('auth-logged-out');
-            const authLoggedIn = document.getElementById('auth-logged-in');
-
-            authStatus.style.display = 'flex';
-            authLoading.style.display = 'none';
-
-            if (currentUser) {
-                authLoggedOut.style.display = 'none';
-                authLoggedIn.style.display = 'flex';
-                document.getElementById('user-avatar').src = currentUser.avatar_url || '';
-                document.getElementById('user-name').textContent = currentUser.username || 'GitHub User';
-            } else {
-                authLoggedOut.style.display = 'flex';
-                authLoggedIn.style.display = 'none';
-            }
-        }
-
-        async function logout() {
-            try {
-                await fetch('/auth/logout', { method: 'POST' });
-                currentUser = null;
-                updateAuthUI();
-            } catch (error) {
-                console.error('Logout failed:', error);
-            }
-        }
-
-        // Initialize auth check when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            checkAuthStatus();
-        });
+        // Authentication is now handled by the top navigation component
     </script>
 </head>
 <body>
-    <!-- Authentication Status -->
-    <div id="auth-status" class="auth-status" style="display: none;">
-        <div id="auth-loading">Checking authentication...</div>
-        <div id="auth-logged-out" style="display: none;">
-            <a href="/auth/github/login?redirect={{ request.url | urlencode }}" class="auth-btn">
-                <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 16px; height: 16px;">
-                Login with GitHub
-            </a>
-        </div>
-        <div id="auth-logged-in" style="display: none;">
-            <img id="user-avatar" src="" alt="User avatar">
-            <span id="user-name"></span>
-            <button class="logout-btn" onclick="logout()">Logout</button>
-        </div>
-    </div>
+    <!-- Include Top Navigation -->
+    {% include 'components/top_nav.html' %}
 
-<div class="container">
+<div class="container with-left-nav">
     <!-- Mobile Navigation -->
     <div class="mobile-nav-overlay" id="mobileNavOverlay"></div>
     <div class="mobile-nav-toggle" id="mobileNavToggle">
@@ -468,15 +407,7 @@
             {% endif %}
         </div>
     </div>
-    <!-- Header -->
-    <div class="header" style="margin-left:220px">
-        <img class="tux-logo" src="/static/tux_reading.png" alt="Tux the Linux penguin reading a book with glasses">
-        <div>
-            <h1>Linux-first Docs for Azure</h1>
-            <p class="subtitle">Dashboard for monitoring Azure documentation bias detection</p>
-        </div>
-    </div>
-
+    
     <!-- Progress Bar (shown during scans) -->
     <div id="progress" style="margin-left:220px"></div>
 
