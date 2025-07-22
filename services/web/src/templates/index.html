@@ -422,7 +422,7 @@
     <div id="auth-status" class="auth-status" style="display: none;">
         <div id="auth-loading">Checking authentication...</div>
         <div id="auth-logged-out" style="display: none;">
-            <a href="/auth/github/login" class="auth-btn">
+            <a href="/auth/github/login?redirect={{ request.url | urlencode }}" class="auth-btn">
                 <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 16px; height: 16px;">
                 Login with GitHub
             </a>

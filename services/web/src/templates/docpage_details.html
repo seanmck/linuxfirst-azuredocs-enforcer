@@ -382,6 +382,12 @@
             </div>
             {% endif %}
             
+            <!-- Authentication prompt for contribution actions -->
+            {% include "auth_component.html" with context %}
+            {% set message = "Want to help fix this bias issue?" %}
+            {% set action = "create a pull request" %}
+            {% set size = "sm" %}
+            
             <!-- Create Pull Request Button -->
             <a href="/proposed_change?page_id={{ page.id }}" class="github-pr-btn">
                 <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 20px; height: 20px; filter: invert(1);">

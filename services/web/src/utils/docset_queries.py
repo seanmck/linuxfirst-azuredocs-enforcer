@@ -8,10 +8,14 @@ from sqlalchemy.orm import Session
 from shared.models import Scan, Page, Snippet, BiasSnapshotByDocset
 from shared.utils.bias_utils import is_page_biased, get_parsed_mcp_holistic
 from shared.utils.url_utils import extract_doc_set_from_url
+from shared.utils.logging import get_logger
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Any, Optional
 import json
 from .docset_cache import get_cached_docset_data, cache_docset_data
+
+# Initialize logger
+logger = get_logger(__name__)
 
 
 def get_docset_complete_data(db: Session, doc_set: str) -> Dict[str, Any]:

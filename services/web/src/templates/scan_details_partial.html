@@ -101,6 +101,15 @@
     </div>
 </div>
 
+<!-- Authentication prompt for contribution actions -->
+<div style="margin-bottom: 1em;">
+    {% include "auth_component.html" with context %}
+    {% set message = "Want to contribute improvements?" %}
+    {% set action = "suggest changes or provide feedback" %}
+    {% set size = "sm" %}
+    {% set style = "border: none; background: transparent; padding: 0.5em;" %}
+</div>
+
 <!-- CSS for new components -->
 <style>
 /* Key Metrics - Promoted and Enhanced */

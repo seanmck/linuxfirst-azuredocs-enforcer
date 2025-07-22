@@ -192,6 +192,44 @@ class AppMetrics:
             registry=self.registry
         )
         
+        # Processing lock metrics
+        self.stuck_pages_count = Gauge(
+            'azuredocs_stuck_pages_count',
+            'Number of pages stuck in processing state',
+            registry=self.registry
+        )
+        
+        self.page_stuck_duration_seconds = Histogram(
+            'azuredocs_page_stuck_duration_seconds',
+            'Duration pages have been stuck in processing',
+            buckets=[300, 600, 1800, 3600, 7200, 14400, 28800],  # 5min to 8 hours
+            registry=self.registry
+        )
+        
+        self.processing_lock_cleanups_total = Counter(
+            'azuredocs_processing_lock_cleanups_total',
+            'Total number of processing locks cleaned up',
+            registry=self.registry
+        )
+        
+        self.processing_lock_safety_cleanups_total = Counter(
+            'azuredocs_processing_lock_safety_cleanups_total',
+            'Total number of safety cleanups for pages without expiry metadata',
+            registry=self.registry
+        )
+        
+        self.processing_lock_cleanup_errors_total = Counter(
+            'azuredocs_processing_lock_cleanup_errors_total',
+            'Total number of errors during lock cleanup',
+            registry=self.registry
+        )
+        
+        self.processing_lock_cleanup_failures_total = Counter(
+            'azuredocs_processing_lock_cleanup_failures_total',
+            'Total number of complete cleanup cycle failures',
+            registry=self.registry
+        )
+        
         # Application info
         self.app_info = Info(
             'azuredocs_app_info',
@@ -283,6 +321,23 @@ class AppMetrics:
     def record_error(self, service: str, error_type: str):
         """Record an error occurrence"""
         self.errors_total.labels(service=service, error_type=error_type).inc()
+    
+    # === PROCESSING LOCK METRIC HELPERS ===
+    
+    def gauge(self, metric_name: str, value: float):
+        """Generic gauge setter for dynamic metrics"""
+        if hasattr(self, metric_name):
+            getattr(self, metric_name).set(value)
+    
+    def counter(self, metric_name: str, value: float = 1):
+        """Generic counter incrementer for dynamic metrics"""
+        if hasattr(self, metric_name):
+            getattr(self, metric_name).inc(value)
+    
+    def histogram(self, metric_name: str, value: float):
+        """Generic histogram observer for dynamic metrics"""
+        if hasattr(self, metric_name):
+            getattr(self, metric_name).observe(value)
     
     # === CONTEXT MANAGERS ===
     

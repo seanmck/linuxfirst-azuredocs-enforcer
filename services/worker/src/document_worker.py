@@ -109,6 +109,10 @@ class DocumentWorker:
                 page = self._create_or_update_page(db_session, scan_id, github_url, file_path, file_sha, "")
                 if page:
                     page.status = 'skipped_windows_focused'
+                    # Clear processing lock metadata
+                    page.processing_started_at = None
+                    page.processing_worker_id = None
+                    page.processing_expires_at = None
                     db_session.commit()
                 # Update scan progress
                 self._update_scan_progress(db_session, scan_id)
@@ -126,6 +130,10 @@ class DocumentWorker:
                 page = self._create_or_update_page(db_session, scan_id, github_url, file_path, file_sha, "")
                 if page:
                     page.status = 'skipped_unreadable'
+                    # Clear processing lock metadata
+                    page.processing_started_at = None
+                    page.processing_worker_id = None
+                    page.processing_expires_at = None
                     db_session.commit()
                 # Update scan progress
                 self._update_scan_progress(db_session, scan_id)
@@ -138,6 +146,10 @@ class DocumentWorker:
                 page = self._create_or_update_page(db_session, scan_id, github_url, file_path, file_sha, "")
                 if page:
                     page.status = 'skipped_too_large'
+                    # Clear processing lock metadata
+                    page.processing_started_at = None
+                    page.processing_worker_id = None
+                    page.processing_expires_at = None
                     db_session.commit()
                 # Update scan progress
                 self._update_scan_progress(db_session, scan_id)
@@ -150,6 +162,10 @@ class DocumentWorker:
                 page = self._create_or_update_page(db_session, scan_id, github_url, file_path, file_sha, "")
                 if page:
                     page.status = 'skipped_windows_focused'
+                    # Clear processing lock metadata
+                    page.processing_started_at = None
+                    page.processing_worker_id = None
+                    page.processing_expires_at = None
                     db_session.commit()
                 # Update scan progress
                 self._update_scan_progress(db_session, scan_id)
@@ -199,6 +215,10 @@ class DocumentWorker:
                 # Mark page as error
                 page.status = 'error'
                 page.last_error_at = datetime.datetime.now(datetime.timezone.utc)
+                # Clear processing lock metadata
+                page.processing_started_at = None
+                page.processing_worker_id = None
+                page.processing_expires_at = None
                 db_session.commit()
                 
                 # Record failure in history
@@ -374,6 +394,10 @@ class DocumentWorker:
             # Calculate content hash
             content_hash = hashlib.sha256(file_content.encode()).hexdigest()
             
+            # Get current timestamp and calculate expiration
+            now = datetime.datetime.now(datetime.timezone.utc)
+            expires_at = now + datetime.timedelta(minutes=30)
+            
             # Check if page already exists
             page = db_session.query(Page).filter(
                 Page.scan_id == scan_id,
@@ -384,9 +408,13 @@ class DocumentWorker:
                 # Update existing page
                 page.content_hash = content_hash
                 page.github_sha = file_sha
-                page.last_scanned_at = datetime.datetime.now(datetime.timezone.utc)
+                page.last_scanned_at = now
                 page.processing_state = 'discovered'
                 page.status = 'processing'
+                # Set processing lock metadata
+                page.processing_started_at = now
+                page.processing_worker_id = self.worker_id
+                page.processing_expires_at = expires_at
             else:
                 # Create new page
                 page = Page(
@@ -395,8 +423,12 @@ class DocumentWorker:
                     status='processing',
                     content_hash=content_hash,
                     github_sha=file_sha,
-                    last_scanned_at=datetime.datetime.now(datetime.timezone.utc),
-                    processing_state='discovered'
+                    last_scanned_at=now,
+                    processing_state='discovered',
+                    # Set processing lock metadata
+                    processing_started_at=now,
+                    processing_worker_id=self.worker_id,
+                    processing_expires_at=expires_at
                 )
                 db_session.add(page)
             

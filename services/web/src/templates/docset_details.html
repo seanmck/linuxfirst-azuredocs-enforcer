@@ -344,6 +344,12 @@
         <div class="section">
             <h2>Pages with Bias Issues ({{ flagged_pages|length }})</h2>
             
+            <!-- Authentication prompt for contribution actions -->
+            {% include "auth_component.html" with context %}
+            {% set message = "Want to help fix these bias issues?" %}
+            {% set action = "create pull requests" %}
+            {% set size = "sm" %}
+            
             {% if flagged_pages and flagged_pages|length > 0 %}
                 {% for page in flagged_pages %}
                 <div class="flagged-page" data-page-index="{{ loop.index0 }}">

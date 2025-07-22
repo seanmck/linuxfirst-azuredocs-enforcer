@@ -324,8 +324,8 @@
             font-size: 0.9em;
         }
         
-        /* Loading spinner */
-        .loading-spinner {
+        /* Loading spinner for diff loading text */
+        .loading-text .loading-spinner {
             display: inline-block;
             width: 20px;
             height: 20px;
@@ -379,7 +379,7 @@
     <div id="auth-status" class="auth-status" style="display: none;">
         <div id="auth-loading">Checking authentication...</div>
         <div id="auth-logged-out" style="display: none;">
-            <a href="/auth/github/login" class="auth-btn">
+            <a href="/auth/github/login?redirect={{ request.url | urlencode }}" class="auth-btn">
                 <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 16px; height: 16px;">
                 Login with GitHub
             </a>
@@ -994,7 +994,7 @@
 
         async function createPullRequest() {
             if (!currentUser) {
-                window.location.href = '/auth/github/login?redirect=' + encodeURIComponent(window.location.pathname);
+                window.location.href = '/auth/github/login?redirect=' + encodeURIComponent(window.location.href);
                 return;
             }
 

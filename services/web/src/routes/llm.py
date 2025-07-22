@@ -109,13 +109,16 @@ async def proposed_change(request: Request, page_id: int = Query(...)):
     if 'learn.microsoft.com' in page.url:
         mslearn_url = page.url
     
+    file_path_for_template = repo_path or "unknown-file.md"
+    logger.info(f"Proposed change page for page_id={page_id}: file_path='{file_path_for_template}', original_url='{page.url}'")
+    
     return templates.TemplateResponse("proposed_change.html", {
         "request": request,
         "original_markdown": original_markdown_content,
         "yaml_header_orig": yaml_dict_orig,
         "yaml_header_str_orig": yaml_str_orig,
         "debug_info": {},
-        "file_path": repo_path or "unknown-file.md",
+        "file_path": file_path_for_template,
         "github_url": github_url,
         "mslearn_url": mslearn_url,
     })
@@ -449,6 +452,8 @@ async def create_github_pr(
     github_token = session_data["github_token"]
     
     try:
+        logger.info(f"Creating GitHub PR for user {current_user.github_username}: file_path='{pr_request.file_path}', title='{pr_request.title}'")
+        
         # Try GitHub App first, fallback to OAuth
         pr_service = GitHubPRService(
             access_token=github_token,
