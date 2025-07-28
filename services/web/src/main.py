@@ -441,6 +441,72 @@ async def index(request: Request):
         print(f"[ERROR] Failed to get leaderboard: {e}")
         doc_set_leaderboard = []
     
+    # Get satisfaction metrics for dashboard
+    satisfaction_metrics = {"llm_analysis": 0, "page_rewrites": 0}
+    try:
+        # Check cache first
+        satisfaction_cache_key = "dashboard_satisfaction_metrics"
+        cached_satisfaction = cache.get(satisfaction_cache_key)
+        if cached_satisfaction is not None:
+            print(f"[DEBUG] Using cached satisfaction metrics")
+            satisfaction_metrics = cached_satisfaction
+        else:
+            from shared.models import UserFeedback
+            from sqlalchemy import func
+            
+            # Debug: Check total feedback count first
+            total_feedback = db.query(UserFeedback).count()
+            print(f"[DEBUG] Total UserFeedback records: {total_feedback}")
+            
+            # Get LLM analysis satisfaction (all feedback - users rate AI analysis quality)
+            # This includes both snippet feedback and page feedback since both involve AI analysis
+            llm_analysis_feedback = db.query(UserFeedback).filter(
+                (UserFeedback.snippet_id.isnot(None)) | (UserFeedback.page_id.isnot(None))
+            ).all()
+            
+            print(f"[DEBUG] LLM analysis feedback count (snippets + pages): {len(llm_analysis_feedback)}")
+            if llm_analysis_feedback:
+                llm_thumbs_up = sum(1 for f in llm_analysis_feedback if f.rating == True)
+                llm_total = len(llm_analysis_feedback)
+                llm_satisfaction = (llm_thumbs_up / llm_total * 100) if llm_total > 0 else 0
+                satisfaction_metrics["llm_analysis"] = round(llm_satisfaction, 1)
+                print(f"[DEBUG] LLM analysis feedback - thumbs up: {llm_thumbs_up}, total: {llm_total}, satisfaction: {llm_satisfaction}%")
+            else:
+                print(f"[DEBUG] No LLM analysis feedback found")
+            
+            # Get page rewrite satisfaction (rewritten document feedback)  
+            rewrite_feedback = db.query(UserFeedback).filter(
+                UserFeedback.rewritten_document_id.isnot(None)
+            ).all()
+            
+            print(f"[DEBUG] Rewrite feedback count: {len(rewrite_feedback)}")
+            if rewrite_feedback:
+                rewrite_thumbs_up = sum(1 for f in rewrite_feedback if f.rating == True)
+                rewrite_total = len(rewrite_feedback)
+                rewrite_satisfaction = (rewrite_thumbs_up / rewrite_total * 100) if rewrite_total > 0 else 0
+                satisfaction_metrics["page_rewrites"] = round(rewrite_satisfaction, 1)
+                print(f"[DEBUG] Rewrite feedback - thumbs up: {rewrite_thumbs_up}, total: {rewrite_total}, satisfaction: {rewrite_satisfaction}%")
+            else:
+                print(f"[DEBUG] No rewrite feedback found - this is normal if no rewritten documents exist yet")
+                # Page rewrites stays at 0% if no rewritten documents have been created yet
+                
+            # Debug: Check what types of feedback we actually have
+            snippet_feedback_count = db.query(UserFeedback).filter(
+                UserFeedback.snippet_id.isnot(None)
+            ).count()
+            print(f"[DEBUG] Snippet feedback count: {snippet_feedback_count}")
+            
+            # Clear any existing cache first to ensure fresh calculation
+            cache.clear()
+            
+            # Cache for 5 minutes
+            cache.set(satisfaction_cache_key, satisfaction_metrics, ttl_minutes=5)
+            print(f"[DEBUG] Cached satisfaction metrics: {satisfaction_metrics}")
+            
+    except Exception as e:
+        print(f"[ERROR] Failed to get satisfaction metrics: {e}")
+        satisfaction_metrics = {"llm_analysis": 0, "page_rewrites": 0}
+    
     db.close()
     
     print(f"[DEBUG] Final azure_dirs being passed to template: {len(azure_dirs)}")
@@ -456,7 +522,8 @@ async def index(request: Request):
         "scan_id": scan_obj.get('id') if scan_obj else None,
         "bias_chart_data": bias_chart_data,
         "azure_dirs": azure_dirs,
-        "doc_set_leaderboard": doc_set_leaderboard
+        "doc_set_leaderboard": doc_set_leaderboard,
+        "satisfaction_metrics": satisfaction_metrics
     })
 
 @app.get("/status")

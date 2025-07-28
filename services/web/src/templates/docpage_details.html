@@ -382,11 +382,7 @@
             </div>
             {% endif %}
             
-            <!-- Authentication prompt for contribution actions -->
-            {% include "auth_component.html" with context %}
-            {% set message = "Want to help fix this bias issue?" %}
-            {% set action = "create a pull request" %}
-            {% set size = "sm" %}
+            <!-- Contribution prompt will be handled by top navigation authentication -->
             
             <!-- Create Pull Request Button -->
             <a href="/proposed_change?page_id={{ page.id }}" class="github-pr-btn">

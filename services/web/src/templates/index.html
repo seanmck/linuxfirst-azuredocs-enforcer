@@ -421,16 +421,16 @@
             {% set total_flagged = all_scans|sum(attribute='flagged_count') %}
             {% set avg_bias = (total_flagged / total_pages * 100) if total_pages > 0 else 0 %}
             
-            <div class="metric-card">
-                <div class="metric-title">Total Scans</div>
-                <div class="metric-value">{{ total_scans }}</div>
-                <div class="metric-subtitle">{{ completed_scans }} completed, {{ running_scans }} in progress</div>
+            <div class="metric-card {% if satisfaction_metrics.llm_analysis >= 70 %}success{% elif satisfaction_metrics.llm_analysis >= 40 %}warning{% else %}danger{% endif %}">
+                <div class="metric-title">LLM Analysis Satisfaction</div>
+                <div class="metric-value">{{ satisfaction_metrics.llm_analysis }}%</div>
+                <div class="metric-subtitle">User rating of bias detection</div>
             </div>
             
-            <div class="metric-card">
-                <div class="metric-title">Pages Analyzed</div>
-                <div class="metric-value">{{ total_pages }}</div>
-                <div class="metric-subtitle">Across all scans</div>
+            <div class="metric-card {% if satisfaction_metrics.page_rewrites >= 70 %}success{% elif satisfaction_metrics.page_rewrites >= 40 %}warning{% else %}danger{% endif %}">
+                <div class="metric-title">Page Rewrite Satisfaction</div>
+                <div class="metric-value">{{ satisfaction_metrics.page_rewrites }}%</div>
+                <div class="metric-subtitle">User rating of rewritten docs</div>
             </div>
             
             <div class="metric-card {% if avg_bias < 5 %}success{% elif avg_bias < 15 %}warning{% else %}danger{% endif %}">
@@ -446,15 +446,15 @@
             </div>
         {% else %}
             <div class="metric-card">
-                <div class="metric-title">Total Scans</div>
-                <div class="metric-value">0</div>
-                <div class="metric-subtitle">No scans completed yet</div>
+                <div class="metric-title">LLM Analysis Satisfaction</div>
+                <div class="metric-value">{{ satisfaction_metrics.llm_analysis }}%</div>
+                <div class="metric-subtitle">User rating of bias detection</div>
             </div>
             
             <div class="metric-card">
-                <div class="metric-title">Pages Analyzed</div>
-                <div class="metric-value">0</div>
-                <div class="metric-subtitle">No data available</div>
+                <div class="metric-title">Page Rewrite Satisfaction</div>
+                <div class="metric-value">{{ satisfaction_metrics.page_rewrites }}%</div>
+                <div class="metric-subtitle">User rating of rewritten docs</div>
             </div>
             
             <div class="metric-card">

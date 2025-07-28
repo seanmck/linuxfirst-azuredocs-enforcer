@@ -421,4 +421,32 @@ nav.top-nav .top-nav-container {
 .logout-btn:hover {
     background-color: #dc2626;
 }
+
+/* Fix for overlapping auth component in main content */
+.auth-prompt {
+    position: relative !important;
+    z-index: 1 !important;
+    margin: 1rem 0 !important;
+    padding: 1rem !important;
+    background-color: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    min-height: 60px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.auth-prompt #auth-loading {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.5rem !important;
+}
+
+/* Ensure auth component doesn't interfere with page layout */
+#auth-section {
+    position: static !important;
+    overflow: hidden !important;
+}
 </style>
