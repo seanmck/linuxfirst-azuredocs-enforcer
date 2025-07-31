@@ -442,7 +442,7 @@ class GitHubPRService:
             date_str = datetime.utcnow().strftime("%Y%m%d")
             doc_name = self.extract_doc_name_from_path(file_path)
             self.logger.info(f"Branch naming debug: file_path='{file_path}' -> doc_name='{doc_name}' -> date_str='{date_str}'")
-            base_branch_name = f"linuxfirst-{doc_name}-{date_str}"
+            base_branch_name = f"linuxfirstdocs-{doc_name}-{date_str}"
             self.logger.info(f"Generated base branch name: '{base_branch_name}'")
             branch_name = await self.generate_unique_branch_name(fork, base_branch_name)
             self.logger.info(f"Final branch name after uniqueness check: '{branch_name}'")
