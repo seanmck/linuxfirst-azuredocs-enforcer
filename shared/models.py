@@ -210,9 +210,11 @@ class UserFeedback(Base):
     # Constraints - now supports three types of feedback targets
     __table_args__ = (
         sa.CheckConstraint(
-            "(snippet_id IS NOT NULL AND page_id IS NULL AND rewritten_document_id IS NULL) OR " +
-            "(snippet_id IS NULL AND page_id IS NOT NULL AND rewritten_document_id IS NULL) OR " +
-            "(snippet_id IS NULL AND page_id IS NULL AND rewritten_document_id IS NOT NULL)", 
+            """
+            (snippet_id IS NOT NULL AND page_id IS NULL AND rewritten_document_id IS NULL) OR
+            (snippet_id IS NULL AND page_id IS NOT NULL AND rewritten_document_id IS NULL) OR
+            (snippet_id IS NULL AND page_id IS NULL AND rewritten_document_id IS NOT NULL)
+            """, 
             name='check_feedback_target'
         ),
     )
