@@ -1,10 +1,26 @@
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
+  name: infrastructure-critical-priority
+value: 2000
+globalDefault: false
+description: "Critical priority for core infrastructure components (RabbitMQ, Redis)"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
   name: webui-high-priority
 value: 1000
 globalDefault: false
 description: "High priority for user-facing web UI components"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: service-critical-priority
+value: 750
+globalDefault: false
+description: "Critical priority for services that other workers depend on (MCP Server)"
 ---
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
