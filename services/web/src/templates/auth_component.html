@@ -1,0 +1,140 @@
+<!-- 
+Reusable authentication component
+Parameters:
+- message: Custom message to display (optional, defaults to "Sign in to continue")
+- action: What action requires authentication (optional, e.g., "provide feedback", "create pull request")
+- size: Button size - "sm", "md", "lg" (optional, defaults to "md")
+- style: Additional CSS classes for the container (optional)
+-->
+
+{% set auth_message = message or "Sign in to continue" %}
+{% set auth_action = action or "" %}
+{% set button_size = size or "md" %}
+{% set container_style = style or "" %}
+
+<div class="auth-prompt {{ container_style }}" id="auth-section">
+    <div id="auth-loading" class="text-center">
+        <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Checking authentication...</span>
+        </div>
+        <span class="ms-2">Checking authentication...</span>
+    </div>
+    
+    <div id="auth-logged-out" style="display: none;" class="text-center">
+        <p class="mb-3">
+            {% if auth_action %}
+                {{ auth_message }} to {{ auth_action }}
+            {% else %}
+                {{ auth_message }}
+            {% endif %}
+        </p>
+        <a href="/auth/github/login?redirect={{ request.url | urlencode }}" 
+           class="btn btn-primary {% if button_size == 'sm' %}btn-sm{% elif button_size == 'lg' %}btn-lg{% endif %} auth-btn">
+            <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" 
+                 alt="GitHub" 
+                 style="width: {% if button_size == 'sm' %}14px{% elif button_size == 'lg' %}22px{% else %}16px{% endif %}; 
+                        height: {% if button_size == 'sm' %}14px{% elif button_size == 'lg' %}22px{% else %}16px{% endif %}; 
+                        vertical-align: middle; 
+                        margin-right: 8px; 
+                        filter: invert(1);">
+            Sign in with GitHub
+        </a>
+    </div>
+    
+    <div id="auth-logged-in" style="display: none;">
+        <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <img id="user-avatar" src="" alt="User Avatar" class="rounded-circle me-2" style="width: 24px; height: 24px;">
+                <span>Welcome, <strong id="user-name"></strong>!</span>
+            </div>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="signOut()">
+                Sign out
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    // Initialize authentication state for this component
+    async function initAuth() {
+        try {
+            const response = await fetch('/auth/status');
+            const authData = await response.json();
+            
+            document.getElementById('auth-loading').style.display = 'none';
+            
+            if (authData.authenticated) {
+                document.getElementById('auth-logged-in').style.display = 'block';
+                document.getElementById('user-name').textContent = authData.user.username;
+                if (authData.user.avatar_url) {
+                    document.getElementById('user-avatar').src = authData.user.avatar_url;
+                }
+                
+                // Store current user globally for other scripts
+                window.currentUser = authData.user;
+            } else {
+                document.getElementById('auth-logged-out').style.display = 'block';
+                window.currentUser = null;
+            }
+        } catch (error) {
+            console.error('Error checking authentication:', error);
+            document.getElementById('auth-loading').style.display = 'none';
+            document.getElementById('auth-logged-out').style.display = 'block';
+            window.currentUser = null;
+        }
+    }
+    
+    // Sign out function
+    window.signOut = async function() {
+        try {
+            const response = await fetch('/auth/logout', {
+                method: 'POST'
+            });
+            
+            if (response.ok) {
+                window.location.reload();
+            }
+        } catch (error) {
+            console.error('Error signing out:', error);
+        }
+    };
+    
+    // Redirect to login with current URL
+    window.redirectToLogin = function() {
+        window.location.href = '/auth/github/login?redirect=' + encodeURIComponent(window.location.href);
+    };
+    
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAuth);
+    } else {
+        initAuth();
+    }
+})();
+</script>
+
+<style>
+.auth-prompt {
+    padding: 1rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    background-color: #f8f9fa;
+    margin: 1rem 0;
+}
+
+.auth-btn {
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.auth-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+}
+</style>

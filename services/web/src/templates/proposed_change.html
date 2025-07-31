@@ -324,8 +324,8 @@
             font-size: 0.9em;
         }
         
-        /* Loading spinner */
-        .loading-spinner {
+        /* Loading spinner for diff loading text */
+        .loading-text .loading-spinner {
             display: inline-block;
             width: 20px;
             height: 20px;
@@ -368,28 +368,208 @@
             box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
         }
         
+        /* Feedback Widget Styles */
+        .feedback-widget {
+            margin-top: 1.5em;
+            padding: 1em;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            font-size: 0.9em;
+        }
+        
+        .feedback-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75em;
+        }
+        
+        .feedback-label {
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.95em;
+        }
+        
+        .feedback-stats {
+            font-size: 0.8em;
+            color: #6b7280;
+        }
+        
+        .feedback-buttons {
+            display: flex;
+            gap: 0.5em;
+            margin-bottom: 0.75em;
+        }
+        
+        .feedback-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            padding: 0.75em 1.25em; /* Increased padding for larger buttons */
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 1em; /* Slightly larger font size */
+        }
+        
+        .feedback-btn:hover {
+            background: #f9fafb;
+            border-color: #9ca3af;
+        }
+        
+        .feedback-btn.active {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: white;
+        }
+        
+        .feedback-btn.active.thumbs-up {
+            background: #10b981;
+            border-color: #10b981;
+        }
+        
+        .feedback-btn.active.thumbs-down {
+            background: #ef4444;
+            border-color: #ef4444;
+        }
+        
+        .feedback-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .feedback-icon {
+            font-size: 1.3em; /* Increased icon size */
+        }
+        
+        .feedback-comment-section {
+            margin-top: 0.75em;
+            padding-top: 0.75em;
+            border-top: 1px solid #e5e7eb;
+        }
+        
+        .feedback-comment {
+            width: 100%;
+            padding: 0.75em;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 1.1em;
+            font-family: 'Arial', sans-serif;
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .feedback-comment:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .comment-actions {
+            display: flex;
+            gap: 0.5em;
+            margin-top: 0.5em;
+        }
+        
+        .btn {
+            padding: 0.5em 1em;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .btn-sm {
+            padding: 0.4em 0.8em;
+            font-size: 0.8em;
+        }
+        
+        .feedback-login-prompt {
+            text-align: center;
+            padding: 1em;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 6px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .feedback-prompt-text {
+            margin: 0 0 0.75em 0;
+            color: #6b7280;
+            font-size: 0.9em;
+        }
+        
+        .feedback-status {
+            padding: 0.5em;
+            border-radius: 6px;
+            margin-top: 0.5em;
+            text-align: center;
+            font-size: 0.85em;
+        }
+        
+        .feedback-status.success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        
+        .feedback-status.error {
+            background: #fee2e2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+
         @media (max-width: 900px) {
             .container { padding: 1em; }
             .grid2x2 { grid-template-columns: 1fr; grid-template-rows: auto; }
+            
+            .feedback-widget {
+                padding: 0.75em;
+                font-size: 0.85em;
+            }
+            
+            .feedback-buttons {
+                flex-direction: column;
+                gap: 0.4em;
+            }
+            
+            .feedback-btn {
+                justify-content: center;
+                padding: 0.6em 1em;
+            }
+            
+            .comment-actions {
+                flex-direction: column;
+                gap: 0.4em;
+            }
         }
     </style>
 </head>
 <body>
-    <!-- Authentication Status -->
-    <div id="auth-status" class="auth-status" style="display: none;">
-        <div id="auth-loading">Checking authentication...</div>
-        <div id="auth-logged-out" style="display: none;">
-            <a href="/auth/github/login" class="auth-btn">
-                <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 16px; height: 16px;">
-                Login with GitHub
-            </a>
-        </div>
-        <div id="auth-logged-in" style="display: none;">
-            <img id="user-avatar" src="" alt="User avatar">
-            <span id="user-name"></span>
-            <button class="logout-btn" onclick="logout()">Logout</button>
-        </div>
-    </div>
+    <!-- Include Top Navigation -->
+    {% include 'components/top_nav.html' %}
 
     <div class="container">
         <h1>Proposed Pull Request Change</h1>
@@ -490,6 +670,11 @@
                     </div>
                 </div>
             </div>
+        </div>
+        
+        <!-- Feedback Widget for Rewritten Document -->
+        <div id="rewritten-document-feedback" style="margin-top: 2em; display: none;">
+            <!-- The widget will be populated via JavaScript once document ID is available -->
         </div>
         
         <!-- Hidden containers for original content -->
@@ -887,6 +1072,11 @@
                             } else if (activeTab === 'split-diff' && checkLibraries()) {
                                 tryComputeDiff(false, false); // No alerts when content updates
                             }
+                            
+                            // Show and populate feedback widget if we have a rewritten document ID
+                            if (data.rewritten_document_id) {
+                                showFeedbackWidget(data.rewritten_document_id);
+                            }
                         } else {
                             document.getElementById('raw-new-markdown').textContent = '[Error generating updated markdown]';
                             document.getElementById('rendered-new-markdown').textContent = '[Error generating updated markdown]';
@@ -944,6 +1134,116 @@
             }
         });
 
+        // Feedback widget functions
+        function showFeedbackWidget(rewrittenDocumentId) {
+            console.log('Showing feedback widget for document ID:', rewrittenDocumentId);
+            const feedbackContainer = document.getElementById('rewritten-document-feedback');
+            
+            // Create the feedback widget HTML
+            feedbackContainer.innerHTML = `
+                <div class="feedback-widget" data-target-id="${rewrittenDocumentId}" data-target-type="rewritten_document">
+                    <div class="feedback-header">
+                        <span class="feedback-label">Was this rewritten version helpful?</span>
+                        <div class="feedback-stats" id="feedback-stats-${rewrittenDocumentId}" style="display: none;">
+                            <span class="feedback-count" id="feedback-count-${rewrittenDocumentId}"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="feedback-actions">
+                        <div id="feedback-auth-check-${rewrittenDocumentId}">
+                            <div class="feedback-login-prompt" id="feedback-login-prompt-${rewrittenDocumentId}" style="display: none;">
+                                <p class="feedback-prompt-text">
+                                    <span class="feedback-icon">🔐</span>
+                                    Help us improve by rating this rewritten document
+                                </p>
+                                <a href="/auth/github/login?redirect=${encodeURIComponent(window.location.href)}" class="btn btn-primary btn-sm">
+                                    <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" 
+                                         alt="GitHub" style="width: 16px; height: 16px; vertical-align: middle;">
+                                    Sign in with GitHub
+                                </a>
+                            </div>
+                            
+                            <div class="feedback-buttons" id="feedback-buttons-${rewrittenDocumentId}" style="display: none;">
+                                <button class="feedback-btn thumbs-up" 
+                                        data-target-id="${rewrittenDocumentId}" 
+                                        data-target-type="rewritten_document"
+                                        data-rating="thumbs_up"
+                                        id="thumbs-up-${rewrittenDocumentId}"
+                                        title="This rewritten version was helpful">
+                                    <span class="feedback-icon">👍</span>
+                                    <span class="feedback-text">Yes</span>
+                                </button>
+                                <button class="feedback-btn thumbs-down" 
+                                        data-target-id="${rewrittenDocumentId}" 
+                                        data-target-type="rewritten_document"
+                                        data-rating="thumbs_down"
+                                        id="thumbs-down-${rewrittenDocumentId}"
+                                        title="This rewritten version was not helpful">
+                                    <span class="feedback-icon">👎</span>
+                                    <span class="feedback-text">No</span>
+                                </button>
+                            </div>
+                            
+                            <!-- Comment section for thumbs down -->
+                            <div class="feedback-comment-section" id="comment-section-${rewrittenDocumentId}" style="display: none;">
+                                <textarea class="feedback-comment" 
+                                          id="comment-${rewrittenDocumentId}"
+                                          placeholder="Help us improve: What was wrong with this rewritten version?"
+                                          rows="3"></textarea>
+                                <div class="comment-actions">
+                                    <button class="btn btn-primary btn-sm" onclick="submitFeedbackComment(${rewrittenDocumentId}, 'rewritten_document')">
+                                        Submit Comment
+                                    </button>
+                                    <button class="btn btn-secondary btn-sm" onclick="cancelFeedbackComment(${rewrittenDocumentId})">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Feedback status -->
+                            <div class="feedback-status" id="feedback-status-${rewrittenDocumentId}" style="display: none;">
+                                <span class="feedback-message"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Show the container
+            feedbackContainer.style.display = 'block';
+            
+            // Initialize feedback widget based on authentication status
+            initializeFeedbackWidget(rewrittenDocumentId);
+        }
+        
+        async function initializeFeedbackWidget(documentId) {
+            // Check authentication status and load feedback state
+            if (currentUser) {
+                document.getElementById('feedback-login-prompt-' + documentId).style.display = 'none';
+                document.getElementById('feedback-buttons-' + documentId).style.display = 'flex';
+                await loadFeedbackState(documentId, 'rewritten_document');
+            } else {
+                document.getElementById('feedback-login-prompt-' + documentId).style.display = 'block';
+                document.getElementById('feedback-buttons-' + documentId).style.display = 'none';
+            }
+            
+            // Add click handlers for feedback buttons
+            const thumbsUpBtn = document.getElementById('thumbs-up-' + documentId);
+            const thumbsDownBtn = document.getElementById('thumbs-down-' + documentId);
+            
+            if (thumbsUpBtn) {
+                thumbsUpBtn.addEventListener('click', () => {
+                    handleFeedbackSubmission(documentId, 'rewritten_document', 'thumbs_up');
+                });
+            }
+            
+            if (thumbsDownBtn) {
+                thumbsDownBtn.addEventListener('click', () => {
+                    handleFeedbackSubmission(documentId, 'rewritten_document', 'thumbs_down');
+                });
+            }
+        }
+
         // Authentication and PR creation functions
         let currentUser = null;
 
@@ -975,10 +1275,35 @@
                 document.getElementById('user-avatar').src = currentUser.avatar_url || '';
                 document.getElementById('user-name').textContent = currentUser.username || 'GitHub User';
                 createPrBtn.style.display = 'inline-flex';
+                
+                // Update feedback widget if it exists
+                const feedbackContainer = document.getElementById('rewritten-document-feedback');
+                if (feedbackContainer && feedbackContainer.style.display !== 'none') {
+                    const widget = feedbackContainer.querySelector('.feedback-widget');
+                    if (widget) {
+                        const documentId = widget.getAttribute('data-target-id');
+                        if (documentId) {
+                            initializeFeedbackWidget(parseInt(documentId));
+                        }
+                    }
+                }
             } else {
                 authLoggedOut.style.display = 'flex';
                 authLoggedIn.style.display = 'none';
                 createPrBtn.style.display = 'none';
+                
+                // Update feedback widget if it exists to show login prompt
+                const feedbackContainer = document.getElementById('rewritten-document-feedback');
+                if (feedbackContainer && feedbackContainer.style.display !== 'none') {
+                    const widget = feedbackContainer.querySelector('.feedback-widget');
+                    if (widget) {
+                        const documentId = widget.getAttribute('data-target-id');
+                        if (documentId) {
+                            document.getElementById('feedback-login-prompt-' + documentId).style.display = 'block';
+                            document.getElementById('feedback-buttons-' + documentId).style.display = 'none';
+                        }
+                    }
+                }
             }
         }
 
@@ -994,7 +1319,7 @@
 
         async function createPullRequest() {
             if (!currentUser) {
-                window.location.href = '/auth/github/login?redirect=' + encodeURIComponent(window.location.pathname);
+                window.location.href = '/auth/github/login?redirect=' + encodeURIComponent(window.location.href);
                 return;
             }
 
@@ -1072,6 +1397,193 @@ Generated by Linux First Azure Docs Enforcer.`
             }
         }
 
+        // Feedback-related functions (adapted from feedback_widget.html)
+        async function loadFeedbackState(targetId, targetType) {
+            try {
+                const response = await fetch('/api/feedback/' + targetType + '/' + targetId, {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    updateFeedbackUI(targetId, data);
+                }
+            } catch (error) {
+                console.error('Error loading feedback state:', error);
+            }
+        }
+        
+        function updateFeedbackUI(targetId, data) {
+            const thumbsUpBtn = document.getElementById('thumbs-up-' + targetId);
+            const thumbsDownBtn = document.getElementById('thumbs-down-' + targetId);
+            const statsDiv = document.getElementById('feedback-stats-' + targetId);
+            const countSpan = document.getElementById('feedback-count-' + targetId);
+            
+            // Update stats
+            if (data.stats && data.stats.total_feedback > 0) {
+                const stats = data.stats;
+                countSpan.textContent = stats.thumbs_up + '👍 ' + stats.thumbs_down + '👎';
+                statsDiv.style.display = 'block';
+            }
+            
+            // Update user's feedback state
+            if (data.user_feedback) {
+                const userRating = data.user_feedback.rating;
+                if (userRating === 'thumbs_up') {
+                    thumbsUpBtn.classList.add('active');
+                    thumbsDownBtn.classList.remove('active');
+                } else if (userRating === 'thumbs_down') {
+                    thumbsDownBtn.classList.add('active');
+                    thumbsUpBtn.classList.remove('active');
+                    
+                    // Show comment if exists
+                    if (data.user_feedback.comment) {
+                        const commentSection = document.getElementById('comment-section-' + targetId);
+                        const commentTextarea = document.getElementById('comment-' + targetId);
+                        commentTextarea.value = data.user_feedback.comment;
+                        commentSection.style.display = 'block';
+                    }
+                }
+            }
+        }
+        
+        async function handleFeedbackSubmission(targetId, targetType, rating) {
+            const thumbsUpBtn = document.getElementById('thumbs-up-' + targetId);
+            const thumbsDownBtn = document.getElementById('thumbs-down-' + targetId);
+            const commentSection = document.getElementById('comment-section-' + targetId);
+            
+            try {
+                // Disable buttons during submission
+                thumbsUpBtn.disabled = true;
+                thumbsDownBtn.disabled = true;
+                
+                const requestBody = {
+                    rating: rating,
+                    comment: null  // Comment will be added separately for thumbs down
+                };
+                
+                if (targetType === 'rewritten_document') {
+                    requestBody.rewritten_document_id = targetId;
+                } else if (targetType === 'page') {
+                    requestBody.page_id = targetId;
+                } else {
+                    requestBody.snippet_id = targetId;
+                }
+                
+                const response = await fetch('/api/feedback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(requestBody)
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Update UI
+                    thumbsUpBtn.classList.remove('active');
+                    thumbsDownBtn.classList.remove('active');
+                    
+                    if (rating === 'thumbs_up') {
+                        thumbsUpBtn.classList.add('active');
+                        commentSection.style.display = 'none';
+                    } else if (rating === 'thumbs_down') {
+                        thumbsDownBtn.classList.add('active');
+                        commentSection.style.display = 'block';
+                        document.getElementById('comment-' + targetId).focus();
+                    }
+                    
+                    showFeedbackStatus(targetId, 'Thank you for your feedback!', 'success');
+                    
+                    // Refresh feedback stats
+                    loadFeedbackState(targetId, targetType);
+                } else {
+                    const error = await response.json();
+                    showFeedbackStatus(targetId, error.message || 'Failed to submit feedback', 'error');
+                }
+            } catch (error) {
+                console.error('Error submitting feedback:', error);
+                showFeedbackStatus(targetId, 'Network error. Please try again.', 'error');
+            } finally {
+                // Re-enable buttons
+                thumbsUpBtn.disabled = false;
+                thumbsDownBtn.disabled = false;
+            }
+        }
+        
+        async function submitFeedbackComment(targetId, targetType) {
+            const commentTextarea = document.getElementById('comment-' + targetId);
+            const comment = commentTextarea.value.trim();
+            
+            if (!comment) {
+                showFeedbackStatus(targetId, 'Please enter a comment.', 'error');
+                return;
+            }
+            
+            try {
+                const requestBody = {
+                    rating: 'thumbs_down',
+                    comment: comment
+                };
+                
+                if (targetType === 'rewritten_document') {
+                    requestBody.rewritten_document_id = targetId;
+                } else if (targetType === 'page') {
+                    requestBody.page_id = targetId;
+                } else {
+                    requestBody.snippet_id = targetId;
+                }
+                
+                const response = await fetch('/api/feedback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(requestBody)
+                });
+                
+                if (response.ok) {
+                    showFeedbackStatus(targetId, 'Comment submitted successfully!', 'success');
+                    commentTextarea.setAttribute('readonly', true);
+                    document.querySelector('#comment-section-' + targetId + ' .comment-actions').style.display = 'none';
+                } else {
+                    const error = await response.json();
+                    showFeedbackStatus(targetId, error.message || 'Failed to submit comment', 'error');
+                }
+            } catch (error) {
+                console.error('Error submitting comment:', error);
+                showFeedbackStatus(targetId, 'Network error. Please try again.', 'error');
+            }
+        }
+        
+        function cancelFeedbackComment(targetId) {
+            const commentSection = document.getElementById('comment-section-' + targetId);
+            const commentTextarea = document.getElementById('comment-' + targetId);
+            
+            commentTextarea.value = '';
+            commentSection.style.display = 'none';
+            
+            // Reset thumbs down button
+            const thumbsDownBtn = document.getElementById('thumbs-down-' + targetId);
+            thumbsDownBtn.classList.remove('active');
+        }
+        
+        function showFeedbackStatus(targetId, message, type) {
+            const statusDiv = document.getElementById('feedback-status-' + targetId);
+            const messageSpan = statusDiv.querySelector('.feedback-message');
+            
+            messageSpan.textContent = message;
+            statusDiv.className = 'feedback-status ' + type;
+            statusDiv.style.display = 'block';
+            
+            // Hide after 3 seconds
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 3000);
+        }
+        
         // Initialize auth check on page load
         document.addEventListener('DOMContentLoaded', checkAuthStatus);
     </script>

@@ -1,0 +1,452 @@
+<!-- Top Navigation Component -->
+<nav class="top-nav" id="topNav">
+    <div class="top-nav-container" style="position: relative; width: 100%; max-width: 100vw;">
+        <!-- Left: Logo and Site Title -->
+        <div class="nav-brand" style="margin-left:0;">
+            <a href="/" class="brand-link">
+                <img src="/static/tux_reading.png" alt="Tux the Linux penguin reading" class="nav-logo">
+                <span class="site-title">Linux Docs for Azure</span>
+            </a>
+        </div>
+        
+        <!-- Center: Main Navigation -->
+        <div class="nav-links" id="navLinks">
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="/" class="nav-link">Home</a>
+                </li>
+                <li class="nav-item">
+                    <a href="/flagged" class="nav-link">Flagged Docs</a>
+                </li>
+                <li class="nav-item">
+                    <a href="/pull-requests" class="nav-link">Pull Requests</a>
+                </li>
+                <li class="nav-item">
+                    <a href="/stats" class="nav-link">Stats</a>
+                </li>
+            </ul>
+        </div>
+        
+        <!-- Mobile Menu Toggle -->
+        <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="Toggle navigation menu">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+        </button>
+        
+        <!-- Right: Authentication -->
+        <div class="nav-auth" id="navAuth">
+            <div id="auth-status" class="auth-status">
+                <div id="auth-loading" class="auth-loading">
+                    <span class="loading-spinner"></span>
+                </div>
+                <div id="auth-logged-out" style="display: none;">
+                    <a href="/auth/github/login?redirect={{ request.url | urlencode if request else '/' }}" class="auth-btn">
+                        <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" class="github-icon">
+                        <span class="auth-text">Login with GitHub</span>
+                    </a>
+                </div>
+                <div id="auth-logged-in" style="display: none;">
+                    <div class="user-info">
+                        <img id="user-avatar" src="" alt="User avatar" class="user-avatar">
+                        <span id="user-name" class="user-name"></span>
+                        <button class="logout-btn" onclick="logout()">Logout</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- Mobile Menu Overlay -->
+<div class="mobile-menu-overlay" id="mobileMenuOverlay"></div>
+
+<script>
+// Top navigation functionality
+(function() {
+    let currentUser = null;
+    
+    // Authentication functions
+    async function checkAuthStatus() {
+        try {
+            const response = await fetch('/auth/status');
+            const data = await response.json();
+            currentUser = data.authenticated ? data.user : null;
+            updateAuthUI();
+        } catch (error) {
+            console.error('Failed to check auth status:', error);
+            updateAuthUI();
+        }
+    }
+    
+    function updateAuthUI() {
+        const authStatus = document.getElementById('auth-status');
+        const authLoading = document.getElementById('auth-loading');
+        const authLoggedOut = document.getElementById('auth-logged-out');
+        const authLoggedIn = document.getElementById('auth-logged-in');
+        
+        if (!authStatus) return;
+        
+        authLoading.style.display = 'none';
+        
+        if (currentUser) {
+            authLoggedOut.style.display = 'none';
+            authLoggedIn.style.display = 'flex';
+            
+            const userAvatar = document.getElementById('user-avatar');
+            const userName = document.getElementById('user-name');
+            
+            if (userAvatar) userAvatar.src = currentUser.avatar_url || '';
+            if (userName) userName.textContent = currentUser.username || 'GitHub User';
+        } else {
+            authLoggedOut.style.display = 'flex';
+            authLoggedIn.style.display = 'none';
+        }
+    }
+    
+    // Logout function (global scope)
+    window.logout = async function() {
+        try {
+            await fetch('/auth/logout', { method: 'POST' });
+            currentUser = null;
+            updateAuthUI();
+        } catch (error) {
+            console.error('Logout failed:', error);
+        }
+    };
+    
+    // Mobile menu functionality
+    function initializeMobileMenu() {
+        const mobileToggle = document.getElementById('mobileMenuToggle');
+        const navLinks = document.getElementById('navLinks');
+        const overlay = document.getElementById('mobileMenuOverlay');
+        
+        if (!mobileToggle || !navLinks || !overlay) return;
+        
+        function toggleMobileMenu() {
+            const isOpen = navLinks.classList.contains('mobile-open');
+            
+            if (isOpen) {
+                navLinks.classList.remove('mobile-open');
+                overlay.classList.remove('active');
+                mobileToggle.classList.remove('active');
+                document.body.style.overflow = '';
+            } else {
+                navLinks.classList.add('mobile-open');
+                overlay.classList.add('active');
+                mobileToggle.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+        
+        // Toggle on hamburger click
+        mobileToggle.addEventListener('click', toggleMobileMenu);
+        
+        // Close on overlay click
+        overlay.addEventListener('click', toggleMobileMenu);
+        
+        // Close on nav link click (mobile)
+        navLinks.addEventListener('click', function(e) {
+            if (e.target.classList.contains('nav-link') && window.innerWidth <= 768) {
+                toggleMobileMenu();
+            }
+        });
+        
+        // Close on window resize to desktop
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 768 && navLinks.classList.contains('mobile-open')) {
+                toggleMobileMenu();
+            }
+        });
+    }
+    
+    // Highlight active navigation link
+    function highlightActiveNav() {
+        const currentPath = window.location.pathname;
+        const navLinks = document.querySelectorAll('.nav-link');
+        
+        navLinks.forEach(link => {
+            const linkPath = new URL(link.href).pathname;
+            if (linkPath === currentPath || (currentPath === '/' && linkPath === '/')) {
+                link.classList.add('active');
+            } else {
+                link.classList.remove('active');
+            }
+        });
+    }
+    
+    // Initialize everything when DOM is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        checkAuthStatus();
+        initializeMobileMenu();
+        highlightActiveNav();
+    });
+})();
+</script>
+
+<style>
+body {
+    padding-top: 60px !important; /* Offset for fixed top-nav */
+}
+
+.left-nav, .sidebar, .side-nav {
+    margin-top: 60px !important;
+}
+
+nav.top-nav.top-nav {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    z-index: 1003 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    padding: 0.5em 0 0.5em 0 !important;
+    background: #111827 !important;
+    background-color: #111827 !important;
+    background-image: none !important;
+    color: white !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+    border-bottom: 1px solid #374151 !important;
+    min-height: 56px !important;
+    height: 56px !important;
+}
+
+nav.top-nav .top-nav-container {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    gap: 2em !important;
+    margin: 0 !important;
+    padding: 0 1.5em !important;
+    position: relative !important;
+    height: 56px !important;
+    background: none !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    justify-content: space-between !important;
+}
+
+.nav-brand {
+    display: flex;
+    align-items: center;
+    margin: 0;
+}
+
+.brand-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    text-decoration: none;
+    color: inherit;
+}
+
+.nav-logo {
+    width: 36px;
+    height: 36px;
+    margin-right: 0.3em;
+}
+
+.site-title {
+    font-size: 1.25em;
+    font-weight: 700;
+    color: #60a5fa;
+    letter-spacing: 0.01em;
+}
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+}
+
+.nav-menu {
+    display: flex;
+    align-items: center;
+    gap: 1.5em;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.nav-link {
+    color: #e5e7eb;
+    background: none;
+    border: none;
+    font-size: 1em;
+    font-weight: 500;
+    text-decoration: none;
+    padding: 0.3em 0.9em;
+    border-radius: 4px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.nav-link.active, .nav-link:hover {
+    background: #374151;
+    color: #93c5fd;
+}
+
+.top-nav .nav-auth {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 160px;
+    margin-left: auto;
+    height: 56px;
+    position: static !important;
+    flex-shrink: 0;
+    z-index: auto !important;
+}
+
+.top-nav .auth-status {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 0.7em !important;
+    background: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    height: 100% !important;
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    z-index: auto !important;
+    width: auto !important;
+}
+
+.top-nav .auth-btn {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5em !important;
+    padding: 0.35em 0.9em !important;
+    background-color: #1f2937 !important;
+    color: #ffffff !important;
+    border: 1px solid #374151 !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    font-size: 0.97em !important;
+    min-height: 36px !important;
+    box-shadow: none !important;
+    transition: all 0.2s !important;
+    height: 36px !important;
+    margin: 0 !important;
+    position: static !important;
+    text-decoration: none !important;
+}
+
+.top-nav .auth-btn:hover {
+    background-color: #374151 !important;
+    border-color: #4b5563 !important;
+    color: #ffffff !important;
+}
+
+.top-nav .auth-btn .auth-text {
+    color: #ffffff !important;
+    white-space: nowrap !important;
+}
+
+.top-nav .auth-btn span {
+    color: #ffffff !important;
+}
+
+.github-icon {
+    width: 18px;
+    height: 18px;
+    vertical-align: middle;
+}
+
+.auth-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.auth-logged-out {
+    display: flex;
+    align-items: center;
+    background: none;
+    box-shadow: none;
+    border: none;
+    padding: 0;
+    height: 100%;
+}
+
+.auth-logged-in {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    height: 100%;
+}
+
+.user-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid white;
+}
+
+.user-name {
+    font-size: 0.9em;
+    font-weight: 500;
+    color: #ffffff !important;
+}
+
+.top-nav .user-name {
+    color: #ffffff !important;
+}
+
+.top-nav .auth-logged-in .user-name {
+    color: #ffffff !important;
+}
+
+.logout-btn {
+    padding: 0.35em 0.8em;
+    background-color: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.95em;
+    transition: background-color 0.2s ease;
+    height: 36px;
+}
+
+.logout-btn:hover {
+    background-color: #dc2626;
+}
+
+/* Fix for overlapping auth component in main content */
+.auth-prompt {
+    position: relative !important;
+    z-index: 1 !important;
+    margin: 1rem 0 !important;
+    padding: 1rem !important;
+    background-color: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    min-height: 60px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.auth-prompt #auth-loading {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.5rem !important;
+}
+
+/* Ensure auth component doesn't interfere with page layout */
+#auth-section {
+    position: static !important;
+    overflow: hidden !important;
+}
+</style>

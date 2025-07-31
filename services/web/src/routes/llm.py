@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Body, Query, HTTPException, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
 from shared.utils.database import SessionLocal, get_db
-from shared.models import Page, User, UserFeedback, Snippet
+from shared.models import Page, User, UserFeedback, Snippet, RewrittenDocument
 from shared.config import config
 from sqlalchemy import func
 from packages.scorer.llm_client import LLMClient
@@ -13,6 +13,7 @@ import httpx
 import urllib.parse
 import json as pyjson
 import logging
+import hashlib
 from typing import Optional
 from pydantic import BaseModel
 from datetime import datetime
@@ -40,6 +41,52 @@ def extract_yaml_header(md: str):
                 yaml_dict = None
             return yaml_dict, yaml_str, md_body
     return None, None, md
+
+
+def create_content_hash(content: str) -> str:
+    """Create SHA256 hash of content for deduplication"""
+    return hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+
+def store_rewritten_document(page_id: int, content: str, yaml_header: dict = None, 
+                           generation_params: dict = None) -> int:
+    """Store rewritten document in database, return document ID. Handle deduplication via content hash."""
+    content_hash = create_content_hash(content)
+    
+    db = SessionLocal()
+    try:
+        # Check if identical content already exists for this page
+        existing_doc = db.query(RewrittenDocument).filter(
+            RewrittenDocument.page_id == page_id,
+            RewrittenDocument.content_hash == content_hash
+        ).first()
+        
+        if existing_doc:
+            logger.info(f"Reusing existing rewritten document {existing_doc.id} for page {page_id} (content hash: {content_hash[:12]}...)")
+            return existing_doc.id
+        
+        # Create new document version
+        new_doc = RewrittenDocument(
+            page_id=page_id,
+            content=content,
+            content_hash=content_hash,
+            yaml_header=yaml_header,
+            generation_params=generation_params or {}
+        )
+        
+        db.add(new_doc)
+        db.commit()
+        db.refresh(new_doc)
+        
+        logger.info(f"Created new rewritten document {new_doc.id} for page {page_id} (content hash: {content_hash[:12]}...)")
+        return new_doc.id
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to store rewritten document for page {page_id}: {e}")
+        raise
+    finally:
+        db.close()
 
 @router.get("/proposed_change", response_class=HTMLResponse)
 async def proposed_change(request: Request, page_id: int = Query(...)):
@@ -109,13 +156,16 @@ async def proposed_change(request: Request, page_id: int = Query(...)):
     if 'learn.microsoft.com' in page.url:
         mslearn_url = page.url
     
+    file_path_for_template = repo_path or "unknown-file.md"
+    logger.info(f"Proposed change page for page_id={page_id}: file_path='{file_path_for_template}', original_url='{page.url}'")
+    
     return templates.TemplateResponse("proposed_change.html", {
         "request": request,
         "original_markdown": original_markdown_content,
         "yaml_header_orig": yaml_dict_orig,
         "yaml_header_str_orig": yaml_str_orig,
         "debug_info": {},
-        "file_path": repo_path or "unknown-file.md",
+        "file_path": file_path_for_template,
         "github_url": github_url,
         "mslearn_url": mslearn_url,
     })
@@ -137,7 +187,8 @@ async def generate_updated_markdown(page_id: int = Query(...), force: bool = Que
                 "updated_markdown": updated_markdown,
                 "updated_markdown_body": cached_md_body,
                 "debug_info": debug_info,
-                "cached": True
+                "cached": True,
+                "rewritten_document_id": debug_info.get('rewritten_document_id')
             })
         else:
             debug_log.append(f"Cache expired for page_id={page_id}, age={now-ts:.1f}s")
@@ -237,15 +288,41 @@ You are an expert technical writer. Given the following original markdown and a 
         updated_markdown_content = f"---\n{yaml_str}\n---\n{md_body}"
     else:
         updated_markdown_content = md_body
+    
+    # Store the rewritten document in database for versioning and feedback
+    try:
+        generation_params = {
+            'force_refresh': force,
+            'recommendations_count': len(recommendations),
+            'llm_available': llm.api_available,
+            'generated_at': datetime.utcnow().isoformat()
+        }
+        
+        document_id = store_rewritten_document(
+            page_id=page_id,
+            content=updated_markdown_content,
+            yaml_header=yaml_dict,
+            generation_params=generation_params
+        )
+        debug_info['rewritten_document_id'] = document_id
+        
+    except Exception as e:
+        logger.error(f"Failed to store rewritten document: {e}")
+        # Continue without failing the request
+        debug_info['storage_error'] = str(e)
+    
+    # Keep in-memory cache for performance (but database is source of truth)
     UPDATED_MARKDOWN_CACHE[page_id] = (updated_markdown_content, debug_info, now)
     debug_info['debug_log'] = debug_log
+    
     return JSONResponse({
         "updated_markdown": updated_markdown_content,
         "updated_markdown_body": md_body,
         "yaml_header": yaml_dict,
         "yaml_header_str": yaml_str,
         "debug_info": debug_info,
-        "cached": False
+        "cached": False,
+        "rewritten_document_id": debug_info.get('rewritten_document_id')
     })
 
 @router.post("/api/compute_diff")
@@ -449,6 +526,8 @@ async def create_github_pr(
     github_token = session_data["github_token"]
     
     try:
+        logger.info(f"Creating GitHub PR for user {current_user.github_username}: file_path='{pr_request.file_path}', title='{pr_request.title}'")
+        
         # Try GitHub App first, fallback to OAuth
         pr_service = GitHubPRService(
             access_token=github_token,

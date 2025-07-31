@@ -301,13 +301,13 @@
     </style>
 </head>
 <body>
+    <!-- Include Top Navigation -->
+    {% include 'components/top_nav.html' %}
+    
     <div class="container">
-        <div class="header">
-            <img src="/static/tux_reading.png" class="tux-logo" alt="Tux Penguin">
-            <div>
-                <h1>Document Details</h1>
-                <div class="subtitle">{{ page_title }}</div>
-            </div>
+        <div class="page-header">
+            <h1>Document Details</h1>
+            <div class="subtitle">{{ page_title }}</div>
         </div>
         
         <!-- Breadcrumb navigation -->
@@ -381,6 +381,8 @@
                 {% endif %}
             </div>
             {% endif %}
+            
+            <!-- Contribution prompt will be handled by top navigation authentication -->
             
             <!-- Create Pull Request Button -->
             <a href="/proposed_change?page_id={{ page.id }}" class="github-pr-btn">

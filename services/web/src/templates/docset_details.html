@@ -224,22 +224,24 @@
         .danger {
             color: #dc2626;
         }
+        .page-header {
+            margin-bottom: 2em;
+            padding: 0;
+        }
+        .page-header h1 {
+            margin: 0;
+            padding: 0;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Breadcrumb Navigation -->
-        <div class="breadcrumb">
-            <a href="/">Dashboard</a> &gt; {{ display_name }} Bias Analysis
-        </div>
-
-        <!-- Header -->
-        <div class="header">
-            <img class="tux-logo" src="/static/tux_reading.png" alt="Tux the Linux penguin reading a book with glasses">
-            <div>
-                <h1>{{ display_name }}</h1>
-                <p class="subtitle">Comprehensive bias analysis and Linux-first recommendations</p>
-            </div>
+    <!-- Include Top Navigation -->
+    {% include 'components/top_nav.html' %}
+    
+    <div class="container">        
+        <!-- Page Header -->
+        <div class="page-header">
+            <h1>{{ display_name }}</h1>
         </div>
 
         <!-- Summary Statistics -->
@@ -343,6 +345,8 @@
         <!-- Flagged Pages -->
         <div class="section">
             <h2>Pages with Bias Issues ({{ flagged_pages|length }})</h2>
+            
+            <!-- Contribution prompt will be handled by top navigation authentication -->
             
             {% if flagged_pages and flagged_pages|length > 0 %}
                 {% for page in flagged_pages %}
