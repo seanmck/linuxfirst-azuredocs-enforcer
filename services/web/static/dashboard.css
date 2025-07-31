@@ -342,16 +342,16 @@ body {
     margin: 0;
     background: #f7fafd;
     color: #222;
-    padding-top: 70px; /* Account for fixed top nav */
+    padding-top: var(--top-nav-height); /* Account for fixed top nav */
 }
 
 /* Left Navigation (Dashboard Only) */
 .left-nav {
     position: fixed;
-    top: 70px; /* Account for top navigation */
+    top: var(--top-nav-height); /* Account for top navigation */
     left: 0;
     width: 200px;
-    height: calc(100vh - 70px);
+    height: calc(100vh - var(--top-nav-height));
     background: #f8fafc;
     border-right: 1px solid #e5e7eb;
     padding: 2em 1em 1em 1em;
