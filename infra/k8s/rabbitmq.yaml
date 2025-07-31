@@ -39,6 +39,7 @@ spec:
       labels:
         app: rabbitmq
     spec:
+      priorityClassName: infrastructure-critical-priority
       serviceAccountName: sc-account-fefa7dd8-f9d3-4524-8a35-c1123a838df0
       containers:
         - name: rabbitmq

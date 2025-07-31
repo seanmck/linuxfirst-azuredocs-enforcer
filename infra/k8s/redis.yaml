@@ -13,6 +13,7 @@ spec:
       labels:
         app: redis
     spec:
+      priorityClassName: infrastructure-critical-priority
       containers:
       - name: redis
         image: mcr.microsoft.com/cbl-mariner/base/redis:6.2
