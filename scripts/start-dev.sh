@@ -18,7 +18,7 @@ source .venv/bin/activate
 echo "Installing dependencies..."
 pip install -r services/web/requirements.txt
 pip install -r services/worker/requirements.txt
-pip install -r services/mcp-server/requirements.txt
+pip install -r services/bias-scoring-service/requirements.txt
 
 # Set environment variables
 export PYTHONPATH=$(pwd):$PYTHONPATH

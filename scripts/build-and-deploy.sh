@@ -19,10 +19,10 @@ declare -A SERVICE_CONFIG=(
     ["worker,image_name"]="queue-worker"
     ["worker,context"]="."
     
-    ["mcp-server,dockerfile"]="services/mcp-server/Dockerfile"
-    ["mcp-server,manifests"]="infra/k8s/mcp-server.yaml"
-    ["mcp-server,image_name"]="mcp-server"
-    ["mcp-server,context"]="."
+    ["bias-scoring-service,dockerfile"]="services/bias-scoring-service/Dockerfile"
+    ["bias-scoring-service,manifests"]="infra/k8s/bias-scoring-service-keda.yaml"
+    ["bias-scoring-service,image_name"]="bias-scoring-service"
+    ["bias-scoring-service,context"]="."
     
     ["db-migrate,dockerfile"]="infra/db/Dockerfile"
     ["db-migrate,manifests"]="infra/k8s/db-migrate.yaml"
@@ -31,12 +31,12 @@ declare -A SERVICE_CONFIG=(
 )
 
 usage() {
-    echo "Usage: $0 [--web] [--worker] [--mcp-server] [--db-migrate] [--services] [--all]"
+    echo "Usage: $0 [--web] [--worker] [--bias-scoring-service] [--db-migrate] [--services] [--all]"
     echo "  --web        Build and deploy web service"
     echo "  --worker     Build and deploy worker service"
-    echo "  --mcp-server Build and deploy MCP server service"
+    echo "  --bias-scoring-service Build and deploy Bias Scoring Service"
     echo "  --db-migrate Build and deploy database migration job"
-    echo "  --services   Build and deploy web, worker, and mcp-server services only"
+    echo "  --services   Build and deploy web, worker, and bias-scoring-service services only"
     echo "  --all        Build and deploy all services and db-migrate"
     echo ""
     echo "At least one service must be specified."
@@ -227,7 +227,7 @@ apply_db_migrate() {
 main() {
     local deploy_web=false
     local deploy_worker=false
-    local deploy_mcp_server=false
+    local deploy_bias_scoring_service=false
     local deploy_db_migrate=false
     
     # Parse command line arguments
@@ -241,8 +241,8 @@ main() {
                 deploy_worker=true
                 shift
                 ;;
-            --mcp-server)
-                deploy_mcp_server=true
+            --bias-scoring-service)
+                deploy_bias_scoring_service=true
                 shift
                 ;;
             --db-migrate)
@@ -252,13 +252,13 @@ main() {
             --services)
                 deploy_web=true
                 deploy_worker=true
-                deploy_mcp_server=true
+                deploy_bias_scoring_service=true
                 shift
                 ;;
             --all)
                 deploy_web=true
                 deploy_worker=true
-                deploy_mcp_server=true
+                deploy_bias_scoring_service=true
                 deploy_db_migrate=true
                 shift
                 ;;
@@ -273,7 +273,7 @@ main() {
     done
     
     # Check if at least one service is specified
-    if [[ "$deploy_web" == false && "$deploy_worker" == false && "$deploy_mcp_server" == false && "$deploy_db_migrate" == false ]]; then
+    if [[ "$deploy_web" == false && "$deploy_worker" == false && "$deploy_bias_scoring_service" == false && "$deploy_db_migrate" == false ]]; then
         echo "Error: At least one service must be specified"
         usage
     fi
@@ -299,11 +299,11 @@ main() {
         echo ""
     fi
     
-    if [[ "$deploy_mcp_server" == true ]]; then
-        echo "=== Deploying MCP Server Service ==="
-        build_and_push_image "mcp-server"
-        apply_manifests "mcp-server"
-        echo "MCP server service deployment completed successfully"
+    if [[ "$deploy_bias_scoring_service" == true ]]; then
+        echo "=== Deploying Bias Scoring Service ==="
+        build_and_push_image "bias-scoring-service"
+        apply_manifests "bias-scoring-service"
+        echo "Bias Scoring Service deployment completed successfully"
         echo ""
     fi
     

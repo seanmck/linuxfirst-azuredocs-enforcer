@@ -42,9 +42,9 @@ services:
       - DATABASE_URL=postgresql://azuredocs_user:azuredocs_pass@db:5432/azuredocs
       - RABBITMQ_HOST=rabbitmq
     restart: always
-  mcp_server:
+  bias_scoring_service:
     build:
-      context: ./services/mcp-server
+      context: ./services/bias-scoring-service
       dockerfile: Dockerfile
     depends_on:
       - db

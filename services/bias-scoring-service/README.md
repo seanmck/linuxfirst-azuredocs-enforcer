@@ -1,4 +1,4 @@
-# MCP Server for holistic page bias scoring using Azure OpenAI
+# Bias Scoring Service for holistic page bias scoring using Azure OpenAI
 
 ## Setup
 

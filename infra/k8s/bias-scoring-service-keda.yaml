@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: mcp-server
+  name: bias-scoring-service
   namespace: azuredocs-app
 spec:
   type: ClusterIP
@@ -9,29 +9,29 @@ spec:
     - port: 9000
       targetPort: 9000
   selector:
-    app: mcp-server
+    app: bias-scoring-service
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mcp-server
+  name: bias-scoring-service
   namespace: azuredocs-app
   labels:
-    app: mcp-server
+    app: bias-scoring-service
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: mcp-server
+      app: bias-scoring-service
   template:
     metadata:
       labels:
-        app: mcp-server
+        app: bias-scoring-service
     spec:
       priorityClassName: service-critical-priority
       containers:
-        - name: mcp-server
-          image: seanmckdemo.azurecr.io/mcp-server:0.0.8
+        - name: bias-scoring-service
+          image: seanmckdemo.azurecr.io/bias-scoring-service:0.0.8
           env:            
             - name: AZURE_OPENAI_DEPLOYMENT
               value: "gpt-4.1"
@@ -65,11 +65,11 @@ spec:
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: mcp-server-scaler
+  name: bias-scoring-service-scaler
   namespace: azuredocs-app
 spec:
   scaleTargetRef:
-    name: mcp-server
+    name: bias-scoring-service
   minReplicaCount: 2
   maxReplicaCount: 10
   cooldownPeriod: 60
