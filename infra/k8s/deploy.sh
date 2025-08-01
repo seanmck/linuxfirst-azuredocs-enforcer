@@ -21,8 +21,8 @@ kubectl apply -f k8s/redis.yaml
 # Deploy RabbitMQ
 kubectl apply -f k8s/rabbitmq.yaml
 
-# Deploy the MCP server
-kubectl apply -f k8s/mcp-server.yaml
+# Deploy the Bias Scoring Service
+kubectl apply -f k8s/bias-scoring-service-keda.yaml
 
 # Deploy the web UI
 kubectl apply -f k8s/webui.yaml

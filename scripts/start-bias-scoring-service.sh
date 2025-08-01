@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start the MCP server for holistic page bias scoring
+# Start the Bias Scoring Service for holistic page bias scoring
 
 if [ ! -f .env ]; then
   echo "No .env file found. Please copy .env.example to .env and fill in your AOAI credentials."
@@ -22,11 +22,11 @@ if [ -d ".venv" ]; then
   source .venv/bin/activate
 fi
 
-# Install MCP server dependencies
-pip install -r services/mcp-server/requirements.txt
+# Install Bias Scoring Service dependencies
+pip install -r services/bias-scoring-service/requirements.txt
 
-# Change to services/mcp-server directory and start server
-cd services/mcp-server
+# Change to services/bias-scoring-service directory and start server
+cd services/bias-scoring-service
 export PYTHONPATH=$(pwd):$PYTHONPATH
 
 exec uvicorn main:app --reload --host 0.0.0.0 --port 9000

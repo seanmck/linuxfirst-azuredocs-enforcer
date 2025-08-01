@@ -1,13 +1,13 @@
-# Dockerfile for MCP server
+# Dockerfile for Bias Scoring Service
 FROM mcr.microsoft.com/devcontainers/python:1-3.12-bullseye
 
 WORKDIR /app
 
-COPY services/mcp-server/requirements.txt ./
+COPY services/bias-scoring-service/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files explicitly
-COPY services/mcp-server/main.py ./
+COPY services/bias-scoring-service/main.py ./
 
 # List files to debug
 RUN ls -la /app/
