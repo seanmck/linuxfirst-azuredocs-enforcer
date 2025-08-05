@@ -64,7 +64,7 @@
                     <span class="feedback-icon">🔐</span>
                     Help us improve by rating this assessment
                 </p>
-                <a href="/auth/github/login?redirect={{ request.url }}" class="btn btn-primary btn-sm">
+                <a href="/auth/github/login?redirect={% if scan is defined %}/scan/{{ scan.id }}{% else %}{{ request.url }}{% endif %}" class="btn btn-primary btn-sm">
                     <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" 
                          alt="GitHub" style="width: 16px; height: 16px; vertical-align: middle;">
                     Sign in with GitHub

@@ -104,7 +104,7 @@ async def scan_details(scan_id: int, request: Request, current_user: Optional[Us
     })
 
 @router.get("/scan/{scan_id}/json")
-async def scan_details_json(scan_id: int, request: Request):
+async def scan_details_json(scan_id: int, request: Request, current_user: Optional[User] = Depends(get_current_user)):
     db = SessionLocal()
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
     if not scan:
@@ -178,7 +178,8 @@ async def scan_details_json(scan_id: int, request: Request):
         "changed_pages_count": changed_pages_count,
         "percent_flagged": round(percent_flagged, 1),
         "initial_progress": round(initial_progress, 1),
-        "bias_icon_map": bias_icon_map
+        "bias_icon_map": bias_icon_map,
+        "user": current_user
     })
     return JSONResponse({
         "html": html,
