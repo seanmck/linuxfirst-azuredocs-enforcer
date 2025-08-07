@@ -168,6 +168,7 @@ async def proposed_change(request: Request, page_id: int = Query(...)):
         "file_path": file_path_for_template,
         "github_url": github_url,
         "mslearn_url": mslearn_url,
+        "page_id": page_id,
     })
 
 @router.get("/generate_updated_markdown")
@@ -494,6 +495,7 @@ from routes.auth import get_current_user
 from shared.infrastructure.github_pr_service import GitHubPRService
 from shared.infrastructure.github_app_service import github_app_service
 from utils.session import get_session_storage
+from shared.application.pr_tracking_service import PRTrackingService
 
 
 class CreatePRRequest(BaseModel):
@@ -503,6 +505,8 @@ class CreatePRRequest(BaseModel):
     title: str
     body: str
     base_branch: str = "main"
+    page_id: Optional[int] = None
+    rewritten_document_id: Optional[int] = None
 
 
 @router.post("/api/create_github_pr")
@@ -562,6 +566,36 @@ async def create_github_pr(
                 )
             else:
                 raise  # Re-raise if it's not an access restriction error
+        
+        # Extract PR number from URL (format: https://github.com/owner/repo/pull/123)
+        pr_number = None
+        try:
+            pr_parts = pr_url.split('/')
+            if 'pull' in pr_parts:
+                pr_number = int(pr_parts[pr_parts.index('pull') + 1])
+        except:
+            logger.warning(f"Could not extract PR number from URL: {pr_url}")
+        
+        # Store PR record if we have the number
+        if pr_number:
+            try:
+                pr_tracking_service = PRTrackingService()
+                
+                # Extract repository from source_repo
+                pr_tracking_service.create_pr_record(
+                    user_id=current_user.id,
+                    pr_url=pr_url,
+                    pr_number=pr_number,
+                    repository=source_repo,
+                    branch_name=f"{current_user.github_username}-patch-{pr_number}",  # Typical branch name pattern
+                    title=pr_request.title,
+                    page_id=pr_request.page_id,
+                    rewritten_document_id=pr_request.rewritten_document_id
+                )
+                logger.info(f"Stored PR record for {pr_url}")
+            except Exception as e:
+                logger.error(f"Failed to store PR record: {e}")
+                # Don't fail the request if tracking fails
         
         return JSONResponse({
             "success": True,

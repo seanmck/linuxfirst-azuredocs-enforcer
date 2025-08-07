@@ -1,10 +1,18 @@
-from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, DateTime, JSON, Date, Float
+from sqlalchemy import Column, Integer, String, Boolean, Text, ForeignKey, DateTime, JSON, Date, Float, Enum
 import sqlalchemy as sa
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 import datetime
+import enum
 
 Base = declarative_base()
+
+
+class PRStatus(enum.Enum):
+    OPEN = "open"
+    MERGED = "merged"
+    CLOSED = "closed"
+    DRAFT = "draft"
 
 class Scan(Base):
     __tablename__ = 'scans'
@@ -77,6 +85,7 @@ class Page(Base):
     snippets = relationship("Snippet", back_populates="page")
     feedback = relationship("UserFeedback", back_populates="page", cascade="all, delete-orphan")
     rewritten_documents = relationship("RewrittenDocument", back_populates="page", cascade="all, delete-orphan")
+    pull_requests = relationship("PullRequest", back_populates="page")
 
 class ProcessingUrl(Base):
     __tablename__ = 'processing_urls'
@@ -154,6 +163,7 @@ class User(Base):
     # Relationships
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
     feedback = relationship("UserFeedback", back_populates="user", cascade="all, delete-orphan")
+    pull_requests = relationship("PullRequest", back_populates="user", cascade="all, delete-orphan")
 
 
 class UserSession(Base):
@@ -182,6 +192,7 @@ class RewrittenDocument(Base):
     # Relationships
     page = relationship("Page", back_populates="rewritten_documents")
     feedback = relationship("UserFeedback", back_populates="rewritten_document", cascade="all, delete-orphan")
+    pull_requests = relationship("PullRequest", back_populates="rewritten_document")
     
     # Index on content hash for deduplication
     __table_args__ = (
@@ -217,4 +228,37 @@ class UserFeedback(Base):
             """, 
             name='check_feedback_target'
         ),
+    )
+
+
+class PullRequest(Base):
+    __tablename__ = 'pull_requests'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    page_id = Column(Integer, ForeignKey('pages.id', ondelete='SET NULL'), nullable=True)
+    rewritten_document_id = Column(Integer, ForeignKey('rewritten_documents.id', ondelete='SET NULL'), nullable=True)
+    github_pr_number = Column(Integer, nullable=False)
+    github_pr_url = Column(Text, nullable=False, unique=True)
+    repository = Column(String(255), nullable=False)
+    branch_name = Column(String(255), nullable=False)
+    title = Column(Text, nullable=False)
+    status = Column(Enum(PRStatus), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    merged_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    user = relationship("User", back_populates="pull_requests")
+    page = relationship("Page", back_populates="pull_requests")
+    rewritten_document = relationship("RewrittenDocument", back_populates="pull_requests")
+    
+    # Indexes
+    __table_args__ = (
+        sa.Index('ix_pull_requests_user_id', 'user_id'),
+        sa.Index('ix_pull_requests_page_id', 'page_id'),
+        sa.Index('ix_pull_requests_rewritten_document_id', 'rewritten_document_id'),
+        sa.Index('ix_pull_requests_status', 'status'),
+        sa.Index('ix_pull_requests_created_at', 'created_at'),
+        sa.Index('ix_pull_requests_repository', 'repository'),
+        sa.Index('ix_pull_requests_user_status', 'user_id', 'status'),
     )

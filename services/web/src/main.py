@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, Form, BackgroundTasks, HTTPException, Depe
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.concurrency import run_in_threadpool
 from shared.utils.database import SessionLocal
-from shared.models import Scan, Page, Snippet, BiasSnapshot
+from shared.models import Scan, Page, Snippet, BiasSnapshot, PullRequest, PRStatus, User
 from fastapi.staticfiles import StaticFiles
 import os
 import asyncio
@@ -21,6 +21,7 @@ import re
 import httpx
 from markdown import markdown as md_lib
 from functools import lru_cache
+from typing import Optional
 from routes import admin, scan, llm, websocket, docset, auth, feedback, docpage
 from routes.scan import enqueue_scan_task
 from shared.utils.url_utils import extract_doc_set_from_url, format_doc_set_name
@@ -550,12 +551,9 @@ async def flagged_docs(request: Request):
 
 @app.get("/pull-requests")
 async def pull_requests(request: Request):
-    """Placeholder route for pull requests page"""
-    return templates.TemplateResponse("placeholder.html", {
-        "request": request,
-        "page_title": "Pull Requests",
-        "message": "This page will show pull requests created to fix Windows bias in documentation.",
-        "coming_soon": True
+    """Pull requests tracking page"""
+    return templates.TemplateResponse("pull_requests.html", {
+        "request": request
     })
 
 @app.get("/stats")
@@ -668,6 +666,118 @@ async def progress():
         "scanned_urls": scanned_urls,
         "flagged_snippets": flagged_serialized,
         "current_url": current_url
+    })
+
+
+# PR tracking API endpoints
+@app.get("/api/pr-stats")
+async def get_pr_stats(
+    request: Request,
+    current_user: User = Depends(auth.get_current_user)
+):
+    """Get PR statistics for the dashboard"""
+    from shared.application.pr_tracking_service import PRTrackingService
+    
+    pr_service = PRTrackingService()
+    
+    # Get stats for current user if logged in, otherwise all PRs
+    user_id = current_user.id if current_user else None
+    stats = pr_service.get_pr_stats(user_id=user_id)
+    
+    return JSONResponse(stats)
+
+
+@app.get("/api/pull-requests")
+async def get_pull_requests(
+    request: Request,
+    status: Optional[str] = Query(None),
+    repository: Optional[str] = Query(None),
+    user: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(auth.get_current_user)
+):
+    """Get paginated list of pull requests"""
+    from shared.application.pr_tracking_service import PRTrackingService
+    from sqlalchemy.orm import joinedload
+    
+    pr_service = PRTrackingService()
+    db = SessionLocal()
+    
+    try:
+        # Build query
+        query = db.query(PullRequest).options(joinedload(PullRequest.user))
+        
+        # Apply filters
+        if status:
+            try:
+                status_enum = PRStatus(status)
+                query = query.filter(PullRequest.status == status_enum)
+            except ValueError:
+                pass  # Invalid status, ignore filter
+        
+        if repository:
+            query = query.filter(PullRequest.repository == repository)
+        
+        if user:
+            query = query.join(User).filter(User.github_username == user)
+        
+        # Get total count
+        total = query.count()
+        
+        # Get paginated results
+        prs = query.order_by(PullRequest.created_at.desc()).limit(limit).offset(offset).all()
+        
+        # Serialize results
+        items = []
+        for pr in prs:
+            items.append({
+                "id": pr.id,
+                "github_pr_number": pr.github_pr_number,
+                "github_pr_url": pr.github_pr_url,
+                "repository": pr.repository,
+                "branch_name": pr.branch_name,
+                "title": pr.title,
+                "status": pr.status.value,
+                "created_at": pr.created_at.isoformat(),
+                "updated_at": pr.updated_at.isoformat(),
+                "merged_at": pr.merged_at.isoformat() if pr.merged_at else None,
+                "user": {
+                    "id": pr.user.id,
+                    "github_username": pr.user.github_username,
+                    "avatar_url": pr.user.avatar_url
+                }
+            })
+        
+        return JSONResponse({
+            "total": total,
+            "items": items,
+            "limit": limit,
+            "offset": offset
+        })
+        
+    finally:
+        db.close()
+
+
+@app.post("/api/sync-pr-status")
+async def sync_pr_status(
+    request: Request,
+    current_user: User = Depends(auth.get_current_user)
+):
+    """Sync PR status from GitHub"""
+    from shared.application.pr_tracking_service import PRTrackingService
+    
+    # Only allow authenticated users to sync
+    if not current_user:
+        raise HTTPException(401, "Authentication required")
+    
+    pr_service = PRTrackingService()
+    updated_count = pr_service.sync_all_open_prs()
+    
+    return JSONResponse({
+        "success": True,
+        "updated": updated_count
     })
 
 

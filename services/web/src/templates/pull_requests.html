@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pull Requests - Linux First Azure Docs Enforcer</title>
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <style>
+        .pr-dashboard {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .pr-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        
+        .stat-card h3 {
+            margin: 0;
+            color: #495057;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .stat-card .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 0.5rem 0;
+        }
+        
+        .stat-card.open .stat-value { color: #28a745; }
+        .stat-card.draft .stat-value { color: #6c757d; }
+        .stat-card.merged .stat-value { color: #007bff; }
+        .stat-card.closed .stat-value { color: #dc3545; }
+        
+        .pr-filters {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .filter-group {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .filter-group label {
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .filter-group select,
+        .filter-group input {
+            padding: 0.375rem 0.75rem;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        
+        .pr-list {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .pr-list-header {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .pr-list-header h2 {
+            margin: 0;
+            font-size: 1.25rem;
+        }
+        
+        .pr-item {
+            padding: 1rem;
+            border-bottom: 1px solid #dee2e6;
+            transition: background-color 0.2s;
+        }
+        
+        .pr-item:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .pr-item:last-child {
+            border-bottom: none;
+        }
+        
+        .pr-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.5rem;
+        }
+        
+        .pr-title {
+            flex: 1;
+            margin-right: 1rem;
+        }
+        
+        .pr-title a {
+            color: #0366d6;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+        
+        .pr-title a:hover {
+            text-decoration: underline;
+        }
+        
+        .pr-status {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .pr-status.open { background: #28a74520; color: #28a745; }
+        .pr-status.draft { background: #6c757d20; color: #6c757d; }
+        .pr-status.merged { background: #007bff20; color: #007bff; }
+        .pr-status.closed { background: #dc354520; color: #dc3545; }
+        
+        .pr-meta {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.875rem;
+            color: #586069;
+        }
+        
+        .pr-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .pr-meta-item strong {
+            color: #24292e;
+        }
+        
+        .no-prs {
+            text-align: center;
+            padding: 3rem;
+            color: #6c757d;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 2rem;
+        }
+        
+        .pagination button {
+            padding: 0.5rem 1rem;
+            border: 1px solid #dee2e6;
+            background: white;
+            color: #495057;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .pagination button:hover:not(:disabled) {
+            background: #f8f9fa;
+            border-color: #adb5bd;
+        }
+        
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .pagination button.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    {% include 'components/top_nav.html' %}
+    
+    <div class="pr-dashboard">
+        <h1>Pull Requests</h1>
+        
+        <!-- PR Statistics -->
+        <div class="pr-stats" id="pr-stats">
+            <div class="stat-card">
+                <h3>Total</h3>
+                <div class="stat-value">-</div>
+            </div>
+            <div class="stat-card open">
+                <h3>Open</h3>
+                <div class="stat-value">-</div>
+            </div>
+            <div class="stat-card draft">
+                <h3>Draft</h3>
+                <div class="stat-value">-</div>
+            </div>
+            <div class="stat-card merged">
+                <h3>Merged</h3>
+                <div class="stat-value">-</div>
+            </div>
+            <div class="stat-card closed">
+                <h3>Closed</h3>
+                <div class="stat-value">-</div>
+            </div>
+        </div>
+        
+        <!-- Filters -->
+        <div class="pr-filters">
+            <div class="filter-group">
+                <label for="status-filter">Status:</label>
+                <select id="status-filter">
+                    <option value="">All</option>
+                    <option value="open">Open</option>
+                    <option value="draft">Draft</option>
+                    <option value="merged">Merged</option>
+                    <option value="closed">Closed</option>
+                </select>
+                
+                <label for="repo-filter">Repository:</label>
+                <select id="repo-filter">
+                    <option value="">All</option>
+                    <option value="microsoftdocs/azure-docs">azure-docs</option>
+                    <option value="microsoftdocs/azure-docs-pr">azure-docs-pr</option>
+                </select>
+                
+                <label for="user-filter">User:</label>
+                <input type="text" id="user-filter" placeholder="GitHub username">
+                
+                <button onclick="applyFilters()">Apply Filters</button>
+                <button onclick="resetFilters()">Reset</button>
+            </div>
+        </div>
+        
+        <!-- PR List -->
+        <div class="pr-list">
+            <div class="pr-list-header">
+                <h2>Pull Request List</h2>
+                <button onclick="syncPRStatus()">Sync Status</button>
+            </div>
+            <div id="pr-list-content">
+                <div class="loading">Loading pull requests...</div>
+            </div>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="pagination" id="pagination"></div>
+    </div>
+    
+    <script>
+        let currentPage = 1;
+        const pageSize = 20;
+        let currentFilters = {};
+        
+        // Load PR data on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPRStats();
+            loadPRList();
+        });
+        
+        async function loadPRStats() {
+            try {
+                const response = await fetch('/api/pr-stats');
+                if (!response.ok) throw new Error('Failed to load PR statistics');
+                
+                const stats = await response.json();
+                updateStatsDisplay(stats);
+            } catch (error) {
+                console.error('Error loading PR stats:', error);
+            }
+        }
+        
+        function updateStatsDisplay(stats) {
+            const statCards = document.querySelectorAll('.stat-card');
+            statCards[0].querySelector('.stat-value').textContent = stats.total || 0;
+            statCards[1].querySelector('.stat-value').textContent = stats.open || 0;
+            statCards[2].querySelector('.stat-value').textContent = stats.draft || 0;
+            statCards[3].querySelector('.stat-value').textContent = stats.merged || 0;
+            statCards[4].querySelector('.stat-value').textContent = stats.closed || 0;
+        }
+        
+        async function loadPRList(page = 1) {
+            currentPage = page;
+            const offset = (page - 1) * pageSize;
+            
+            try {
+                const params = new URLSearchParams({
+                    limit: pageSize,
+                    offset: offset,
+                    ...currentFilters
+                });
+                
+                const response = await fetch(`/api/pull-requests?${params}`);
+                if (!response.ok) throw new Error('Failed to load pull requests');
+                
+                const data = await response.json();
+                displayPRList(data.items);
+                updatePagination(data.total, page);
+            } catch (error) {
+                console.error('Error loading PR list:', error);
+                document.getElementById('pr-list-content').innerHTML = 
+                    '<div class="error-message">Failed to load pull requests. Please try again later.</div>';
+            }
+        }
+        
+        function displayPRList(prs) {
+            const container = document.getElementById('pr-list-content');
+            
+            if (!prs || prs.length === 0) {
+                container.innerHTML = '<div class="no-prs">No pull requests found.</div>';
+                return;
+            }
+            
+            container.innerHTML = prs.map(pr => `
+                <div class="pr-item">
+                    <div class="pr-header">
+                        <div class="pr-title">
+                            <a href="${pr.github_pr_url}" target="_blank">${escapeHtml(pr.title)}</a>
+                        </div>
+                        <span class="pr-status ${pr.status}">${pr.status}</span>
+                    </div>
+                    <div class="pr-meta">
+                        <div class="pr-meta-item">
+                            <span>PR #${pr.github_pr_number}</span>
+                        </div>
+                        <div class="pr-meta-item">
+                            <span>Repository: <strong>${pr.repository}</strong></span>
+                        </div>
+                        <div class="pr-meta-item">
+                            <span>Created: <strong>${formatDate(pr.created_at)}</strong></span>
+                        </div>
+                        ${pr.merged_at ? `
+                        <div class="pr-meta-item">
+                            <span>Merged: <strong>${formatDate(pr.merged_at)}</strong></span>
+                        </div>
+                        ` : ''}
+                        <div class="pr-meta-item">
+                            <span>By: <strong>${pr.user.github_username}</strong></span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function updatePagination(total, currentPage) {
+            const totalPages = Math.ceil(total / pageSize);
+            const pagination = document.getElementById('pagination');
+            
+            if (totalPages <= 1) {
+                pagination.style.display = 'none';
+                return;
+            }
+            
+            pagination.style.display = 'flex';
+            
+            let html = `
+                <button onclick="loadPRList(1)" ${currentPage === 1 ? 'disabled' : ''}>First</button>
+                <button onclick="loadPRList(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
+            `;
+            
+            // Show page numbers
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(totalPages, startPage + 4);
+            
+            for (let i = startPage; i <= endPage; i++) {
+                html += `<button onclick="loadPRList(${i})" class="${i === currentPage ? 'active' : ''}">${i}</button>`;
+            }
+            
+            html += `
+                <button onclick="loadPRList(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>
+                <button onclick="loadPRList(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''}>Last</button>
+            `;
+            
+            pagination.innerHTML = html;
+        }
+        
+        function applyFilters() {
+            currentFilters = {};
+            
+            const status = document.getElementById('status-filter').value;
+            if (status) currentFilters.status = status;
+            
+            const repo = document.getElementById('repo-filter').value;
+            if (repo) currentFilters.repository = repo;
+            
+            const user = document.getElementById('user-filter').value;
+            if (user) currentFilters.user = user;
+            
+            loadPRList(1);
+        }
+        
+        function resetFilters() {
+            document.getElementById('status-filter').value = '';
+            document.getElementById('repo-filter').value = '';
+            document.getElementById('user-filter').value = '';
+            currentFilters = {};
+            loadPRList(1);
+        }
+        
+        async function syncPRStatus() {
+            try {
+                const button = event.target;
+                button.disabled = true;
+                button.textContent = 'Syncing...';
+                
+                const response = await fetch('/api/sync-pr-status', {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) throw new Error('Failed to sync PR status');
+                
+                const result = await response.json();
+                
+                // Reload data
+                await Promise.all([loadPRStats(), loadPRList(currentPage)]);
+                
+                button.textContent = `Synced ${result.updated} PRs`;
+                setTimeout(() => {
+                    button.disabled = false;
+                    button.textContent = 'Sync Status';
+                }, 3000);
+                
+            } catch (error) {
+                console.error('Error syncing PR status:', error);
+                event.target.disabled = false;
+                event.target.textContent = 'Sync Failed';
+                setTimeout(() => {
+                    event.target.textContent = 'Sync Status';
+                }, 3000);
+            }
+        }
+        
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

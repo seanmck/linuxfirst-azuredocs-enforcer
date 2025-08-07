@@ -7,6 +7,29 @@ set -e
 
 cd "$(dirname "$0")"
 
+# Check if we're in a virtual environment or if alembic is available
+if [[ -z "$VIRTUAL_ENV" ]] && ! command -v alembic &> /dev/null; then
+    echo "Not in a virtual environment and alembic not found. Setting up virtual environment..."
+    
+    # Create virtual environment if it doesn't exist
+    if [ ! -d "venv" ]; then
+        echo "Creating virtual environment..."
+        python3 -m venv venv
+    fi
+    
+    # Activate virtual environment
+    echo "Activating virtual environment..."
+    source venv/bin/activate
+    
+    # Install requirements if alembic is still not available
+    if ! command -v alembic &> /dev/null; then
+        echo "Installing dependencies..."
+        pip install -r requirements.txt
+    fi
+else
+    echo "Virtual environment or alembic already available"
+fi
+
 echo "Environment variables check:"
 echo "AZURE_POSTGRESQL_CONNECTIONSTRING: ${AZURE_POSTGRESQL_CONNECTIONSTRING:-(not set)}"
 echo "AZURE_POSTGRESQL_CLIENTID: ${AZURE_POSTGRESQL_CLIENTID:-(not set)}"

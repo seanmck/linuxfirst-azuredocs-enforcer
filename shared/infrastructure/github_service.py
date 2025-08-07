@@ -7,7 +7,8 @@ import re
 import time
 import random
 import json
-from typing import List, Dict, Optional
+import requests
+from typing import List, Dict, Optional, Any
 from github import Github
 from shared.config import config
 from shared.utils.logging import get_logger
@@ -338,6 +339,45 @@ class GitHubService:
             return comparison
         except Exception as e:
             print(f"[ERROR] Could not compare commits {base_sha}...{head_sha}: {e}")
+            return None
+    
+    def get_pull_request(self, owner: str, repo: str, pr_number: int) -> Optional[Dict[str, Any]]:
+        """
+        Get pull request details from GitHub.
+        
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            pr_number: Pull request number
+            
+        Returns:
+            Dict with PR details or None if not found
+        """
+        try:
+            self._check_rate_limit()
+            
+            url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
+            headers = {
+                'Accept': 'application/vnd.github.v3+json',
+                'User-Agent': 'LinuxFirstAzureDocsEnforcer/1.0'
+            }
+            
+            if self.github_token:
+                headers['Authorization'] = f'token {self.github_token}'
+            
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 404:
+                self.logger.warning(f"PR not found: {owner}/{repo}#{pr_number}")
+                return None
+            else:
+                self.logger.error(f"Error getting PR: {response.status_code} - {response.text}")
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"Error getting PR details: {e}")
             return None
 
     def get_tree(self, repo_full_name: str, sha: str, path: str = '', recursive: bool = True):

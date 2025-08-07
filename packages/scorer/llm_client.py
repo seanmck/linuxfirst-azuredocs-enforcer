@@ -199,6 +199,7 @@ Code:
         max_retries = 5
         base_delay = 1
         response = None
+        start_time = time.time()
         
         for attempt in range(max_retries):
             try:
@@ -211,6 +212,7 @@ Code:
                 self.logger.info(f"LLM call completed successfully in {time.time() - start_time:.2f} seconds")
                 # Record successful API call
                 self.metrics.record_api_request('azure_openai', 'POST', 200, time.time() - start_time)
+                break
             except Exception as api_error:
                 # Record failed API call
                 status_code = getattr(api_error, 'status_code', 500)
@@ -218,10 +220,19 @@ Code:
                 
                 # Log specific error details
                 if hasattr(api_error, '__class__') and 'Timeout' in api_error.__class__.__name__:
-                    self.logger.error(f"LLM call timed out after 60 seconds: {api_error}")
+                    self.logger.error(f"LLM call timed out after 60 seconds (attempt {attempt + 1}/{max_retries}): {api_error}")
                 else:
-                    self.logger.error(f"LLM call failed: {api_error}")
-                raise
+                    self.logger.error(f"LLM call failed (attempt {attempt + 1}/{max_retries}): {api_error}")
+                
+                # If this was the last attempt, raise the exception
+                if attempt == max_retries - 1:
+                    raise
+                
+                # Otherwise, wait before retrying
+                delay = base_delay * (2 ** attempt)
+                self.logger.info(f"Retrying in {delay} seconds...")
+                time.sleep(delay)
+                continue
             content = response.choices[0].message.content
             try:
                 json_str = re.search(r'\{.*\}', content, re.DOTALL).group(0)
