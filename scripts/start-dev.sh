@@ -9,6 +9,21 @@ set -x
 if [ ! -d ".venv" ]; then
   echo "Creating a virtual environment..."
   python3 -m venv .venv
+  if [ $? -ne 0 ]; then
+    echo "Failed to create virtual environment. Exiting."
+    exit 1
+  fi
+fi
+
+# Verify the activation script exists before trying to activate
+if [ ! -f ".venv/bin/activate" ]; then
+  echo "Virtual environment activation script not found. Recreating..."
+  rm -rf .venv
+  python3 -m venv .venv
+  if [ $? -ne 0 ]; then
+    echo "Failed to create virtual environment. Exiting."
+    exit 1
+  fi
 fi
 
 # Activate the virtual environment
