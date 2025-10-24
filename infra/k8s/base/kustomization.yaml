@@ -1,0 +1,45 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: azuredocs-app
+
+resources:
+  # Namespace
+  - namespace.yaml
+
+  # Priority Classes
+  - priority-classes.yaml
+
+  # Service Account & RBAC
+  - service-account.yaml
+
+  # Secrets & Configuration
+  - db-secret.yaml
+  - secret-provider-class.yaml
+  - redis-config.yaml
+
+  # Storage & Infrastructure Services
+  - redis.yaml
+  - rabbitmq.yaml
+
+  # Application Services
+  - webui.yaml
+  - scan-worker.yaml
+  - doc-worker-keda.yaml
+  - bias-scoring-service-keda.yaml
+
+  # Jobs & CronJobs
+  - db-migrate.yaml
+  - doc-collector-cronjob.yaml
+  - bias-snapshot-cronjob.yaml
+
+  # Networking
+  - webui-ingress.yaml
+  - cert-manager.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: azuredocs-enforcer
+
+# commonAnnotations:
+#   managed-by: kustomize
