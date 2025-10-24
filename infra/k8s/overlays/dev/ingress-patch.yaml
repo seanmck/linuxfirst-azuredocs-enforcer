@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webui-ingress
+  namespace: azuredocs-app
+spec:
+  tls:
+  - hosts:
+    - dev.linuxdocs.seanmck.dev
+    secretName: dev-linuxdocs-tls-secret
+  rules:
+  - host: dev.linuxdocs.seanmck.dev
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: webui
+            port:
+              number: 8000
