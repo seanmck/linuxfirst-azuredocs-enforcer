@@ -32,7 +32,7 @@ spec:
         prometheus.io/path: "/metrics"
     spec:
       priorityClassName: webui-high-priority
-      serviceAccountName: sc-account-fefa7dd8-f9d3-4524-8a35-c1123a838df0
+      serviceAccountName: azuredocs-app-sa
       containers:
         - name: webui
           image: seanmckdemo.azurecr.io/webui:0.0.78

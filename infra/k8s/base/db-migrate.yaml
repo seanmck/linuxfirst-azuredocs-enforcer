@@ -9,7 +9,7 @@ spec:
       labels:
         azure.workload.identity/use: "true"
     spec:
-      serviceAccountName: sc-account-fefa7dd8-f9d3-4524-8a35-c1123a838df0
+      serviceAccountName: azuredocs-app-sa
       containers:
       - name: migrate
         image: seanmckdemo.azurecr.io/db-migrate:0.0.51
