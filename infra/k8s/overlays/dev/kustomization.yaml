@@ -10,6 +10,10 @@ patches:
     target:
       kind: ServiceAccount
       name: secret-reader
+  - path: ingress-patch.yaml
+    target:
+      kind: Ingress
+      name: webui-ingress
 
 # configMapGenerator:
 #   - name: env-config
