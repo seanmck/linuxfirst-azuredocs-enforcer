@@ -1,15 +1,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
-namePrefix: prod-
-
 resources:
   - ../../base
-
 labels:
   - pairs:
       environment: prod
-
 patches:
   - path: service-account-patch.yaml
     target:
