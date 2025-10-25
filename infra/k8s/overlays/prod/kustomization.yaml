@@ -7,9 +7,6 @@ labels:
       environment: prod
 patches:
   - path: service-account-patch.yaml
-    target:
-      kind: ServiceAccount
-      name: secret-reader
 
 # configMapGenerator:
 #   - name: env-config
