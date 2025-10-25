@@ -7,9 +7,6 @@ labels:
       environment: dev
 patches:
   - path: service-account-patch.yaml
-    target:
-      kind: ServiceAccount
-      name: secret-reader
   - path: ingress-patch.yaml
     target:
       kind: Ingress
