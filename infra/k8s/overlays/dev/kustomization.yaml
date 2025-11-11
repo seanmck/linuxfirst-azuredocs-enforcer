@@ -8,6 +8,7 @@ labels:
 patches:
   - path: service-account-patch.yaml
   - path: secret-provider-class-patch.yaml
+  - path: sc-azuredocsdbconnection-secret-patch.yaml
   - path: ingress-patch.yaml
     target:
       kind: Ingress

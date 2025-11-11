@@ -15,6 +15,7 @@ resources:
 
   # Secrets & Configuration
   - db-secret.yaml
+  - sc-azuredocsdbconnection-secret.yaml
   - secret-provider-class.yaml
   - redis-config.yaml
 
