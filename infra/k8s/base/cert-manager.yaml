@@ -19,7 +19,7 @@ spec:
     solvers:
     - http01:
         ingress:
-          class: webapprouting.kubernetes.azure.com
+          ingressClassName: webapprouting.kubernetes.azure.com
 ---
 # Let's Encrypt ClusterIssuer for staging (testing)
 apiVersion: cert-manager.io/v1
@@ -39,4 +39,4 @@ spec:
     solvers:
     - http01:
         ingress:
-          class: webapprouting.kubernetes.azure.com
+          ingressClassName: webapprouting.kubernetes.azure.com
