@@ -1,0 +1,132 @@
+name: Build Changed Services & Update Test
+
+on:
+  push:
+    branches:
+      - '**'
+
+env:
+  ACR_NAME: ${{ secrets.ACR_NAME }}
+
+jobs:
+  build-and-update:
+    runs-on: ubuntu-latest
+
+    strategy:
+      max-parallel: 1
+      matrix:
+        include:
+          # -------------------------------
+          # EDIT THESE FOR YOUR REPO
+          # -------------------------------
+          - service: web
+            context: ./services/web
+            dockerfile: ./services/web/Dockerfile
+            test_deployment: infra/k8s/overlays/test/web-deployment.yaml
+
+          - service: worker
+            context: ./services/worker
+            dockerfile: ./services/worker/Dockerfile
+            test_deployment: infra/k8s/overlays/test/worker-deployment.yaml
+
+          - service: bias-scoring-service
+            context: ./services/bias-scoring-service
+            dockerfile: ./services/bias-scoring-service/Dockerfile
+            test_deployment: infra/k8s/overlays/test/bias-scoring-deployment.yaml
+
+          - service: db-migrations
+            context: ./infra/db
+            dockerfile: ./infra/db/Dockerfile
+            test_deployment: infra/k8s/overlays/test/db-migrations-job.yaml
+
+    permissions:
+      id-token: write
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Determine changed files
+        id: changed
+        run: |
+          BASE_SHA="${{ github.event.before }}"
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            if git rev-parse HEAD~1 >/dev/null 2>&1; then
+              BASE_SHA="HEAD~1"
+            else
+              git ls-files > changed_files.txt
+              echo "should_build=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          git diff --name-only "$BASE_SHA" HEAD > changed_files.txt || true
+
+          SERVICE_PATH="${{ matrix.context }}"
+          SERVICE_PATH="${SERVICE_PATH#./}/"
+
+          if grep -qE "^${SERVICE_PATH}|^shared/|^packages/" changed_files.txt; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to Azure using OIDC
+        if: steps.changed.outputs.should_build == 'true'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to Azure Container Registry
+        if: steps.changed.outputs.should_build == 'true'
+        run: az acr login --name $ACR_NAME
+
+      - name: Compute image metadata
+        if: steps.changed.outputs.should_build == 'true'
+        id: meta
+        run: |
+          SERVICE="${{ matrix.service }}"
+          IMAGE_NAME="linuxfirst-azuredocs-${SERVICE}"
+          SANITIZED_BRANCH="${GITHUB_REF_NAME//\//-}"
+          IMAGE_TAG="${SANITIZED_BRANCH}-${GITHUB_SHA::7}"
+          IMAGE="${ACR_NAME}.azurecr.io/${IMAGE_NAME}:${IMAGE_TAG}"
+
+          echo "image=${IMAGE}" >> $GITHUB_OUTPUT
+          echo "image_name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
+          echo "imagetag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Build container image
+        if: steps.changed.outputs.should_build == 'true'
+        run: |
+          docker build \
+            -t "${{ steps.meta.outputs.image }}" \
+            -f "${{ matrix.dockerfile }}" \
+            "${{ matrix.context }}"
+
+      - name: Push container image
+        if: steps.changed.outputs.should_build == 'true'
+        run: docker push "${{ steps.meta.outputs.image }}"
+
+      - name: Update Test environment manifests
+        if: github.ref == 'refs/heads/main' && steps.changed.outputs.should_build == 'true'
+        run: |
+          IMAGE="${{ steps.meta.outputs.image }}"
+          IMAGE_NAME="${{ steps.meta.outputs.image_name }}"
+          DEPLOYMENT="${{ matrix.test_deployment }}"
+
+          sed -i "s|image: .*/${IMAGE_NAME}:.*|image: ${IMAGE}|" "${DEPLOYMENT}"
+
+          if git diff --quiet; then
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git commit -am "chore(test): bump ${{ matrix.service }} to ${{ steps.meta.outputs.imagetag }}"
+          git push
