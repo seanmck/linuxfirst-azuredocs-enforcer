@@ -12,20 +12,45 @@ echo "AZURE_POSTGRESQL_CONNECTIONSTRING: ${AZURE_POSTGRESQL_CONNECTIONSTRING:-(n
 echo "AZURE_POSTGRESQL_CLIENTID: ${AZURE_POSTGRESQL_CLIENTID:-(not set)}"
 echo "DATABASE_URL before processing: ${DATABASE_URL:-(not set)}"
 
-if [ -n "$AZURE_POSTGRESQL_CONNECTIONSTRING" ]; then  
-  # Acquire an access token using Azure Instance Metadata Service (IMDS)
-  echo "Attempting to acquire Azure managed identity token..."
-  if [ -n "$AZURE_POSTGRESQL_CLIENTID" ]; then
-    # Use user-assigned managed identity
-    echo "Using user-assigned managed identity with client ID: $AZURE_POSTGRESQL_CLIENTID"
-    token=$(timeout 30 curl -s -H "Metadata: true" "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://ossrdbms-aad.database.windows.net&client_id=$AZURE_POSTGRESQL_CLIENTID" | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
-  else
-    # Use system-assigned managed identity
-    echo "Using system-assigned managed identity"
-    token=$(timeout 30 curl -s -H "Metadata: true" "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://ossrdbms-aad.database.windows.net" | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+if [ -n "$AZURE_POSTGRESQL_CONNECTIONSTRING" ]; then
+  # Acquire an access token using Azure Workload Identity
+  echo "Attempting to acquire Azure Workload Identity token..."
+
+  # Verify required Workload Identity environment variables are present
+  if [ -z "$AZURE_FEDERATED_TOKEN_FILE" ] || [ ! -f "$AZURE_FEDERATED_TOKEN_FILE" ]; then
+    echo "ERROR: AZURE_FEDERATED_TOKEN_FILE not set or file not found"
+    echo "This script requires Azure Workload Identity to be configured"
+    exit 1
   fi
+
+  if [ -z "$AZURE_CLIENT_ID" ] || [ -z "$AZURE_TENANT_ID" ] || [ -z "$AZURE_AUTHORITY_HOST" ]; then
+    echo "ERROR: Required Workload Identity environment variables not set"
+    echo "Required: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_AUTHORITY_HOST"
+    exit 1
+  fi
+
+  echo "Using Azure Workload Identity"
+  echo "Client ID: $AZURE_CLIENT_ID"
+  echo "Tenant ID: $AZURE_TENANT_ID"
+
+  # Read the federated token
+  federated_token=$(cat "$AZURE_FEDERATED_TOKEN_FILE")
+
+  # Exchange the federated token for an access token
+  token_response=$(timeout 30 curl -s -X POST \
+    "${AZURE_AUTHORITY_HOST}${AZURE_TENANT_ID}/oauth2/v2.0/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "client_id=$AZURE_CLIENT_ID" \
+    -d "scope=https://ossrdbms-aad.database.windows.net/.default" \
+    -d "client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer" \
+    -d "client_assertion=$federated_token" \
+    -d "grant_type=client_credentials")
+
+  token=$(echo "$token_response" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('access_token', ''))")
+
   if [ -z "$token" ]; then
-    echo "Failed to acquire access token for managed identity."
+    echo "Failed to acquire access token via Workload Identity"
+    echo "Token response: $token_response"
     exit 1
   fi
   # URL-encode the token for use as a password
