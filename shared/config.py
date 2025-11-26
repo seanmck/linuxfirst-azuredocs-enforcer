@@ -3,8 +3,11 @@ Centralized configuration management for the Azure Docs Enforcer project.
 """
 import os
 import urllib.parse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
+from pathlib import Path
+
+import yaml
 
 
 @dataclass
@@ -274,3 +277,109 @@ class Config:
 
 # Global configuration instance
 config = Config.from_env()
+
+
+# =============================================================================
+# Azure Documentation Repositories Configuration
+# =============================================================================
+
+@dataclass
+class AzureDocsRepo:
+    """Configuration for an Azure documentation repository"""
+    owner: str
+    name: str
+    public_name: str  # Public repo equivalent (for fallback)
+    branch: str = "main"
+    articles_path: str = "articles"
+
+    @property
+    def full_name(self) -> str:
+        """Returns owner/name format (e.g., MicrosoftDocs/azure-docs-pr)"""
+        return f"{self.owner}/{self.name}"
+
+    @property
+    def public_full_name(self) -> str:
+        """Returns owner/public_name format (e.g., MicrosoftDocs/azure-docs)"""
+        return f"{self.owner}/{self.public_name}"
+
+    def get_scan_url(self) -> str:
+        """Returns the GitHub URL for scanning this repo"""
+        return f"https://github.com/{self.owner}/{self.name}/tree/{self.branch}/{self.articles_path}"
+
+    def get_raw_url(self, file_path: str) -> str:
+        """Returns the raw.githubusercontent.com URL for a file"""
+        return f"https://raw.githubusercontent.com/{self.owner}/{self.name}/{self.branch}/{file_path}"
+
+
+def _load_repos_config() -> list[AzureDocsRepo]:
+    """Load repository configuration from YAML file"""
+    # Allow override via environment variable
+    config_path = os.getenv(
+        "REPOS_CONFIG_PATH",
+        str(Path(__file__).parent.parent / "config" / "repos.yaml")
+    )
+
+    try:
+        with open(config_path, "r") as f:
+            data = yaml.safe_load(f)
+
+        repos = []
+        for repo_data in data.get("repos", []):
+            repos.append(AzureDocsRepo(
+                owner=repo_data["owner"],
+                name=repo_data["name"],
+                public_name=repo_data.get("public_name", repo_data["name"]),
+                branch=repo_data.get("branch", "main"),
+                articles_path=repo_data.get("articles_path", "articles"),
+            ))
+        return repos
+    except FileNotFoundError:
+        # Fallback to default if config file not found
+        print(f"Warning: repos.yaml not found at {config_path}, using defaults")
+        return [
+            AzureDocsRepo(
+                owner="MicrosoftDocs",
+                name="azure-docs-pr",
+                public_name="azure-docs",
+            )
+        ]
+
+
+# Load repos at module initialization
+AZURE_DOCS_REPOS: list[AzureDocsRepo] = _load_repos_config()
+
+
+def get_repo_scan_urls() -> list[str]:
+    """Returns list of GitHub URLs for scanning all tracked repos"""
+    return [repo.get_scan_url() for repo in AZURE_DOCS_REPOS]
+
+
+def get_repo_from_url(url: str) -> Optional[AzureDocsRepo]:
+    """
+    Given a GitHub URL, returns the matching repo config.
+    Matches against both private (-pr) and public repo names.
+
+    Args:
+        url: A GitHub URL (e.g., https://github.com/MicrosoftDocs/azure-docs-pr/blob/main/articles/...)
+
+    Returns:
+        The matching AzureDocsRepo config, or None if not found
+    """
+    if not url or 'github.com' not in url:
+        return None
+
+    url_lower = url.lower()
+    for repo in AZURE_DOCS_REPOS:
+        # Check for both private and public repo names (case-insensitive)
+        private_pattern = f"{repo.owner}/{repo.name}".lower()
+        public_pattern = f"{repo.owner}/{repo.public_name}".lower()
+
+        if private_pattern in url_lower or public_pattern in url_lower:
+            return repo
+
+    return None
+
+
+def is_tracked_repo_url(url: str) -> bool:
+    """Check if a URL belongs to one of our tracked repos"""
+    return get_repo_from_url(url) is not None
