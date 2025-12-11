@@ -201,6 +201,7 @@ Code:
         response = None
         
         for attempt in range(max_retries):
+            start_time = time.time()
             try:
                 response = self.client.chat.completions.create(
                     model=self.deployment,  # Azure OpenAI: use deployment name as model

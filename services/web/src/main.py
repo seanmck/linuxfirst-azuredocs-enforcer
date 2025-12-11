@@ -24,6 +24,7 @@ from functools import lru_cache
 from routes import admin, scan, llm, websocket, docset, auth, feedback, docpage
 from routes.scan import enqueue_scan_task
 from shared.utils.url_utils import extract_doc_set_from_url, format_doc_set_name
+from shared.config import AZURE_DOCS_REPOS
 from jinja_env import templates
 from middleware.metrics import PrometheusMiddleware, create_metrics_endpoint
 from middleware.security import SecurityMiddleware
@@ -359,9 +360,9 @@ async def index(request: Request):
     # Use the scan dict for scan_id and last_url
     scan_obj = scan
     
-    # Fetch Azure Docs directories from GitHub API
+    # Fetch Azure Docs directories from GitHub API for all configured repos
     azure_dirs = []
-    
+
     # Check cache first
     github_cache_key = "github_azure_dirs"
     cached_dirs = cache.get(github_cache_key)
@@ -370,54 +371,56 @@ async def index(request: Request):
         azure_dirs = cached_dirs
     else:
         try:
+            seen_doc_sets = set()  # Avoid duplicates across repos
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(
-                    "https://api.github.com/repos/MicrosoftDocs/azure-docs/contents/articles",
-                    headers={"User-Agent": "linuxfirst-azuredocs-enforcer-dashboard"}
-                )
-            print(f"[DEBUG] GitHub API status: {resp.status_code}")
-            if resp.status_code == 200:
-                data = resp.json()
-                print(f"[DEBUG] GitHub API returned {len(data)} items")
-                print(f"[DEBUG] Sample raw item: {data[0] if data else 'no data'}")
-                
-                # Only include directories and format for internal navigation
-                azure_dirs = []
-                processed_count = 0
-                for i, item in enumerate(data):
-                    try:
-                        if item.get('type') == 'dir':
-                            doc_set = item['name']  # This is the directory name like 'virtual-machines'
+                for repo in AZURE_DOCS_REPOS:
+                    api_url = f"https://api.github.com/repos/{repo.owner}/{repo.public_name}/contents/{repo.articles_path}"
+                    print(f"[DEBUG] Fetching from {api_url}")
+                    resp = await client.get(
+                        api_url,
+                        headers={"User-Agent": "linuxfirst-azuredocs-enforcer-dashboard"}
+                    )
+                    print(f"[DEBUG] GitHub API status for {repo.public_name}: {resp.status_code}")
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        print(f"[DEBUG] GitHub API returned {len(data)} items from {repo.public_name}")
+
+                        # Only include directories and format for internal navigation
+                        for item in data:
                             try:
-                                display_name = format_doc_set_name(doc_set)
+                                if item.get('type') == 'dir':
+                                    doc_set = item['name']
+                                    if doc_set in seen_doc_sets:
+                                        continue  # Skip duplicates
+                                    seen_doc_sets.add(doc_set)
+
+                                    try:
+                                        display_name = format_doc_set_name(doc_set)
+                                    except Exception as e:
+                                        print(f"[WARN] Error formatting doc set name for '{doc_set}': {e}")
+                                        display_name = doc_set.replace('-', ' ').title()
+
+                                    azure_dirs.append({
+                                        'doc_set': doc_set,
+                                        'display_name': display_name,
+                                        'name': item['name']
+                                    })
                             except Exception as e:
-                                print(f"[WARN] Error formatting doc set name for '{doc_set}': {e}")
-                                display_name = doc_set.replace('-', ' ').title()
-                            
-                            azure_dirs.append({
-                                'doc_set': doc_set,
-                                'display_name': display_name,
-                                'name': item['name']  # Keep for backwards compatibility
-                            })
-                            processed_count += 1
-                            
-                            if i < 3:  # Debug first 3 items
-                                print(f"[DEBUG] Processed item {i}: doc_set='{doc_set}', display_name='{display_name}'")
-                                print(f"[DEBUG] Created dict: {azure_dirs[-1]}")
-                    except Exception as e:
-                        print(f"[ERROR] Error processing item {i}: {e}")
-                        continue
-                        
-                print(f"[DEBUG] Processed {processed_count} directories out of {len(data)} total items")
-                print(f"[DEBUG] azure_dirs length: {len(azure_dirs)}")
-                print(f"[DEBUG] azure_dirs sample: {azure_dirs[:2] if azure_dirs else 'empty'}")
-                
-                # Cache the successful result for 1 hour
+                                print(f"[ERROR] Error processing item: {e}")
+                                continue
+                    else:
+                        print(f"[WARN] Failed to fetch from {repo.public_name}: {resp.status_code}")
+
+            # Sort alphabetically by display name
+            azure_dirs.sort(key=lambda x: x['display_name'])
+            print(f"[DEBUG] Total azure_dirs from all repos: {len(azure_dirs)}")
+
+            # Cache the successful result for 1 hour
+            if azure_dirs:
                 cache.set(github_cache_key, azure_dirs, ttl_minutes=60)
                 print(f"[DEBUG] Cached GitHub API data for 1 hour")
             else:
-                print(f"[WARN] Failed to fetch Azure Docs directories: {resp.status_code} {resp.text}")
-                raise Exception(f"GitHub API returned {resp.status_code}")
+                raise Exception("No directories found from any repo")
         except Exception as e:
             print(f"[WARN] Exception fetching Azure Docs directories: {e}")
             print(f"[WARN] Using fallback data")
