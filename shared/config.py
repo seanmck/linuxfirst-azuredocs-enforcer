@@ -325,17 +325,41 @@ def _load_repos_config() -> list[AzureDocsRepo]:
 
         repos = []
         for repo_data in data.get("repos", []):
-            repos.append(AzureDocsRepo(
-                owner=repo_data["owner"],
-                name=repo_data["name"],
-                public_name=repo_data.get("public_name", repo_data["name"]),
-                branch=repo_data.get("branch", "main"),
-                articles_path=repo_data.get("articles_path", "articles"),
-            ))
+            try:
+                repos.append(AzureDocsRepo(
+                    owner=repo_data["owner"],
+                    name=repo_data["name"],
+                    public_name=repo_data.get("public_name", repo_data["name"]),
+                    branch=repo_data.get("branch", "main"),
+                    articles_path=repo_data.get("articles_path", "articles"),
+                ))
+            except KeyError as e:
+                print(f"Warning: Missing required field {e} in repo config, skipping entry")
+                continue
         return repos
     except FileNotFoundError:
         # Fallback to default if config file not found
         print(f"Warning: repos.yaml not found at {config_path}, using defaults")
+        return [
+            AzureDocsRepo(
+                owner="MicrosoftDocs",
+                name="azure-docs-pr",
+                public_name="azure-docs",
+            )
+        ]
+    except yaml.YAMLError as e:
+        # Fallback to default if YAML is malformed
+        print(f"Error: Failed to parse YAML at {config_path}: {e}, using defaults")
+        return [
+            AzureDocsRepo(
+                owner="MicrosoftDocs",
+                name="azure-docs-pr",
+                public_name="azure-docs",
+            )
+        ]
+    except Exception as e:
+        # Catch any other unexpected errors
+        print(f"Error: Failed to load repos config from {config_path}: {e}, using defaults")
         return [
             AzureDocsRepo(
                 owner="MicrosoftDocs",
