@@ -38,6 +38,7 @@ jobs:
             context: .
             dockerfile: ./infra/db/Dockerfile
             test_deployment: infra/k8s/base/db-migrate.yaml
+            change_path: ./infra/db
 
     permissions:
       id-token: write
@@ -65,7 +66,7 @@ jobs:
 
           git diff --name-only "$BASE_SHA" HEAD > changed_files.txt || true
 
-          SERVICE_PATH="${{ matrix.context }}"
+          SERVICE_PATH="${{ matrix.change_path || matrix.context }}"
           SERVICE_PATH="${SERVICE_PATH#./}/"
 
           if grep -qE "^${SERVICE_PATH}|^shared/|^packages/" changed_files.txt; then
