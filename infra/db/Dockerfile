@@ -1,3 +1,6 @@
+# Database migration container for Azure PostgreSQL
+# Uses Azure Workload Identity to authenticate via federated tokens
+
 FROM mcr.microsoft.com/devcontainers/python:3.12
 
 # Set workdir
