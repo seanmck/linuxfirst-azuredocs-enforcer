@@ -37,7 +37,7 @@ def get_github_url(page_url: str) -> str:
             path += '.md'
 
         # Use first configured repo as default (can't determine repo from MS Learn URL)
-        default_repo = AZURE_DOCS_REPOS[0] if AZURE_DOCS_REPOS else None
+        default_repo = AZURE_DOCS_REPOS[0] if AZURE_DOCS_REPOS and len(AZURE_DOCS_REPOS) > 0 else None
         if default_repo:
             github_url = f"https://github.com/{default_repo.full_name}/blob/{default_repo.branch}/{default_repo.articles_path}/{path}"
         else:
