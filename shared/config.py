@@ -348,7 +348,7 @@ def _load_repos_config() -> list[AzureDocsRepo]:
                     articles_path=repo_data.get("articles_path", "articles"),
                 ))
             except KeyError as e:
-                field_name = e.args[0] if e.args else str(e)
+                field_name = str(e.args[0]) if e.args else str(e)
                 logger.warning("Missing required field %s in repo config, skipping entry", field_name)
                 continue
         return repos
