@@ -311,6 +311,17 @@ class AzureDocsRepo:
         return f"https://raw.githubusercontent.com/{self.owner}/{self.name}/{self.branch}/{file_path}"
 
 
+def _get_default_repos() -> list[AzureDocsRepo]:
+    """Return the default repository configuration"""
+    return [
+        AzureDocsRepo(
+            owner="MicrosoftDocs",
+            name="azure-docs-pr",
+            public_name="azure-docs",
+        )
+    ]
+
+
 def _load_repos_config() -> list[AzureDocsRepo]:
     """Load repository configuration from YAML file"""
     # Allow override via environment variable
@@ -340,33 +351,15 @@ def _load_repos_config() -> list[AzureDocsRepo]:
     except FileNotFoundError:
         # Fallback to default if config file not found
         print(f"Warning: repos.yaml not found at {config_path}, using defaults")
-        return [
-            AzureDocsRepo(
-                owner="MicrosoftDocs",
-                name="azure-docs-pr",
-                public_name="azure-docs",
-            )
-        ]
+        return _get_default_repos()
     except yaml.YAMLError as e:
         # Fallback to default if YAML is malformed
         print(f"Error: Failed to parse YAML at {config_path}: {e}, using defaults")
-        return [
-            AzureDocsRepo(
-                owner="MicrosoftDocs",
-                name="azure-docs-pr",
-                public_name="azure-docs",
-            )
-        ]
+        return _get_default_repos()
     except Exception as e:
         # Catch any other unexpected errors
         print(f"Error: Failed to load repos config from {config_path}: {e}, using defaults")
-        return [
-            AzureDocsRepo(
-                owner="MicrosoftDocs",
-                name="azure-docs-pr",
-                public_name="azure-docs",
-            )
-        ]
+        return _get_default_repos()
 
 
 # Load repos at module initialization
