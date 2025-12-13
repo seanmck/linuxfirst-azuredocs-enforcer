@@ -82,7 +82,7 @@ def get_github_raw_url_for_page(page_url: str) -> tuple[str | None, str | None, 
 
         # Default to first repo (azure-docs-pr) for MS Learn URLs
         # since we can't determine which repo from the MS Learn URL alone
-        default_repo = AZURE_DOCS_REPOS[0] if AZURE_DOCS_REPOS else None
+        default_repo = AZURE_DOCS_REPOS[0] if AZURE_DOCS_REPOS and len(AZURE_DOCS_REPOS) > 0 else None
         if default_repo:
             github_raw_url = default_repo.get_raw_url(repo_path)
             return github_raw_url, repo_path, default_repo.full_name
@@ -574,7 +574,7 @@ async def create_github_pr(
             public_fallback = matching_repo.public_full_name if matching_repo else source_repo.replace("-pr", "")
         else:
             # Default to first repo (azure-docs-pr)
-            default_repo = AZURE_DOCS_REPOS[0] if AZURE_DOCS_REPOS else None
+            default_repo = AZURE_DOCS_REPOS[0] if AZURE_DOCS_REPOS and len(AZURE_DOCS_REPOS) > 0 else None
             source_repo = default_repo.full_name if default_repo else "microsoftdocs/azure-docs-pr"
             public_fallback = default_repo.public_full_name if default_repo else "microsoftdocs/azure-docs"
 
