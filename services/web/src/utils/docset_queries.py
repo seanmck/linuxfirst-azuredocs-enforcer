@@ -74,25 +74,24 @@ def get_docset_complete_data(db: Session, doc_set: str) -> Dict[str, Any]:
         print(f"[WARN] Failed to load bias snapshots for docset {doc_set}: {e}")
     
     # Get all pages for this docset using optimized query
-    # Use doc_set column if available, fallback to URL extraction
+    # Try doc_set column first, fall back to URL extraction if no results
     pages_query = db.query(Page, Scan.started_at).join(Scan, Page.scan_id == Scan.id)
-    
-    # Try to use the doc_set column first (if migration has been applied)
-    try:
-        pages_query = pages_query.filter(Page.doc_set == doc_set)
-        use_doc_set_column = True
-    except Exception:
-        # Fallback to loading all pages and filtering in Python
+
+    # First try using the doc_set column (faster if populated)
+    pages_query_with_docset = pages_query.filter(Page.doc_set == doc_set)
+    page_scan_results = pages_query_with_docset.all()
+    use_doc_set_column = True
+
+    # If no results from doc_set column, fallback to URL extraction
+    # This handles cases where doc_set wasn't populated for new repos
+    if not page_scan_results:
+        logger.debug(f"No pages found using doc_set column for '{doc_set}', falling back to URL extraction")
         use_doc_set_column = False
-        pages_query = pages_query.filter(Scan.status == 'completed')
-    
-    # Execute the query
-    page_scan_results = pages_query.all()
-    
-    # Filter pages if we couldn't use the doc_set column
-    if not use_doc_set_column:
+        # Load all pages and filter by URL extraction
+        all_pages_query = pages_query
+        all_page_results = all_pages_query.all()
         page_scan_results = [
-            (page, scan_date) for page, scan_date in page_scan_results
+            (page, scan_date) for page, scan_date in all_page_results
             if extract_doc_set_from_url(page.url) == doc_set
         ]
     

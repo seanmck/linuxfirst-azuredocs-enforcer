@@ -1,0 +1,22 @@
+# Azure documentation repositories to track
+# All repos must follow the articles/{service-name}/... structure
+# To add a new repo, simply add an entry to this list.
+
+repos:
+  - owner: MicrosoftDocs
+    name: azure-docs-pr
+    public_name: azure-docs  # Public repo equivalent for fallback
+    branch: main
+    articles_path: articles
+
+  - owner: MicrosoftDocs
+    name: azure-management-docs-pr
+    public_name: azure-management-docs
+    branch: main
+    articles_path: articles
+
+  - owner: MicrosoftDocs
+    name: azure-compute-docs-pr
+    public_name: azure-compute-docs
+    branch: main
+    articles_path: articles

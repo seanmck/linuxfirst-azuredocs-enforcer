@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Body, Query, HTTPException, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
 from shared.utils.database import SessionLocal, get_db
 from shared.models import Page, User, UserFeedback, Snippet, RewrittenDocument
-from shared.config import config
+from shared.config import config, get_repo_from_url, AZURE_DOCS_REPOS
 from sqlalchemy import func
 from packages.scorer.llm_client import LLMClient
 from jinja_env import templates
@@ -46,6 +46,48 @@ def extract_yaml_header(md: str):
 def create_content_hash(content: str) -> str:
     """Create SHA256 hash of content for deduplication"""
     return hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+
+def get_github_raw_url_for_page(page_url: str) -> tuple[str | None, str | None, str | None]:
+    """
+    Get the raw GitHub URL and repo path for a page.
+
+    Args:
+        page_url: The page URL (GitHub or MS Learn)
+
+    Returns:
+        Tuple of (github_raw_url, repo_path, repo_full_name) or (None, None, None) if not found
+    """
+    parsed = urllib.parse.urlparse(page_url)
+    path = parsed.path
+
+    if 'github.com' in parsed.netloc and '/blob/' in path:
+        # GitHub URL - extract repo path after /blob/{branch}/
+        repo_path = re.split(r'/blob/[^/]+/', path, maxsplit=1)[-1]
+        repo = get_repo_from_url(page_url)
+        if repo:
+            github_raw_url = repo.get_raw_url(repo_path)
+            return github_raw_url, repo_path, repo.full_name
+        # Fallback for unknown repos
+        return None, repo_path, None
+
+    elif 'learn.microsoft.com' in parsed.netloc:
+        # MS Learn URL - convert to GitHub path
+        # For MS Learn, we need to determine which repo to use
+        # Default to first repo since all repos publish to the same MS Learn namespace
+        path = re.sub(r'^/(en-us/)?azure/', '', path).rstrip('/')
+        if not path.endswith('.md'):
+            path += '.md'
+        repo_path = f"articles/{path}"
+
+        # Default to first repo (azure-docs-pr) for MS Learn URLs
+        # since we can't determine which repo from the MS Learn URL alone
+        default_repo = AZURE_DOCS_REPOS[0] if AZURE_DOCS_REPOS and len(AZURE_DOCS_REPOS) > 0 else None
+        if default_repo:
+            github_raw_url = default_repo.get_raw_url(repo_path)
+            return github_raw_url, repo_path, default_repo.full_name
+
+    return None, None, None
 
 
 def store_rewritten_document(page_id: int, content: str, yaml_header: dict = None, 
@@ -102,19 +144,10 @@ async def proposed_change(request: Request, page_id: int = Query(...)):
         except Exception:
             mcp_holistic = {}
     recommendations = mcp_holistic.get('recommendations', [])
-    parsed = urllib.parse.urlparse(page.url)
-    path = parsed.path
-    github_raw_url = None
-    repo_path = None
-    if 'github.com' in parsed.netloc and '/blob/main/' in path:
-        repo_path = path.split('/blob/main/', 1)[-1]
-        github_raw_url = f"https://raw.githubusercontent.com/microsoftdocs/azure-docs/main/{repo_path}"
-    elif 'learn.microsoft.com' in parsed.netloc:
-        path = re.sub(r'^/(en-us/)?azure/', '', path).rstrip('/')
-        if not path.endswith('.md'):
-            path += '.md'
-        repo_path = f"articles/{path}"
-        github_raw_url = f"https://raw.githubusercontent.com/microsoftdocs/azure-docs/main/{repo_path}"
+
+    # Get raw GitHub URL using config-based helper
+    github_raw_url, repo_path, repo_full_name = get_github_raw_url_for_page(page.url)
+
     if github_raw_url:
         logger.info(f"Fetching markdown from GitHub: {github_raw_url}")
         try:
@@ -140,18 +173,20 @@ async def proposed_change(request: Request, page_id: int = Query(...)):
     # Construct GitHub blob URL and MS Learn URL for template
     github_url = None
     mslearn_url = None
-    
-    if repo_path:
-        # Construct GitHub blob URL
-        github_url = f"https://github.com/microsoftdocs/azure-docs/blob/main/{repo_path}"
-        
-        # Construct MS Learn URL from repo path
+
+    if repo_path and repo_full_name:
+        # Construct GitHub blob URL using the detected repo
+        repo = get_repo_from_url(page.url)
+        branch = repo.branch if repo else "main"
+        github_url = f"https://github.com/{repo_full_name}/blob/{branch}/{repo_path}"
+
+        # Construct MS Learn URL from repo path (same for all repos)
         if repo_path.startswith('articles/'):
             article_path = repo_path[9:]  # Remove 'articles/' prefix
             if article_path.endswith('.md'):
                 article_path = article_path[:-3]  # Remove .md extension
             mslearn_url = f"https://learn.microsoft.com/en-us/azure/{article_path}"
-    
+
     # If original page URL is already MS Learn, use that
     if 'learn.microsoft.com' in page.url:
         mslearn_url = page.url
@@ -209,19 +244,10 @@ async def generate_updated_markdown(page_id: int = Query(...), force: bool = Que
         except Exception:
             mcp_holistic = {}
     recommendations = mcp_holistic.get('recommendations', [])
-    parsed = urllib.parse.urlparse(page.url)
-    path = parsed.path
-    github_raw_url = None
-    repo_path = None
-    if 'github.com' in parsed.netloc and '/blob/main/' in path:
-        repo_path = path.split('/blob/main/', 1)[-1]
-        github_raw_url = f"https://raw.githubusercontent.com/microsoftdocs/azure-docs/main/{repo_path}"
-    elif 'learn.microsoft.com' in parsed.netloc:
-        path = re.sub(r'^/(en-us/)?azure/', '', path).rstrip('/')
-        if not path.endswith('.md'):
-            path += '.md'
-        repo_path = f"articles/{path}"
-        github_raw_url = f"https://raw.githubusercontent.com/microsoftdocs/azure-docs/main/{repo_path}"
+
+    # Get raw GitHub URL using config-based helper
+    github_raw_url, repo_path, repo_full_name = get_github_raw_url_for_page(page.url)
+
     if github_raw_url:
         logger.info(f"Fetching markdown from GitHub for update: {github_raw_url}")
         try:
@@ -503,6 +529,7 @@ class CreatePRRequest(BaseModel):
     title: str
     body: str
     base_branch: str = "main"
+    source_repo: Optional[str] = None  # e.g., "MicrosoftDocs/azure-docs-pr" - if not provided, defaults to first repo
 
 
 @router.post("/api/create_github_pr")
@@ -527,16 +554,32 @@ async def create_github_pr(
     
     try:
         logger.info(f"Creating GitHub PR for user {current_user.github_username}: file_path='{pr_request.file_path}', title='{pr_request.title}'")
-        
+
         # Try GitHub App first, fallback to OAuth
         pr_service = GitHubPRService(
             access_token=github_token,
             username=current_user.github_username
         )
-        
-        # Use private repository for Microsoft employees
-        source_repo = "microsoftdocs/azure-docs-pr"
-        
+
+        # Determine which repo to target
+        # Use provided source_repo, or default to first configured repo
+        if pr_request.source_repo:
+            source_repo = pr_request.source_repo
+            # Find matching repo config for public fallback
+            matching_repo = None
+            for repo in AZURE_DOCS_REPOS:
+                if repo.full_name.lower() == source_repo.lower() or repo.public_full_name.lower() == source_repo.lower():
+                    matching_repo = repo
+                    break
+            public_fallback = matching_repo.public_full_name if matching_repo else source_repo.replace("-pr", "")
+        else:
+            # Default to first repo (azure-docs-pr)
+            default_repo = AZURE_DOCS_REPOS[0] if AZURE_DOCS_REPOS and len(AZURE_DOCS_REPOS) > 0 else None
+            source_repo = default_repo.full_name if default_repo else "microsoftdocs/azure-docs-pr"
+            public_fallback = default_repo.public_full_name if default_repo else "microsoftdocs/azure-docs"
+
+        logger.info(f"Using source repo: {source_repo}")
+
         try:
             # Create the pull request (will fork source repo, make changes, and create PR back to source)
             pr_url = await pr_service.create_pr_from_user_account(
@@ -551,7 +594,7 @@ async def create_github_pr(
             # If we get organization access restrictions, try public repo
             if "OAuth App access restrictions" in str(e) or "403" in str(e):
                 logger.warning(f"Private repo access restricted, falling back to public repo: {e}")
-                source_repo = "microsoftdocs/azure-docs"
+                source_repo = public_fallback
                 pr_url = await pr_service.create_pr_from_user_account(
                     source_repo=source_repo,
                     file_path=pr_request.file_path,

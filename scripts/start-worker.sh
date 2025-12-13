@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/bin/bash
 # scripts/start-worker.sh
 # Starts the queue worker locally.
 
@@ -13,7 +13,9 @@ fi
 # Load environment variables from .env file if it exists
 if [ -f ".env" ]; then
   echo "Loading environment variables from .env file..."
-  export $(grep -v '^#' .env | xargs)
+  set -a
+  source .env
+  set +a
 fi
 
 export PYTHONPATH=$(pwd):$PYTHONPATH
@@ -39,6 +41,8 @@ fi
 
 echo "Starting refactored queue worker with progress tracking..."
 # Use python -u for unbuffered output - using the new refactored queue worker
+# Export all current env vars to ensure they're available to subprocesses
+export GITHUB_TOKEN AZURE_OPENAI_DEPLOYMENT AZURE_OPENAI_ENDPOINT AZURE_OPENAI_KEY
 (cd services/worker && python3 -u src/queue_worker.py) > queue_worker.log 2>&1 &
 QUEUE_WORKER_PID=$!
 

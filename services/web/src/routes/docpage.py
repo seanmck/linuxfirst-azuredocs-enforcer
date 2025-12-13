@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from shared.utils.database import SessionLocal
 from shared.models import Scan, Page, Snippet, User
 from shared.utils.bias_utils import is_page_biased
+from shared.config import AZURE_DOCS_REPOS, get_repo_from_url
 from routes.auth import get_current_user
 from typing import Optional
 import os
@@ -21,22 +22,27 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 def get_github_url(page_url: str) -> str:
     """Convert a page URL (GitHub or MS Learn) to GitHub format."""
     parsed = urlparse(page_url)
-    
+
     if 'github.com' in parsed.netloc:
-        # Already a GitHub URL
+        # Already a GitHub URL - preserve it as-is
         return page_url
     elif 'learn.microsoft.com' in parsed.netloc:
         # Convert MS Learn URL to GitHub
         path = parsed.path
         # Remove locale prefix and azure prefix
         path = re.sub(r'^/(en-us/)?azure/', '', path).rstrip('/')
-        
+
         # Add .md extension if not present
         if not path.endswith('.md'):
             path += '.md'
-        
-        # Build GitHub URL
-        github_url = f"https://github.com/MicrosoftDocs/azure-docs/blob/main/articles/{path}"
+
+        # Use first configured repo as default (can't determine repo from MS Learn URL)
+        default_repo = AZURE_DOCS_REPOS[0] if AZURE_DOCS_REPOS and len(AZURE_DOCS_REPOS) > 0 else None
+        if default_repo:
+            github_url = f"https://github.com/{default_repo.full_name}/blob/{default_repo.branch}/{default_repo.articles_path}/{path}"
+        else:
+            # Fallback if no repos configured
+            github_url = f"https://github.com/MicrosoftDocs/azure-docs-pr/blob/main/articles/{path}"
         return github_url
     else:
         # Unknown format, return original
@@ -46,23 +52,23 @@ def get_github_url(page_url: str) -> str:
 def get_mslearn_url(page_url: str) -> str:
     """Convert a page URL (GitHub or MS Learn) to MS Learn format."""
     parsed = urlparse(page_url)
-    
+
     if 'learn.microsoft.com' in parsed.netloc:
         # Already an MS Learn URL
         return page_url
-    elif 'github.com' in parsed.netloc and '/blob/main/' in parsed.path:
+    elif 'github.com' in parsed.netloc and '/blob/' in parsed.path:
         # Convert GitHub URL to MS Learn
-        # Extract path after /blob/main/
-        repo_path = parsed.path.split('/blob/main/', 1)[-1]
-        
+        # Extract path after /blob/{branch}/
+        repo_path = re.split(r'/blob/[^/]+/', parsed.path, maxsplit=1)[-1]
+
         # Remove articles/ prefix and .md extension
         if repo_path.startswith('articles/'):
             repo_path = repo_path[9:]  # Remove 'articles/'
-        
+
         if repo_path.endswith('.md'):
             repo_path = repo_path[:-3]  # Remove '.md'
-        
-        # Build MS Learn URL
+
+        # Build MS Learn URL (same for all repos)
         mslearn_url = f"https://learn.microsoft.com/en-us/azure/{repo_path}"
         return mslearn_url
     else:

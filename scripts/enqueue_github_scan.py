@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from shared.utils.database import SessionLocal
 from shared.models import Scan
 from shared.utils.url_utils import detect_url_source
+from shared.config import get_repo_scan_urls
 
 
 def enqueue_scan_task(url, scan_id, source, force_rescan=False):
@@ -52,35 +53,40 @@ def enqueue_scan_task(url, scan_id, source, force_rescan=False):
 
 
 def main():
-    """Main function to create scan record and enqueue task"""
-    # Target URL for Azure docs GitHub repository
-    url = "https://github.com/MicrosoftDocs/azure-docs/tree/main/articles"
-    
+    """Main function to create scan records and enqueue tasks for all tracked repos"""
     print(f"[INFO] Starting scheduled GitHub scan at {datetime.utcnow()}")
-    print(f"[INFO] Target URL: {url}")
-    
-    # Create a new scan record in the database
+
+    # Get all repo URLs from config
+    repo_urls = get_repo_scan_urls()
+    print(f"[INFO] Found {len(repo_urls)} repositories to scan")
+
     db = SessionLocal()
     try:
-        new_scan = Scan(
-            url=url,
-            started_at=datetime.utcnow(),
-            status="in_progress"
-        )
-        db.add(new_scan)
-        db.commit()
-        db.refresh(new_scan)
-        scan_id = new_scan.id
-        
-        print(f"[INFO] Created scan record with ID: {scan_id}")
-        
-        # Enqueue the scan task with force_rescan=False for change detection
-        source = detect_url_source(url)
-        print(f"[DEBUG] About to enqueue task with url='{url}', scan_id={scan_id}, source='{source}'")
-        enqueue_scan_task(url, scan_id, source, force_rescan=False)
-        
-        print(f"[INFO] Successfully enqueued GitHub scan task for scan ID: {scan_id}")
-        
+        for url in repo_urls:
+            print(f"[INFO] Processing: {url}")
+
+            # Create a new scan record for this repo
+            new_scan = Scan(
+                url=url,
+                started_at=datetime.utcnow(),
+                status="in_progress"
+            )
+            db.add(new_scan)
+            db.commit()
+            db.refresh(new_scan)
+            scan_id = new_scan.id
+
+            print(f"[INFO] Created scan record with ID: {scan_id}")
+
+            # Enqueue the scan task with force_rescan=False for change detection
+            source = detect_url_source(url)
+            print(f"[DEBUG] About to enqueue task with url='{url}', scan_id={scan_id}, source='{source}'")
+            enqueue_scan_task(url, scan_id, source, force_rescan=False)
+
+            print(f"[INFO] Successfully enqueued GitHub scan task for scan ID: {scan_id}")
+
+        print(f"[INFO] Completed enqueueing scans for all {len(repo_urls)} repositories")
+
     except Exception as e:
         print(f"[ERROR] Failed to create scan record or enqueue task: {e}")
         sys.exit(1)
