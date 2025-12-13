@@ -35,9 +35,9 @@ jobs:
             test_deployment: infra/k8s/overlays/test/bias-scoring-deployment.yaml
 
           - service: db-migrations
-            context: ./infra/db
+            context: .
             dockerfile: ./infra/db/Dockerfile
-            test_deployment: infra/k8s/overlays/test/db-migrations-job.yaml
+            test_deployment: infra/k8s/base/db-migrate.yaml
 
     permissions:
       id-token: write
