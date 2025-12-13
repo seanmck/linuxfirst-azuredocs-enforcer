@@ -345,7 +345,8 @@ def _load_repos_config() -> list[AzureDocsRepo]:
                     articles_path=repo_data.get("articles_path", "articles"),
                 ))
             except KeyError as e:
-                print(f"Warning: Missing required field {e} in repo config, skipping entry")
+                field_name = str(e).strip("'")
+                print(f"Warning: Missing required field {field_name} in repo config, skipping entry")
                 continue
         return repos
     except FileNotFoundError:
