@@ -1,6 +1,7 @@
 """
 Centralized configuration management for the Azure Docs Enforcer project.
 """
+import logging
 import os
 import urllib.parse
 from dataclasses import dataclass, field
@@ -8,6 +9,8 @@ from typing import Optional
 from pathlib import Path
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -345,21 +348,21 @@ def _load_repos_config() -> list[AzureDocsRepo]:
                     articles_path=repo_data.get("articles_path", "articles"),
                 ))
             except KeyError as e:
-                field_name = str(e).strip("'")
-                print(f"Warning: Missing required field {field_name} in repo config, skipping entry")
+                field_name = e.args[0] if e.args else str(e)
+                logger.warning("Missing required field %s in repo config, skipping entry", field_name)
                 continue
         return repos
     except FileNotFoundError:
         # Fallback to default if config file not found
-        print(f"Warning: repos.yaml not found at {config_path}, using defaults")
+        logger.warning("repos.yaml not found at %s, using defaults", config_path)
         return _get_default_repos()
     except yaml.YAMLError as e:
         # Fallback to default if YAML is malformed
-        print(f"Error: Failed to parse YAML at {config_path}: {e}, using defaults")
+        logger.error("Failed to parse YAML at %s: %s, using defaults", config_path, e)
         return _get_default_repos()
     except Exception as e:
         # Catch any other unexpected errors
-        print(f"Error: Failed to load repos config from {config_path}: {e}, using defaults")
+        logger.error("Failed to load repos config from %s: %s, using defaults", config_path, e)
         return _get_default_repos()
 
 
