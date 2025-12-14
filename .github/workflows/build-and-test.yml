@@ -20,19 +20,22 @@ jobs:
           # EDIT THESE FOR YOUR REPO
           # -------------------------------
           - service: web
-            context: ./services/web
+            context: .
             dockerfile: ./services/web/Dockerfile
             test_deployment: infra/k8s/overlays/test/web-deployment.yaml
+            change_path: ./services/web
 
           - service: worker
-            context: ./services/worker
+            context: .
             dockerfile: ./services/worker/Dockerfile
             test_deployment: infra/k8s/overlays/test/worker-deployment.yaml
+            change_path: ./services/worker
 
           - service: bias-scoring-service
-            context: ./services/bias-scoring-service
+            context: .
             dockerfile: ./services/bias-scoring-service/Dockerfile
             test_deployment: infra/k8s/overlays/test/bias-scoring-deployment.yaml
+            change_path: ./services/bias-scoring-service
 
           - service: db-migrations
             context: .
