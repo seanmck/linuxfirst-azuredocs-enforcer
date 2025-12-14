@@ -5,7 +5,7 @@ metadata:
   namespace: azuredocs-app
   annotations:
     # Enable automatic certificate provisioning with cert-manager
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+    cert-manager.io/cluster-issuer: letsencrypt-prod-dns
     # Force HTTP to HTTPS redirect
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"

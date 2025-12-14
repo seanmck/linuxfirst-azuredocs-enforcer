@@ -38,6 +38,9 @@ resources:
   - webui-ingress.yaml
   - cert-manager.yaml
 
+  # Karpenter NodePools
+  - spot-nodepool.yaml
+
 labels:
   - pairs:
       app.kubernetes.io/part-of: azuredocs-enforcer

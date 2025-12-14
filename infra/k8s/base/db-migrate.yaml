@@ -3,6 +3,9 @@ kind: Job
 metadata:
   name: db-migrate
   namespace: azuredocs-app
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
   template:
     metadata:
@@ -12,7 +15,7 @@ spec:
       serviceAccountName: azuredocs-app-sa
       containers:
       - name: migrate
-        image: seanmckdemo.azurecr.io/db-migrate:0.0.51
+        image: seanmckdemo.azurecr.io/linuxfirst-azuredocs-db-migrations:main-8e23b2b
         command: ["/bin/sh", "-c"]
         args: ["cd /app/infra/db && ./migrate.sh"]
         envFrom:

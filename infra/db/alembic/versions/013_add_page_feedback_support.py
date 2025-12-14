@@ -103,25 +103,28 @@ def upgrade():
     
     # If table exists, add page_id column
     print("user_feedback table exists, adding page_id column...")
-    op.add_column('user_feedback', sa.Column('page_id', sa.Integer(), nullable=True))
-    
-    # Add foreign key constraint to pages table
-    op.create_foreign_key('fk_user_feedback_page', 'user_feedback', 'pages', ['page_id'], ['id'], ondelete='CASCADE')
-    
-    # Make snippet_id nullable (was already nullable in the model but may not be in DB)
-    op.alter_column('user_feedback', 'snippet_id', nullable=True)
-    
-    # Drop existing constraints that might conflict
-    try:
-        op.drop_constraint('check_feedback_target', 'user_feedback', type_='check')
-    except:
-        pass  # Constraint may not exist
-    
-    try:
-        op.drop_constraint('check_rating_value', 'user_feedback', type_='check')
-    except:
-        pass  # Constraint may not exist
-    
+
+    # Check if page_id column already exists
+    page_id_exists = connection.execute(sa.text("""
+        SELECT COUNT(*)
+        FROM information_schema.columns
+        WHERE table_name = 'user_feedback'
+        AND column_name = 'page_id'
+    """)).scalar() > 0
+
+    if not page_id_exists:
+        op.add_column('user_feedback', sa.Column('page_id', sa.Integer(), nullable=True))
+
+        # Add foreign key constraint to pages table
+        op.create_foreign_key('fk_user_feedback_page', 'user_feedback', 'pages', ['page_id'], ['id'], ondelete='CASCADE')
+
+    # Make snippet_id nullable using raw SQL to avoid transaction issues
+    connection.execute(sa.text("ALTER TABLE user_feedback ALTER COLUMN snippet_id DROP NOT NULL"))
+
+    # Drop existing constraints using raw SQL
+    connection.execute(sa.text("ALTER TABLE user_feedback DROP CONSTRAINT IF EXISTS check_feedback_target"))
+    connection.execute(sa.text("ALTER TABLE user_feedback DROP CONSTRAINT IF EXISTS check_rating_value"))
+
     # Add check constraint to ensure either snippet_id or page_id is provided (but not both)
     op.create_check_constraint(
         'check_feedback_target',
@@ -131,15 +134,10 @@ def upgrade():
     
     # Note: No rating constraint needed for boolean type
     
-    # Create indexes for better performance
-    op.create_index('idx_user_feedback_page_id', 'user_feedback', ['page_id'])
-    op.create_index('idx_user_feedback_user_page', 'user_feedback', ['user_id', 'page_id'])
-    
-    # Create index on user_id + snippet_id if it doesn't exist
-    try:
-        op.create_index('idx_user_feedback_user_snippet', 'user_feedback', ['user_id', 'snippet_id'])
-    except:
-        pass  # Index may already exist
+    # Create indexes for better performance (using IF NOT EXISTS)
+    connection.execute(sa.text("CREATE INDEX IF NOT EXISTS idx_user_feedback_page_id ON user_feedback (page_id)"))
+    connection.execute(sa.text("CREATE INDEX IF NOT EXISTS idx_user_feedback_user_page ON user_feedback (user_id, page_id)"))
+    connection.execute(sa.text("CREATE INDEX IF NOT EXISTS idx_user_feedback_user_snippet ON user_feedback (user_id, snippet_id)"))
     
     print("Page feedback support added successfully")
 

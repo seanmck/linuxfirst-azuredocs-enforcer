@@ -28,6 +28,7 @@ from shared.application.processing_history_service import ProcessingHistoryServi
 from shared.utils.database import SessionLocal
 from shared.utils.logging import get_logger
 from shared.utils.metrics import get_metrics
+from shared.utils.url_utils import extract_doc_set_from_url
 from packages.extractor.parser import extract_code_snippets
 
 
@@ -411,6 +412,9 @@ class DocumentWorker:
                 page.last_scanned_at = now
                 page.processing_state = 'discovered'
                 page.status = 'processing'
+                # Ensure doc_set is populated (backfill if missing)
+                if not page.doc_set:
+                    page.doc_set = extract_doc_set_from_url(github_url)
                 # Set processing lock metadata
                 page.processing_started_at = now
                 page.processing_worker_id = self.worker_id
@@ -425,6 +429,7 @@ class DocumentWorker:
                     github_sha=file_sha,
                     last_scanned_at=now,
                     processing_state='discovered',
+                    doc_set=extract_doc_set_from_url(github_url),
                     # Set processing lock metadata
                     processing_started_at=now,
                     processing_worker_id=self.worker_id,
