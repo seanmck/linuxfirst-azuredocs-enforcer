@@ -13,6 +13,7 @@ patches:
     target:
       kind: Ingress
       name: webui-ingress
+  - path: openai-deployment-patch.yaml
 
 # configMapGenerator:
 #   - name: env-config
