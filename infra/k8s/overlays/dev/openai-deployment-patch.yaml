@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scan-worker
+  namespace: azuredocs-app
+spec:
+  template:
+    spec:
+      containers:
+        - name: scan-worker
+          env:
+            - name: AZURE_OPENAI_DEPLOYMENT
+              value: "gpt-4"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: doc-worker
+  namespace: azuredocs-app
+spec:
+  template:
+    spec:
+      containers:
+        - name: doc-worker
+          env:
+            - name: AZURE_OPENAI_DEPLOYMENT
+              value: "gpt-4"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webui
+  namespace: azuredocs-app
+spec:
+  template:
+    spec:
+      containers:
+        - name: webui
+          env:
+            - name: AZURE_OPENAI_DEPLOYMENT
+              value: "gpt-4"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bias-scoring-service
+  namespace: azuredocs-app
+spec:
+  template:
+    spec:
+      containers:
+        - name: bias-scoring-service
+          env:
+            - name: AZURE_OPENAI_DEPLOYMENT
+              value: "gpt-4"
