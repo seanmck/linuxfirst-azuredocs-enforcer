@@ -3,6 +3,9 @@ kind: Job
 metadata:
   name: db-migrate
   namespace: azuredocs-app
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
   template:
     metadata:
