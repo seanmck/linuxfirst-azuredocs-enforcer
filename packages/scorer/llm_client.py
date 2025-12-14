@@ -199,9 +199,13 @@ Code:
         max_retries = 5
         base_delay = 1
         response = None
-        
+        last_error = None
+
         for attempt in range(max_retries):
+            # Wait for rate limit before making request
+            self._wait_for_rate_limit()
             start_time = time.time()
+
             try:
                 response = self.client.chat.completions.create(
                     model=self.deployment,  # Azure OpenAI: use deployment name as model
@@ -212,58 +216,79 @@ Code:
                 self.logger.info(f"LLM call completed successfully in {time.time() - start_time:.2f} seconds")
                 # Record successful API call
                 self.metrics.record_api_request('azure_openai', 'POST', 200, time.time() - start_time)
+                break  # Success, exit retry loop
+            except openai.RateLimitError as rate_error:
+                # Handle rate limiting with exponential backoff
+                status_code = 429
+                self.metrics.record_api_request('azure_openai', 'POST', status_code, time.time() - start_time)
+                last_error = rate_error
+
+                if attempt < max_retries - 1:
+                    # Exponential backoff with jitter
+                    delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                    self.logger.warning(f"Rate limited (429), retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(delay)
+                else:
+                    self.logger.error(f"Rate limit exceeded after {max_retries} retries: {rate_error}")
+                    return self._heuristic_score(snippet_dict)
             except Exception as api_error:
                 # Record failed API call
                 status_code = getattr(api_error, 'status_code', 500)
                 self.metrics.record_api_request('azure_openai', 'POST', status_code, time.time() - start_time)
-                
+                last_error = api_error
+
                 # Log specific error details
                 if hasattr(api_error, '__class__') and 'Timeout' in api_error.__class__.__name__:
                     self.logger.error(f"LLM call timed out after 60 seconds: {api_error}")
                 else:
                     self.logger.error(f"LLM call failed: {api_error}")
-                raise
-            content = response.choices[0].message.content
-            try:
-                json_str = re.search(r'\{.*\}', content, re.DOTALL).group(0)
-                result = json.loads(json_str)
-                # Ensure backward compatibility with existing data
-                if 'bias_types' not in result:
-                    result['bias_types'] = {
-                        'powershell_only': False,
-                        'windows_paths': False,
-                        'windows_commands': False,
-                        'windows_tools': False,
-                        'missing_linux_example': result.get('missing_linux_example', False),
-                        'windows_specific_syntax': False,
-                        'windows_registry': False,
-                        'windows_services': False
-                    }
-                if 'suggested_linux_alternative' not in result:
-                    result['suggested_linux_alternative'] = ""
-                result['method'] = 'api'
-                return result
-            except Exception as e:
-                return {
-                    "windows_biased": None, 
-                    "bias_types": {
-                        'powershell_only': False,
-                        'windows_paths': False,
-                        'windows_commands': False,
-                        'windows_tools': False,
-                        'missing_linux_example': False,
-                        'windows_specific_syntax': False,
-                        'windows_registry': False,
-                        'windows_services': False
-                    },
-                    "explanation": content,
-                    "suggested_linux_alternative": "",
-                    "parse_error": str(e),
-                    "method": "api"
-                }
-        else:
-            # Should not reach here, but just in case
+
+                # Don't retry on non-rate-limit errors
+                return self._heuristic_score(snippet_dict)
+
+        if response is None:
+            self.logger.error(f"Failed to get response after {max_retries} attempts")
             return self._heuristic_score(snippet_dict)
+
+        # Parse the response
+        content = response.choices[0].message.content
+        try:
+            json_str = re.search(r'\{.*\}', content, re.DOTALL).group(0)
+            result = json.loads(json_str)
+            # Ensure backward compatibility with existing data
+            if 'bias_types' not in result:
+                result['bias_types'] = {
+                    'powershell_only': False,
+                    'windows_paths': False,
+                    'windows_commands': False,
+                    'windows_tools': False,
+                    'missing_linux_example': result.get('missing_linux_example', False),
+                    'windows_specific_syntax': False,
+                    'windows_registry': False,
+                    'windows_services': False
+                }
+            if 'suggested_linux_alternative' not in result:
+                result['suggested_linux_alternative'] = ""
+            result['method'] = 'api'
+            return result
+        except Exception as e:
+            return {
+                "windows_biased": None,
+                "bias_types": {
+                    'powershell_only': False,
+                    'windows_paths': False,
+                    'windows_commands': False,
+                    'windows_tools': False,
+                    'missing_linux_example': False,
+                    'windows_specific_syntax': False,
+                    'windows_registry': False,
+                    'windows_services': False
+                },
+                "explanation": content,
+                "suggested_linux_alternative": "",
+                "parse_error": str(e),
+                "method": "api"
+            }
 
 # Example usage:
 # client = LLMClient()
