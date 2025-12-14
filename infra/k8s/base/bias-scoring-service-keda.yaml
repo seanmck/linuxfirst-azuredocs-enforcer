@@ -27,7 +27,9 @@ spec:
     metadata:
       labels:
         app: bias-scoring-service
+        azure.workload.identity/use: "true"
     spec:
+      serviceAccountName: azuredocs-app-sa
       priorityClassName: service-critical-priority
       containers:
         - name: bias-scoring-service
