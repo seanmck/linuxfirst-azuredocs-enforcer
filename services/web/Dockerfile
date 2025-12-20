@@ -8,10 +8,11 @@ WORKDIR /app
 COPY services/web/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt && pip install azure-identity
 
-# Copy shared code and packages
+# Copy shared code, packages, and config
 COPY shared ./shared
 COPY packages ./packages
 COPY infra ./infra
+COPY config ./config
 
 # Copy web service code
 COPY services/web/src ./web

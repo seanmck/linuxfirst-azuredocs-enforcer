@@ -15,9 +15,10 @@ RUN apt-get update && \
 COPY services/worker/requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy shared code and packages (less likely to change)
+# Copy shared code, packages, and config (less likely to change)
 COPY shared /app/shared
 COPY packages /app/packages
+COPY config /app/config
 
 # Copy necessary scripts (only specific ones needed by worker)
 COPY scripts/enqueue_github_scan.py /app/scripts/
