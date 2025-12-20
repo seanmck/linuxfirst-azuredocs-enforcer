@@ -143,4 +143,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git commit -am "chore(test): bump ${{ matrix.service }} to ${{ steps.meta.outputs.imagetag }}"
+          git pull --rebase origin main
           git push
