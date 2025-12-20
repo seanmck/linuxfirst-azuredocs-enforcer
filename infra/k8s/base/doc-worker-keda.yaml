@@ -7,7 +7,7 @@ metadata:
     app: doc-worker
     component: worker
 spec:
-  replicas: 1
+  # replicas managed by KEDA ScaledObject
   selector:
     matchLabels:
       app: doc-worker
