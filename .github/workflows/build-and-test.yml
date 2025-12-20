@@ -76,7 +76,7 @@ jobs:
           SERVICE_PATH="${{ matrix.change_path || matrix.context }}"
           SERVICE_PATH="${SERVICE_PATH#./}/"
 
-          if grep -qE "^${SERVICE_PATH}|^shared/|^packages/" changed_files.txt; then
+          if grep -qE "^${SERVICE_PATH}|^shared/|^packages/|^config/" changed_files.txt; then
             echo "should_build=true" >> "$GITHUB_OUTPUT"
           else
             echo "should_build=false" >> "$GITHUB_OUTPUT"
