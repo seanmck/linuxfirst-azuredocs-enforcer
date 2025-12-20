@@ -23,7 +23,7 @@ spec:
           restartPolicy: Never
           containers:
           - name: bias-snapshot-generator
-            image: seanmckdemo.azurecr.io/queue-worker:0.0.56
+            image: seanmckdemo.azurecr.io/queue-worker:main-43f9af4
             imagePullPolicy: Always
             command: ["python", "/app/scripts/update_bias_snapshots.py"]
             env:
