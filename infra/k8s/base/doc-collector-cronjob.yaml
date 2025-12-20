@@ -23,7 +23,7 @@ spec:
           restartPolicy: Never
           containers:
           - name: doc-collector
-            image: seanmckdemo.azurecr.io/queue-worker:main-43f9af4
+            image: seanmckdemo.azurecr.io/queue-worker:main-9a3eb78
             imagePullPolicy: Always
             command: ["python", "/app/scripts/enqueue_github_scan.py"]
             env:
