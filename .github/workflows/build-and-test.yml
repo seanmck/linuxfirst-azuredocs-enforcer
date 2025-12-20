@@ -131,9 +131,10 @@ jobs:
         run: |
           IMAGE="${{ steps.meta.outputs.image }}"
           IMAGE_NAME="${{ steps.meta.outputs.image_name }}"
-          DEPLOYMENT="${{ matrix.test_deployment }}"
 
-          sed -i "s|image: .*/${IMAGE_NAME}:.*|image: ${IMAGE}|" "${DEPLOYMENT}"
+          # Update all manifests that use this image
+          find infra/k8s -name "*.yaml" -exec grep -l "/${IMAGE_NAME}:" {} \; | \
+            xargs -r sed -i "s|image: .*/${IMAGE_NAME}:.*|image: ${IMAGE}|"
 
           if git diff --quiet; then
             exit 0
