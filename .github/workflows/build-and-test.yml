@@ -22,25 +22,29 @@ jobs:
           - service: web
             context: .
             dockerfile: ./services/web/Dockerfile
-            test_deployment: infra/k8s/overlays/test/web-deployment.yaml
+            test_deployment: infra/k8s/base/webui.yaml
+            image_name: webui
             change_path: ./services/web
 
           - service: worker
             context: .
             dockerfile: ./services/worker/Dockerfile
-            test_deployment: infra/k8s/overlays/test/worker-deployment.yaml
+            test_deployment: infra/k8s/base/scan-worker.yaml
+            image_name: queue-worker
             change_path: ./services/worker
 
           - service: bias-scoring-service
             context: .
             dockerfile: ./services/bias-scoring-service/Dockerfile
-            test_deployment: infra/k8s/overlays/test/bias-scoring-deployment.yaml
+            test_deployment: infra/k8s/base/bias-scoring-service-keda.yaml
+            image_name: bias-scoring-service
             change_path: ./services/bias-scoring-service
 
           - service: db-migrations
             context: .
             dockerfile: ./infra/db/Dockerfile
             test_deployment: infra/k8s/base/db-migrate.yaml
+            image_name: linuxfirst-azuredocs-db-migrations
             change_path: ./infra/db
 
     permissions:
@@ -94,8 +98,7 @@ jobs:
         if: steps.changed.outputs.should_build == 'true'
         id: meta
         run: |
-          SERVICE="${{ matrix.service }}"
-          IMAGE_NAME="linuxfirst-azuredocs-${SERVICE}"
+          IMAGE_NAME="${{ matrix.image_name }}"
           SANITIZED_BRANCH="${GITHUB_REF_NAME//\//-}"
           IMAGE_TAG="${SANITIZED_BRANCH}-${GITHUB_SHA::7}"
           IMAGE="${ACR_NAME}.azurecr.io/${IMAGE_NAME}:${IMAGE_TAG}"
