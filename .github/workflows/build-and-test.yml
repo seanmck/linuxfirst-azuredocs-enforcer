@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - '**'
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: 'Force rebuild all images (skip change detection)'
+        required: false
+        default: 'false'
+        type: boolean
 
 env:
   ACR_NAME: ${{ secrets.ACR_NAME }}
@@ -76,7 +83,7 @@ jobs:
           SERVICE_PATH="${{ matrix.change_path || matrix.context }}"
           SERVICE_PATH="${SERVICE_PATH#./}/"
 
-          if grep -qE "^${SERVICE_PATH}|^shared/|^packages/|^config/" changed_files.txt; then
+          if [ "${{ inputs.force_build }}" == "true" ] || grep -qE "^${SERVICE_PATH}|^shared/|^packages/|^config/" changed_files.txt; then
             echo "should_build=true" >> "$GITHUB_OUTPUT"
           else
             echo "should_build=false" >> "$GITHUB_OUTPUT"
