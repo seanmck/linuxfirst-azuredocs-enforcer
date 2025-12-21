@@ -18,7 +18,7 @@ sys.path.insert(0, project_root)
 from sqlalchemy.orm import Session
 from sqlalchemy import Boolean
 from shared.models import Scan, Page, Snippet
-from shared.config import config
+from shared.config import config, get_repo_from_url
 from shared.infrastructure.queue_service import QueueService
 from scoring_service import ScoringService
 from shared.infrastructure.github_service import GitHubService
@@ -123,8 +123,21 @@ class DocumentWorker:
             if change_type == 'removed':
                 return self._handle_deleted_file(db_session, scan_id, github_url, file_path)
             
-            # Get file content
+            # Get file content (with fallback to public repo if private fails)
             file_content = self.github_service.get_file_content(repo_full_name, file_path, branch)
+
+            # If primary repo fails, try public repo fallback
+            if not file_content:
+                repo_config = get_repo_from_url(scan.url)
+                if repo_config and repo_config.name != repo_config.public_name:
+                    public_repo = repo_config.public_full_name
+                    self.logger.info(f"Primary repo failed, trying public fallback: {public_repo}")
+                    file_content = self.github_service.get_file_content(public_repo, file_path, branch)
+                    if file_content:
+                        # Update github_url to use public repo for consistency
+                        github_url = self.github_service.generate_github_url(public_repo, branch, file_path)
+                        self.logger.info(f"Successfully fetched from public repo: {file_path}")
+
             if not file_content:
                 self.logger.warning(f"Could not get file content for {file_path}, skipping file")
                 # Mark page as skipped
