@@ -7,8 +7,9 @@ import re
 import time
 import random
 import json
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from github import Github
+from github.GithubException import UnknownObjectException
 from shared.config import config
 from shared.utils.logging import get_logger
 
@@ -301,24 +302,30 @@ class GitHubService:
             
         return metadata['sha'] != current_sha
 
-    def get_head_commit(self, repo_full_name: str, branch: str) -> Optional[str]:
+    def get_head_commit(self, repo_full_name: str, branch: str) -> Tuple[Optional[str], bool]:
         """
         Get the HEAD commit SHA for a repository branch
-        
+
         Args:
             repo_full_name: GitHub repository in format 'owner/repo'
             branch: Branch to get HEAD commit from
-            
+
         Returns:
-            HEAD commit SHA or None if error
+            Tuple of (HEAD commit SHA or None, is_not_found)
+            - (sha, False) on success
+            - (None, True) if repo not found (404)
+            - (None, False) on other errors
         """
         try:
             repo = self.github_client.get_repo(repo_full_name)
             branch_obj = repo.get_branch(branch)
-            return branch_obj.commit.sha
+            return branch_obj.commit.sha, False
+        except UnknownObjectException as e:
+            print(f"[ERROR] Could not get HEAD commit for {repo_full_name}:{branch}: {e}")
+            return None, True  # 404 - repo not found
         except Exception as e:
             print(f"[ERROR] Could not get HEAD commit for {repo_full_name}:{branch}: {e}")
-            return None
+            return None, False  # Other error
 
     def compare_commits(self, repo_full_name: str, base_sha: str, head_sha: str):
         """
