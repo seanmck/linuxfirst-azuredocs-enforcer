@@ -30,6 +30,7 @@ from shared.utils.logging import get_logger
 from shared.utils.metrics import get_metrics
 from shared.utils.url_utils import extract_doc_set_from_url
 from packages.extractor.parser import extract_code_snippets
+from packages.scorer.heuristics import page_has_windows_signals
 
 
 class DocumentWorker:
@@ -313,14 +314,23 @@ class DocumentWorker:
                 
             db_session.commit()
             self.logger.info(f"Extracted {len(all_snippets)} code blocks from {url}")
-            
-            # Score snippets if any found
-            if all_snippets:
-                self._score_github_snippets(db_session, all_snippets, scan_id)
-                
-            # Apply holistic MCP scoring
-            self._apply_holistic_scoring(db_session, page, file_content, scan_id)
-            
+
+            # Unified scoring: use heuristic filter to decide if LLM review is needed
+            if page_has_windows_signals(file_content):
+                # Page has Windows signals - send to LLM for holistic review
+                self.logger.info(f"Windows signals detected in {url}, sending to LLM")
+                self._apply_holistic_scoring(db_session, page, file_content, scan_id, review_method='llm')
+            else:
+                # No Windows signals - skip LLM entirely
+                self.logger.info(f"No Windows signals in {url}, skipping LLM review")
+                page.mcp_holistic = {
+                    'bias_types': [],
+                    'summary': None,
+                    'review_method': 'heuristic_skip',
+                    'skip_reason': 'No Windows signals detected'
+                }
+                db_session.commit()
+
             return True
             
         except Exception as e:
@@ -328,34 +338,31 @@ class DocumentWorker:
             return False
 
 
-    def _score_github_snippets(self, db_session: Session, snippets: List[Dict], scan_id: int):
-        """Score GitHub snippets using LLM scoring"""
-        try:
-            scored_snippets = self.scoring_service.apply_llm_scoring(snippets)
-            
-            for snip in scored_snippets:
-                snippet_obj = snip.get('snippet_obj')
-                if snippet_obj and 'llm_score' in snip:
-                    snippet_obj.llm_score = snip['llm_score']
-                    db_session.commit()
-                    
-        except Exception as e:
-            self.logger.error(f"Error scoring GitHub snippets: {e}", exc_info=True)
-
-    def _apply_holistic_scoring(self, db_session: Session, page: Page, content: str, scan_id: int):
+    def _apply_holistic_scoring(self, db_session: Session, page: Page, content: str, scan_id: int, review_method: str = 'llm'):
         """Apply holistic MCP scoring to the page"""
         try:
             mcp_result = self.scoring_service.apply_mcp_holistic_scoring(content, page.url)
             if mcp_result:
+                # Add review method to track how the page was scored
+                mcp_result['review_method'] = review_method
                 page.mcp_holistic = mcp_result
                 db_session.commit()
-                
+
                 # Check if bias was detected and report result
                 if mcp_result.get('bias_types'):
                     progress_tracker.report_page_result(
                         db_session, scan_id, page.url, True, mcp_result
                     )
-                    
+            else:
+                # LLM call failed - mark as error with review method
+                page.mcp_holistic = {
+                    'bias_types': [],
+                    'summary': None,
+                    'review_method': 'llm_error',
+                    'error': 'Holistic scoring failed'
+                }
+                db_session.commit()
+
         except Exception as e:
             self.logger.error(f"Error applying holistic scoring to {page.url}: {e}", exc_info=True)
 

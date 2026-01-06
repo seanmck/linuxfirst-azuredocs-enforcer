@@ -321,6 +321,47 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Review method badges */
+.page-badges {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.review-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.3em 0.7em;
+    border-radius: 6px;
+    font-size: 0.8em;
+    font-weight: 600;
+}
+
+.review-badge.review-llm {
+    background: rgba(37, 99, 235, 0.1);
+    color: #2563eb;
+    border: 1px solid rgba(37, 99, 235, 0.2);
+}
+
+.review-badge.review-heuristic {
+    background: rgba(107, 114, 128, 0.1);
+    color: #6b7280;
+    border: 1px solid rgba(107, 114, 128, 0.2);
+}
+
+.review-badge.review-error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.review-badge.review-unknown {
+    background: rgba(234, 179, 8, 0.1);
+    color: #ca8a04;
+    border: 1px solid rgba(234, 179, 8, 0.2);
+}
 </style>
 
 <!-- Problematic Pages (Holistic MCP) -->
@@ -337,8 +378,18 @@
                             <a href="{{ page.url }}" target="_blank" rel="noopener noreferrer">{{ page.url }}</a>
                             <a href="/docpage/{{ page.id }}" style="margin-left: 0.5em; color: #2563eb; text-decoration: none; font-size: 0.9em;">[View Details]</a>
                         </div>
-                        
-                        <span class="priority-badge priority-{{ page['priority_label']|lower }}">{{ page['priority_label'] }} Priority</span>
+                        <div class="page-badges">
+                            {% if page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm' %}
+                                <span class="review-badge review-llm">LLM Reviewed</span>
+                            {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'heuristic_skip' %}
+                                <span class="review-badge review-heuristic">Heuristic Skip</span>
+                            {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm_error' %}
+                                <span class="review-badge review-error">LLM Error</span>
+                            {% else %}
+                                <span class="review-badge review-unknown">Not Scored</span>
+                            {% endif %}
+                            <span class="priority-badge priority-{{ page['priority_label']|lower }}">{{ page['priority_label'] }} Priority</span>
+                        </div>
                     </div>
                     <div class="analysis-content">
                         <div class="snippet-label">Bias Types:</div>

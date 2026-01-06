@@ -10,9 +10,12 @@ A microservices-based Python application that scans Azure documentation reposito
 
 ### Local Development
 ```bash
-./setup_and_run.sh --web          # Setup venv and run web UI locally
-./setup_and_run.sh --docker       # Run all services in Docker
-./setup_and_run.sh --wipe --web   # Reset everything and start fresh
+./scripts/start-dev.sh            # Setup venv, start infra (db, rabbitmq), run all services
+```
+
+**Note:** When running services manually (not via start-dev.sh), set PYTHONPATH first:
+```bash
+export PYTHONPATH=$(pwd):$PYTHONPATH
 ```
 
 ### Running Individual Services
@@ -74,9 +77,16 @@ Routes are in `services/web/src/routes/`:
 - `scan.py`: Scan management
 - `llm.py`: LLM scoring endpoints
 - `docpage.py`: Document page display
+- `docset.py`: Documentation set queries
 - `auth.py`: GitHub OAuth authentication
 - `feedback.py`: User feedback collection
 - `websocket.py`: Real-time scan progress
+
+### Service Ports
+- **Web UI**: 8000 (local), 8010 (Docker host → 8000 container)
+- **Bias Scoring**: 9000
+- **PostgreSQL**: 5432
+- **RabbitMQ**: 5672 (AMQP), 15672 (management UI)
 
 ## Key Environment Variables
 
@@ -89,6 +99,8 @@ AZURE_OPENAI_KEY=your-key
 AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
 AZURE_OPENAI_DEPLOYMENT=gpt-35-turbo
 AZURE_OPENAI_CLIENTID=client-id  # For managed identity (alternative to API key)
+AZURE_OPENAI_RPM=60               # Rate limit requests per minute
+LLM_BATCH_SIZE=5                  # Snippets per LLM request
 
 # RabbitMQ
 RABBITMQ_HOST=localhost
