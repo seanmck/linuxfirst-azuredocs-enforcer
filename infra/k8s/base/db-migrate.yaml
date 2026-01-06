@@ -15,7 +15,7 @@ spec:
       serviceAccountName: azuredocs-app-sa
       containers:
       - name: migrate
-        image: seanmckdemo.azurecr.io/linuxfirst-azuredocs-db-migrations:main-45b4b94
+        image: seanmckdemo.azurecr.io/linuxfirst-azuredocs-db-migrations:main-d4dbd8f
         command: ["/bin/sh", "-c"]
         args: ["cd /app/infra/db && ./migrate.sh"]
         envFrom:
