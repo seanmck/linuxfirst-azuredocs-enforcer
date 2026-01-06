@@ -93,6 +93,21 @@ class ScorePageRequest(BaseModel):
     page_content: str
     metadata: dict = {}
 
+
+class SnippetInput(BaseModel):
+    id: int
+    code: str
+    language: str = ""
+    context: str = ""
+
+
+class ScoreSnippetsRequest(BaseModel):
+    snippets: list[SnippetInput]
+
+
+# Batch size for snippet scoring (configurable via environment)
+LLM_BATCH_SIZE = int(os.getenv("LLM_BATCH_SIZE", "5"))
+
 @app.post("/score_page")
 async def score_page(req: ScorePageRequest):
     import json
@@ -149,6 +164,147 @@ Page content:
         except Exception as e:
             print(f"[ERROR] API call failed: {e}")
             raise HTTPException(status_code=503, detail=f"API error: {str(e)}")
+
+
+@app.post("/score_snippets")
+async def score_snippets(req: ScoreSnippetsRequest):
+    """
+    Score multiple code snippets in a single LLM call for efficiency.
+    Returns an array of results matching the input snippet IDs.
+    """
+    import json
+    import re
+
+    if not req.snippets:
+        return {"results": []}
+
+    # Build prompt with all snippets
+    snippets_text = ""
+    for i, snippet in enumerate(req.snippets):
+        snippets_text += f"\n--- Snippet {snippet.id} ---\n"
+        if snippet.language:
+            snippets_text += f"Language: {snippet.language}\n"
+        if snippet.context:
+            snippets_text += f"Context: {snippet.context}\n"
+        snippets_text += f"Code:\n```\n{snippet.code}\n```\n"
+
+    prompt = f"""Analyze the following code snippets for Windows bias (e.g., Windows-only commands, PowerShell, Windows paths, Windows-specific tools).
+
+For each snippet, determine if it exhibits Windows bias and identify the specific bias types.
+
+{snippets_text}
+
+Return a JSON array with one object per snippet in this exact format:
+[
+  {{
+    "id": <snippet_id>,
+    "windows_biased": true/false,
+    "bias_types": {{
+      "powershell_only": true/false,
+      "windows_paths": true/false,
+      "windows_commands": true/false,
+      "windows_tools": true/false,
+      "missing_linux_example": true/false,
+      "windows_specific_syntax": true/false,
+      "windows_registry": true/false,
+      "windows_services": true/false
+    }},
+    "explanation": "Brief explanation"
+  }}
+]
+
+Bias types to check:
+- powershell_only: Uses PowerShell cmdlets (Get-, Set-, New-, etc.)
+- windows_paths: Uses Windows paths (C:\\, backslashes)
+- windows_commands: Uses Windows commands (dir, copy, del, etc.)
+- windows_tools: Uses Windows tools (regedit, msiexec, etc.)
+- missing_linux_example: No Linux/macOS equivalent shown
+- windows_specific_syntax: Uses Windows syntax (backticks, $env:)
+- windows_registry: References Windows registry
+- windows_services: Uses Windows service management
+
+Return ONLY the JSON array, no other text."""
+
+    max_retries = 5
+    base_delay = 1
+    last_error = None
+
+    # Calculate max_tokens based on number of snippets (roughly 150 tokens per snippet response)
+    max_tokens = min(150 * len(req.snippets) + 100, 4000)
+
+    for attempt in range(max_retries):
+        wait_for_rate_limit()
+
+        try:
+            response = client.chat.completions.create(
+                model=AZURE_OPENAI_DEPLOYMENT,
+                messages=[
+                    {"role": "system", "content": "You are a documentation bias analysis assistant. Always respond with valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0,
+                max_tokens=max_tokens,
+                timeout=120,  # Longer timeout for batch requests
+            )
+
+            text = response.choices[0].message.content
+
+            # Try to extract JSON array from response
+            match = re.search(r'\[[\s\S]+\]', text)
+            if match:
+                results = json.loads(match.group(0))
+
+                # Ensure all snippets have results, fill in defaults for any missing
+                result_by_id = {r["id"]: r for r in results}
+                final_results = []
+
+                for snippet in req.snippets:
+                    if snippet.id in result_by_id:
+                        result = result_by_id[snippet.id]
+                        result["method"] = "api"
+                        final_results.append(result)
+                    else:
+                        # Default result for missing snippets
+                        final_results.append({
+                            "id": snippet.id,
+                            "windows_biased": False,
+                            "bias_types": {
+                                "powershell_only": False,
+                                "windows_paths": False,
+                                "windows_commands": False,
+                                "windows_tools": False,
+                                "missing_linux_example": False,
+                                "windows_specific_syntax": False,
+                                "windows_registry": False,
+                                "windows_services": False
+                            },
+                            "explanation": "No bias detected (default)",
+                            "method": "api"
+                        })
+
+                return {"results": final_results}
+            else:
+                print(f"[WARN] Could not parse JSON array from response: {text[:200]}")
+                raise HTTPException(status_code=500, detail="Failed to parse LLM response")
+
+        except openai.RateLimitError as rate_error:
+            last_error = rate_error
+            if attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                print(f"[RATE LIMIT] 429 received, retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries})")
+                time.sleep(delay)
+            else:
+                print(f"[ERROR] Rate limit exhausted after {max_retries} retries")
+                raise HTTPException(status_code=503, detail="Rate limit exhausted after retries")
+
+        except json.JSONDecodeError as json_error:
+            print(f"[ERROR] JSON parsing failed: {json_error}")
+            raise HTTPException(status_code=500, detail=f"JSON parse error: {str(json_error)}")
+
+        except Exception as e:
+            print(f"[ERROR] API call failed: {e}")
+            raise HTTPException(status_code=503, detail=f"API error: {str(e)}")
+
 
 if __name__ == "__main__":
     import uvicorn
