@@ -1,7 +1,53 @@
 # heuristics.py
-# Optional: Lightweight regex-based pre-filtering of extracted snippets.
+# Lightweight regex-based pre-filtering for Windows bias detection.
+# Used for both snippet-level and page-level heuristic scanning.
 
 import re
+
+
+# Patterns to detect Windows-specific content in full page prose/code
+PROSE_WINDOWS_PATTERNS = [
+    r'\bPowerShell\b',
+    r'\bFiddler\b',
+    r'\.exe\b',
+    r'\badministrator\b',
+    r'\.NET Framework\b',
+    r'\bWindows Server\b',
+    r'\bIIS\b',
+    r'\bwin2019',   # Matches win2019, win2019datacenter, etc.
+    r'\bwin2022',   # Matches win2022, win2022datacenter, etc.
+    r'\bwin2016',   # Matches win2016, win2016datacenter, etc.
+    r'Windows-only',
+    r'Windows VM',
+    r'\bwinget\b',
+    r'\bchoco\b',
+    r'chocolatey',
+    r'msiexec',
+    r'regedit',
+    r'Windows Registry',
+]
+
+
+def page_has_windows_signals(page_content: str) -> bool:
+    """
+    Check if a page has Windows-specific content that needs LLM review.
+
+    Used as a pre-filter to skip LLM scoring for pages with no Windows signals,
+    reducing costs while ensuring Windows-biased pages get full analysis.
+
+    Args:
+        page_content: Full markdown/text content of the page
+
+    Returns:
+        True if Windows signals detected, False otherwise
+    """
+    if not page_content:
+        return False
+
+    for pattern in PROSE_WINDOWS_PATTERNS:
+        if re.search(pattern, page_content, re.IGNORECASE):
+            return True
+    return False
 
 def is_windows_biased(snippet):
     # If the snippet is under an Azure PowerShell tab, do not flag as biased
