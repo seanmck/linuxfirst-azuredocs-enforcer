@@ -387,6 +387,8 @@
                                 {% endif %}
                                 {% if page.bias_details.mcp_holistic and page.bias_details.mcp_holistic.get('review_method') == 'llm' %}
                                     <span class="review-badge review-llm">LLM Reviewed</span>
+                                {% elif page.bias_details.mcp_holistic and page.bias_details.mcp_holistic.get('review_method') == 'llm_pending' %}
+                                    <span class="review-badge review-pending">LLM Pending</span>
                                 {% elif page.bias_details.mcp_holistic and page.bias_details.mcp_holistic.get('review_method') == 'heuristic_skip' %}
                                     <span class="review-badge review-heuristic">Heuristic Skip</span>
                                 {% endif %}
