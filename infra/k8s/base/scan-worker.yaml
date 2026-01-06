@@ -22,7 +22,7 @@ spec:
       serviceAccountName: azuredocs-app-sa
       containers:
       - name: scan-worker
-        image: seanmckdemo.azurecr.io/queue-worker:main-da0e93f
+        image: seanmckdemo.azurecr.io/queue-worker:main-bab875f
         imagePullPolicy: Always
         command: ["python", "worker/queue_worker.py"]
         env:
