@@ -27,6 +27,7 @@ resources:
   - webui.yaml
   - scan-worker.yaml
   - doc-worker-keda.yaml
+  - llm-worker-keda.yaml
   - bias-scoring-service-keda.yaml
 
   # Jobs & CronJobs

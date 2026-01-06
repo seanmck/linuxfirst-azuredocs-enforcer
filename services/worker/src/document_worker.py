@@ -38,6 +38,7 @@ class DocumentWorker:
     
     def __init__(self):
         self.queue_service = QueueService(queue_name='changed_files')
+        self.llm_queue_service = QueueService(queue_name='llm_scoring')
         self.scoring_service = ScoringService()
         self.github_service = GitHubService()
         # Note: Using progress_tracker directly instead of progress_service to avoid FastAPI dependency
@@ -46,6 +47,8 @@ class DocumentWorker:
         self.worker_id = f"document_worker_{os.getpid()}_{int(time.time())}"
         self.shutdown_event = threading.Event()
         self.setup_signal_handlers()
+        # Connect to LLM scoring queue for publishing
+        self.llm_queue_service.connect()
 
     def setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown"""
@@ -317,9 +320,19 @@ class DocumentWorker:
 
             # Unified scoring: use heuristic filter to decide if LLM review is needed
             if page_has_windows_signals(file_content):
-                # Page has Windows signals - send to LLM for holistic review
-                self.logger.info(f"Windows signals detected in {url}, sending to LLM")
-                self._apply_holistic_scoring(db_session, page, file_content, scan_id, review_method='llm')
+                # Page has Windows signals - publish to LLM queue (non-blocking)
+                self.logger.info(f"Windows signals detected in {url}, queuing for LLM review")
+                self.llm_queue_service.publish_task({
+                    'scan_id': scan_id,
+                    'page_id': page.id,
+                    'page_url': url,
+                    'page_content': file_content
+                })
+                page.mcp_holistic = {
+                    'review_method': 'llm_pending',
+                    'queued_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
+                }
+                db_session.commit()
             else:
                 # No Windows signals - skip LLM entirely
                 self.logger.info(f"No Windows signals in {url}, skipping LLM review")
@@ -336,35 +349,6 @@ class DocumentWorker:
         except Exception as e:
             self.logger.error(f"Error processing GitHub document {page.url}: {e}", exc_info=True)
             return False
-
-
-    def _apply_holistic_scoring(self, db_session: Session, page: Page, content: str, scan_id: int, review_method: str = 'llm'):
-        """Apply holistic MCP scoring to the page"""
-        try:
-            mcp_result = self.scoring_service.apply_mcp_holistic_scoring(content, page.url)
-            if mcp_result:
-                # Add review method to track how the page was scored
-                mcp_result['review_method'] = review_method
-                page.mcp_holistic = mcp_result
-                db_session.commit()
-
-                # Check if bias was detected and report result
-                if mcp_result.get('bias_types'):
-                    progress_tracker.report_page_result(
-                        db_session, scan_id, page.url, True, mcp_result
-                    )
-            else:
-                # LLM call failed - mark as error with review method
-                page.mcp_holistic = {
-                    'bias_types': [],
-                    'summary': None,
-                    'review_method': 'llm_error',
-                    'error': 'Holistic scoring failed'
-                }
-                db_session.commit()
-
-        except Exception as e:
-            self.logger.error(f"Error applying holistic scoring to {page.url}: {e}", exc_info=True)
 
 
     def _extract_file_path_from_url(self, github_url: str) -> Optional[str]:
@@ -515,7 +499,17 @@ class DocumentWorker:
             scan = db_session.query(Scan).filter(Scan.id == scan_id).first()
             if not scan:
                 return
-            
+
+            # Check if any pages are still pending LLM scoring
+            pending_llm = db_session.query(Page).filter(
+                Page.scan_id == scan_id,
+                Page.mcp_holistic['review_method'].astext == 'llm_pending'
+            ).count()
+
+            if pending_llm > 0:
+                self.logger.info(f"Scan {scan_id} has {pending_llm} pages still pending LLM scoring, skipping finalization")
+                return
+
             # Calculate metrics
             total_pages = db_session.query(Page).filter(Page.scan_id == scan.id).count()
             processed_pages = db_session.query(Page).filter(
