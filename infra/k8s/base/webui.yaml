@@ -35,7 +35,7 @@ spec:
       serviceAccountName: azuredocs-app-sa
       containers:
         - name: webui
-          image: seanmckdemo.azurecr.io/webui:main-64a8f5f
+          image: seanmckdemo.azurecr.io/webui:main-f1b54ff
           env:
           - name: AZURE_OPENAI_DEPLOYMENT
             value: "gpt-4.1"
