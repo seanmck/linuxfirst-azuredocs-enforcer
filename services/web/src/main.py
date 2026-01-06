@@ -73,6 +73,29 @@ def markdown_filter(text):
 
 templates.env.filters['markdown'] = markdown_filter
 
+def truncate_url_filter(url, max_length=60):
+    """Truncate URL for display, keeping the end (most specific part)."""
+    if not url or len(url) <= max_length:
+        return url
+    # Keep the last part of the URL (the filename)
+    parts = url.split('/')
+    filename = parts[-1] if parts else url
+    if len(filename) >= max_length - 3:
+        return '...' + filename[-(max_length-3):]
+    remaining = max_length - len(filename) - 4  # 4 for ".../"
+    prefix = '/'.join(parts[:-1])
+    if len(prefix) > remaining:
+        prefix = '...' + prefix[-(remaining-3):]
+    return prefix + '/' + filename
+
+templates.env.filters['truncate_url'] = truncate_url_filter
+
+def format_doc_set_name_filter(doc_set):
+    """Jinja2 filter wrapper for format_doc_set_name."""
+    return format_doc_set_name(doc_set) if doc_set else 'Unknown'
+
+templates.env.filters['format_doc_set_name'] = format_doc_set_name_filter
+
 # Admin authentication is now handled in webui/routes/admin.py
 
 # Simple cache for expensive operations
@@ -542,14 +565,31 @@ async def status():
     return JSONResponse({"running": running})
 
 @app.get("/flagged")
-async def flagged_docs(request: Request):
-    """Placeholder route for flagged documents page"""
-    return templates.TemplateResponse("placeholder.html", {
-        "request": request,
-        "page_title": "Flagged Documents",
-        "message": "This page will show documents that have been flagged for Windows bias.",
-        "coming_soon": True
-    })
+async def flagged_docs(request: Request, docset: str = Query(None)):
+    """Display all flagged documentation pages with optional docset filtering."""
+    from utils.docset_queries import get_all_flagged_pages, get_available_docsets
+
+    db = SessionLocal()
+    try:
+        flagged_pages = get_all_flagged_pages(db)
+        available_docsets = get_available_docsets(db)
+
+        # Filter by docset if specified
+        if docset:
+            flagged_pages = [p for p in flagged_pages if p['doc_set'] == docset]
+
+        # Sort by docset, then by URL
+        flagged_pages.sort(key=lambda x: (x['doc_set'] or '', x['url']))
+
+        return templates.TemplateResponse("flagged_docs.html", {
+            "request": request,
+            "flagged_pages": flagged_pages,
+            "available_docsets": available_docsets,
+            "selected_docset": docset,
+            "total_count": len(flagged_pages)
+        })
+    finally:
+        db.close()
 
 @app.get("/pull-requests")
 async def pull_requests(request: Request):
