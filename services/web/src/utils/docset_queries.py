@@ -224,3 +224,68 @@ def get_available_docsets(db: Session, limit: int = 100) -> List[str]:
             all_docsets.add(extracted_docset)
     
     return sorted(list(all_docsets))
+
+
+def get_all_flagged_pages(db: Session, limit: int = 1000) -> List[Dict[str, Any]]:
+    """
+    Get all flagged pages across all docsets efficiently.
+
+    Args:
+        db: Database session
+        limit: Maximum number of pages to return
+
+    Returns:
+        List of flagged page dictionaries with docset, URL, bias info
+    """
+    from shared.utils.bias_utils import get_page_priority
+    from shared.utils.url_utils import format_doc_set_name
+
+    # Query pages joined with scans, ordered by most recent scan first
+    pages_query = (
+        db.query(Page, Scan.started_at)
+        .join(Scan, Page.scan_id == Scan.id)
+        .order_by(Scan.started_at.desc())
+    )
+
+    page_scan_results = pages_query.limit(limit * 2).all()  # Get extra to account for non-biased
+
+    flagged_pages = []
+    seen_urls = set()  # Deduplicate by URL (keep most recent scan)
+
+    for page, scan_date in page_scan_results:
+        if page.url in seen_urls:
+            continue
+
+        if not is_page_biased(page):
+            continue
+
+        seen_urls.add(page.url)
+
+        # Get docset from page.doc_set or extract from URL
+        doc_set = page.doc_set
+        if not doc_set:
+            doc_set = extract_doc_set_from_url(page.url)
+
+        # Parse mcp_holistic for bias details
+        mcp_data = get_parsed_mcp_holistic(page)
+        bias_types = mcp_data.get('bias_types', []) if mcp_data else []
+        if isinstance(bias_types, str):
+            bias_types = [bias_types]
+        priority_label, priority_score = get_page_priority(page)
+
+        flagged_pages.append({
+            'id': page.id,
+            'url': page.url,
+            'doc_set': doc_set,
+            'display_name': format_doc_set_name(doc_set) if doc_set else 'Unknown',
+            'scan_date': scan_date,
+            'bias_types': bias_types,
+            'priority': priority_label,
+            'priority_score': priority_score,
+            'summary': mcp_data.get('summary', '') if mcp_data else ''
+        })
+
+        if len(flagged_pages) >= limit:
+            break
+
+    return flagged_pages
