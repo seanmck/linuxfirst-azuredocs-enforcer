@@ -127,7 +127,9 @@ class AzureOpenAIConfig:
     deployment: str = "gpt-35-turbo"
     api_version: str = "2023-05-15"
     client_id: Optional[str] = None  # For managed identity authentication
-    
+    requests_per_minute: int = 60  # Rate limit for API requests
+    llm_batch_size: int = 5  # Number of snippets to score per LLM request (1 = no batching)
+
     @classmethod
     def from_env(cls) -> 'AzureOpenAIConfig':
         return cls(
@@ -135,7 +137,9 @@ class AzureOpenAIConfig:
             endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
             deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-35-turbo"),
             api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2023-05-15"),
-            client_id=os.getenv("AZURE_OPENAI_CLIENTID")
+            client_id=os.getenv("AZURE_OPENAI_CLIENTID"),
+            requests_per_minute=int(os.getenv("AZURE_OPENAI_RPM", "60")),
+            llm_batch_size=int(os.getenv("LLM_BATCH_SIZE", "5"))
         )
     
     @property
