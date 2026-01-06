@@ -27,8 +27,7 @@
             align-items: center;
             gap: 2em;
         }
-        .tux-logo {
-            max-width: 80px;
+        .header-icon {
             flex-shrink: 0;
         }
         h1 {
@@ -275,7 +274,16 @@
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <img src="/static/tux.png" alt="Tux" class="tux-logo">
+            <svg class="header-icon" width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 22V4" stroke="#374151" stroke-width="2" stroke-linecap="round"/>
+                <path d="M5 4C5 4 6.5 3 9.5 3C12.5 3 14 5 17 5C20 5 21 4 21 4V14C21 14 20 15 17 15C14 15 12.5 13 9.5 13C6.5 13 5 14 5 14V4Z" fill="url(#flagGradient)" stroke="#dc2626" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <defs>
+                    <linearGradient id="flagGradient" x1="5" y1="3" x2="21" y2="15" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#ef4444"/>
+                        <stop offset="1" stop-color="#dc2626"/>
+                    </linearGradient>
+                </defs>
+            </svg>
             <div>
                 <h1>Flagged Documents</h1>
                 <p class="subtitle">Documentation pages with detected Windows bias</p>
