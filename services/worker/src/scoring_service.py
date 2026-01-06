@@ -37,23 +37,55 @@ class ScoringService:
     def apply_heuristic_scoring(self, snippets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Apply heuristic-based Windows bias detection to snippets
-        
+
         Args:
             snippets: List of snippet dictionaries with 'code' and 'context'
-            
+
         Returns:
             List of snippets that were flagged by heuristics
         """
         flagged = []
-        
+
         for snippet in snippets:
             if is_windows_biased(snippet):
                 flagged.append(snippet)
                 # Record heuristic bias detection
                 self.metrics.record_bias_detected('heuristic', 'windows')
-                
+
         print(f"[INFO] {len(flagged)} snippets flagged by heuristics.")
         return flagged
+
+    def _create_heuristic_score(self, snippet: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create an LLM-score-compatible dict using heuristic detection.
+        Used as fallback when batch LLM scoring fails.
+        """
+        biased = is_windows_biased(snippet)
+        code = snippet.get('code', '').lower()
+
+        return {
+            "windows_biased": biased,
+            "bias_types": {
+                "powershell_only": 'powershell' in code or bool(any(
+                    cmd in code for cmd in ['get-', 'set-', 'new-', 'remove-']
+                )),
+                "windows_paths": bool('c:\\' in code or '\\users\\' in code),
+                "windows_commands": bool(any(
+                    cmd in code for cmd in ['dir', 'copy', 'del', 'cls', 'type']
+                )),
+                "windows_tools": bool(any(
+                    tool in code for tool in ['regedit', 'msiexec', 'choco', 'winget']
+                )),
+                "missing_linux_example": biased,
+                "windows_specific_syntax": bool('$env:' in code),
+                "windows_registry": 'registry' in code or 'regedit' in code,
+                "windows_services": bool(any(
+                    svc in code for svc in ['net start', 'net stop', 'sc ']
+                ))
+            },
+            "explanation": "Heuristic fallback (batch scoring timed out)" if biased else "No bias detected (heuristic fallback)",
+            "method": "heuristic_fallback"
+        }
 
     def apply_llm_scoring(self, snippets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -122,12 +154,14 @@ class ScoringService:
                         if snippet_id in snippet_id_map:
                             snippet_id_map[snippet_id]['llm_score'] = result
                 else:
-                    print(f"[WARN] Batch scoring failed with status {response.status_code}, falling back to individual scoring")
-                    self._apply_individual_scoring(batch)
+                    print(f"[WARN] Batch scoring failed with status {response.status_code}, falling back to heuristic scoring")
+                    for snippet in batch:
+                        snippet['llm_score'] = self._create_heuristic_score(snippet)
 
             except Exception as e:
-                print(f"[WARN] Batch scoring error: {e}, falling back to individual scoring")
-                self._apply_individual_scoring(batch)
+                print(f"[WARN] Batch scoring error: {e}, falling back to heuristic scoring")
+                for snippet in batch:
+                    snippet['llm_score'] = self._create_heuristic_score(snippet)
 
         return snippets
 
