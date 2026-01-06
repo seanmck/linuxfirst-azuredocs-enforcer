@@ -33,7 +33,7 @@ spec:
       priorityClassName: service-critical-priority
       containers:
         - name: bias-scoring-service
-          image: seanmckdemo.azurecr.io/bias-scoring-service:main-d4dbd8f
+          image: seanmckdemo.azurecr.io/bias-scoring-service:main-bab875f
           env:            
             - name: AZURE_OPENAI_DEPLOYMENT
               value: "gpt-4.1"
