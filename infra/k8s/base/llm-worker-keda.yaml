@@ -23,7 +23,7 @@ spec:
       terminationGracePeriodSeconds: 120  # Longer for LLM calls
       containers:
       - name: llm-worker
-        image: seanmckdemo.azurecr.io/queue-worker:main-64a8f5f
+        image: seanmckdemo.azurecr.io/queue-worker
         imagePullPolicy: Always
         command: ["python", "worker/llm_scoring_worker.py"]
         env:

@@ -10,11 +10,13 @@ patches:
   - path: secret-provider-class-patch.yaml
   - path: sc-azuredocsdbconnection-secret-patch.yaml
 
-# configMapGenerator:
-#   - name: env-config
-#     literals:
-#       - ENVIRONMENT=prod
-
-# replicas:
-#   - name: webui
-#     count: 3
+# Image versions for prod environment (updated via promotion PR)
+images:
+  - name: seanmckdemo.azurecr.io/webui
+    newTag: main-f1b54ff
+  - name: seanmckdemo.azurecr.io/queue-worker
+    newTag: main-64a8f5f
+  - name: seanmckdemo.azurecr.io/bias-scoring-service
+    newTag: main-bab875f
+  - name: seanmckdemo.azurecr.io/linuxfirst-azuredocs-db-migrations
+    newTag: main-bab875f

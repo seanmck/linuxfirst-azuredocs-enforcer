@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: linuxfirst-docs-dev
+  namespace: argocd
+spec:
+  project: linuxfirst-docs
+  source:
+    repoURL: git@github.com:seanmck/linuxfirst-azuredocs-enforcer.git
+    targetRevision: main
+    path: infra/k8s/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: azuredocs-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

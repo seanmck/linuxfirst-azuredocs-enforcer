@@ -15,11 +15,13 @@ patches:
       name: webui-ingress
   - path: openai-deployment-patch.yaml
 
-# configMapGenerator:
-#   - name: env-config
-#     literals:
-#       - ENVIRONMENT=dev
-
-# replicas:
-#   - name: webui
-#     count: 1
+# Image versions for dev environment (updated by CI)
+images:
+  - name: seanmckdemo.azurecr.io/webui
+    newTag: main-f1b54ff
+  - name: seanmckdemo.azurecr.io/queue-worker
+    newTag: main-64a8f5f
+  - name: seanmckdemo.azurecr.io/bias-scoring-service
+    newTag: main-bab875f
+  - name: seanmckdemo.azurecr.io/linuxfirst-azuredocs-db-migrations
+    newTag: main-bab875f
