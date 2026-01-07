@@ -6,6 +6,12 @@ DEV_OVERLAY="infra/k8s/overlays/dev"
 PROD_OVERLAY="infra/k8s/overlays/prod"
 REGISTRY="seanmckdemo.azurecr.io"
 
+for dir in "$DEV_OVERLAY" "$PROD_OVERLAY"; do
+  if [[ ! -d "$dir" ]]; then
+    echo "Error: Directory $dir does not exist"
+    exit 1
+  fi
+done
 # Images to promote
 IMAGES=("webui" "queue-worker" "bias-scoring-service" "linuxfirst-azuredocs-db-migrations")
 
