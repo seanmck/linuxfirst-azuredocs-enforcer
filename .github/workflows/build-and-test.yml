@@ -126,6 +126,10 @@ jobs:
         if: steps.changed.outputs.should_build == 'true'
         run: docker push "${{ steps.meta.outputs.image }}"
 
+      - name: Install Kustomize
+        if: github.ref == 'refs/heads/main' && steps.changed.outputs.should_build == 'true'
+        uses: imranismail/setup-kustomize@v2
+
       - name: Update dev overlay image tags
         if: github.ref == 'refs/heads/main' && steps.changed.outputs.should_build == 'true'
         run: |
