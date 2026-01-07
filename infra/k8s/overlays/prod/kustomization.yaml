@@ -1,22 +1,22 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ../../base
+- ../../base
 labels:
-  - pairs:
-      environment: prod
+- pairs:
+    environment: prod
 patches:
-  - path: service-account-patch.yaml
-  - path: secret-provider-class-patch.yaml
-  - path: sc-azuredocsdbconnection-secret-patch.yaml
+- path: service-account-patch.yaml
+- path: secret-provider-class-patch.yaml
+- path: sc-azuredocsdbconnection-secret-patch.yaml
 
 # Image versions for prod environment (updated via promotion PR)
 images:
-  - name: seanmckdemo.azurecr.io/webui
-    newTag: main-f1b54ff
-  - name: seanmckdemo.azurecr.io/queue-worker
-    newTag: main-64a8f5f
-  - name: seanmckdemo.azurecr.io/bias-scoring-service
-    newTag: main-bab875f
-  - name: seanmckdemo.azurecr.io/linuxfirst-azuredocs-db-migrations
-    newTag: main-bab875f
+- name: seanmckdemo.azurecr.io/bias-scoring-service
+  newTag: main-bab875f
+- name: seanmckdemo.azurecr.io/linuxfirst-azuredocs-db-migrations
+  newTag: main-bab875f
+- name: seanmckdemo.azurecr.io/queue-worker
+  newTag: 0.0.56
+- name: seanmckdemo.azurecr.io/webui
+  newTag: 0.0.78
