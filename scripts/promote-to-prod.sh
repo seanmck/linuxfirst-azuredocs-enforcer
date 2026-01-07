@@ -21,8 +21,8 @@ for IMAGE in "${IMAGES[@]}"; do
     echo "Warning: Image ${REGISTRY}/${IMAGE} not found in ${DEV_OVERLAY}/kustomization.yaml; skipping."
     continue
   fi
-  # Extract current tag from dev overlay
-  TAG=$(grep -A1 "name: ${REGISTRY}/${IMAGE}$" "${DEV_OVERLAY}/kustomization.yaml" | grep "newTag:" | awk '{print $2}')
+  # Extract current tag from dev overlay using yq for robust YAML parsing
+  TAG=$(yq eval ".images[] | select(.name == \"${REGISTRY}/${IMAGE}\") | .newTag" "${DEV_OVERLAY}/kustomization.yaml")
 
   if [[ -z "$TAG" ]]; then
     echo "Error: Could not find tag for ${IMAGE} in ${DEV_OVERLAY}/kustomization.yaml" >&2
