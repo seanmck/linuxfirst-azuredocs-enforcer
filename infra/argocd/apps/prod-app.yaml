@@ -13,13 +13,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: azuredocs-app
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
-  # No automated block initially - manual sync only
-  # Enable after successful cutover:
-  # syncPolicy:
-  #   automated:
-  #     prune: true
-  #     selfHeal: true
-  #   syncOptions:
-  #     - CreateNamespace=true
