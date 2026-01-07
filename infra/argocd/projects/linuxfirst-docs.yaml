@@ -6,7 +6,7 @@ metadata:
 spec:
   description: Linux First Azure Docs Enforcer
   sourceRepos:
-    - 'git@github.com:seanmck/linuxfirst-azuredocs-enforcer.git'
+    - 'https://github.com/seanmck/linuxfirst-azuredocs-enforcer.git'
   destinations:
     - namespace: azuredocs-app
       server: https://kubernetes.default.svc

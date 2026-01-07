@@ -6,7 +6,7 @@ metadata:
 spec:
   project: linuxfirst-docs
   source:
-    repoURL: git@github.com:seanmck/linuxfirst-azuredocs-enforcer.git
+    repoURL: https://github.com/seanmck/linuxfirst-azuredocs-enforcer.git
     targetRevision: main
     path: infra/k8s/overlays/dev
   destination:
