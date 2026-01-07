@@ -1,6 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
+# Verify kustomize is installed
+if ! command -v kustomize &> /dev/null; then
+  echo "Error: kustomize is not installed"
+  exit 1
+fi
+
 # Copy image tags from dev overlay to prod overlay using kustomize
 DEV_OVERLAY="infra/k8s/overlays/dev"
 PROD_OVERLAY="infra/k8s/overlays/prod"
