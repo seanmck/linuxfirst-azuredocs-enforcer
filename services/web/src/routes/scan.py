@@ -198,7 +198,7 @@ def enqueue_scan_task(url, scan_id, source, force_rescan=False):
         credentials=credentials
     ))
     channel = connection.channel()
-    channel.queue_declare(queue='scan_tasks')
+    channel.queue_declare(queue='scan_tasks', durable=True)
     task_data = {
         "url": url,
         "scan_id": scan_id,

@@ -57,7 +57,7 @@ class QueueService:
                 self.channel.basic_qos(prefetch_count=1)
                 self.logger.debug("Set prefetch_count=1 for proper KEDA scaling")
                 
-                self.channel.queue_declare(queue=self.queue_name)
+                self.channel.queue_declare(queue=self.queue_name, durable=True)
                 self.logger.debug(f"Queue '{self.queue_name}' declared.")
                 
                 # Log current queue state
