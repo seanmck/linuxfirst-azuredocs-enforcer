@@ -24,10 +24,13 @@ for IMAGE in "${IMAGES[@]}"; do
   # Extract current tag from dev overlay
   TAG=$(grep -A1 "name: ${REGISTRY}/${IMAGE}$" "${DEV_OVERLAY}/kustomization.yaml" | grep "newTag:" | awk '{print $2}')
 
-  if [[ -n "$TAG" ]]; then
-    echo "Promoting ${IMAGE} to ${TAG}"
-    (cd "$PROD_OVERLAY" && kustomize edit set image "${REGISTRY}/${IMAGE}:${TAG}")
+  if [[ -z "$TAG" ]]; then
+    echo "Error: Could not find tag for ${IMAGE} in ${DEV_OVERLAY}/kustomization.yaml" >&2
+    exit 1
   fi
+
+  echo "Promoting ${IMAGE} to ${TAG}"
+  (cd "$PROD_OVERLAY" && kustomize edit set image "${REGISTRY}/${IMAGE}:${TAG}")
 done
 
 echo "Done. Review changes with: git diff ${PROD_OVERLAY}/kustomization.yaml"
