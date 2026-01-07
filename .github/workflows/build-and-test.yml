@@ -137,7 +137,14 @@ jobs:
           IMAGE_TAG="${{ steps.meta.outputs.imagetag }}"
           REGISTRY="${ACR_NAME}.azurecr.io"
 
-          # Use kustomize to safely update the image tag (avoids fragile sed on YAML)
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Fetch latest main to pick up changes from previous matrix jobs or concurrent merges
+          git fetch origin main
+          git reset --hard origin/main
+
+          # Use kustomize to safely update the image tag
           cd infra/k8s/overlays/dev
           kustomize edit set image "${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
           cd -
@@ -146,9 +153,5 @@ jobs:
             exit 0
           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
           git commit -am "chore(dev): bump ${{ matrix.service }} to ${IMAGE_TAG}"
-          git pull --rebase origin main
-          git push
+          git push origin main
