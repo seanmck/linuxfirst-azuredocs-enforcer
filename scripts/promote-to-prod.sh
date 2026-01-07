@@ -16,6 +16,11 @@ done
 IMAGES=("webui" "queue-worker" "bias-scoring-service" "linuxfirst-azuredocs-db-migrations")
 
 for IMAGE in "${IMAGES[@]}"; do
+  # Ensure the image exists in the dev overlay before attempting to extract its tag
+  if ! grep -q "name: ${REGISTRY}/${IMAGE}$" "${DEV_OVERLAY}/kustomization.yaml"; then
+    echo "Warning: Image ${REGISTRY}/${IMAGE} not found in ${DEV_OVERLAY}/kustomization.yaml; skipping."
+    continue
+  fi
   # Extract current tag from dev overlay
   TAG=$(grep -A1 "name: ${REGISTRY}/${IMAGE}$" "${DEV_OVERLAY}/kustomization.yaml" | grep "newTag:" | awk '{print $2}')
 
