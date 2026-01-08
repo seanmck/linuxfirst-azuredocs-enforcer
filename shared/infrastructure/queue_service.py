@@ -134,7 +134,7 @@ class QueueService:
                         f"Failed to establish connection (attempt {attempt + 1}/{max_publish_retries})"
                     )
                     continue
-                    
+
                 message = json.dumps(task_data)
                 self.channel.basic_publish(
                     exchange='',
