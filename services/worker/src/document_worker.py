@@ -322,17 +322,34 @@ class DocumentWorker:
             if page_has_windows_signals(file_content):
                 # Page has Windows signals - publish to LLM queue (non-blocking)
                 self.logger.info(f"Windows signals detected in {url}, queuing for LLM review")
-                self.llm_queue_service.publish_task({
+
+                llm_task = {
                     'scan_id': scan_id,
                     'page_id': page.id,
                     'page_url': url,
                     'page_content': file_content
-                })
-                page.mcp_holistic = {
-                    'review_method': 'llm_pending',
-                    'queued_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
                 }
-                db_session.commit()
+
+                publish_success = self.llm_queue_service.publish_task(llm_task)
+
+                if publish_success:
+                    page.mcp_holistic = {
+                        'review_method': 'llm_pending',
+                        'queued_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    }
+                    db_session.commit()
+                    self.logger.info(f"Successfully queued {url} for LLM review")
+                else:
+                    # Publish failed - mark as needing retry so the task gets requeued
+                    self.logger.error(f"Failed to publish LLM task for {url}, marking for retry")
+                    page.mcp_holistic = {
+                        'review_method': 'llm_queue_failed',
+                        'failed_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        'error': 'Failed to publish to LLM queue'
+                    }
+                    db_session.commit()
+                    # Return False to trigger message requeue
+                    return False
             else:
                 # No Windows signals - skip LLM entirely
                 self.logger.info(f"No Windows signals in {url}, skipping LLM review")
