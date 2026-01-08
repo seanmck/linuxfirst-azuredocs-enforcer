@@ -101,6 +101,19 @@ class QueueService:
             not self.channel.is_closed
         )
 
+    def _ensure_connection(self) -> bool:
+        """
+        Ensure the connection and channel are healthy, reconnecting if necessary.
+        
+        Returns:
+            True if connection is ready, False otherwise
+        """
+        if not self.is_connected():
+            self.logger.warning("Channel/connection unavailable, attempting reconnect")
+            self._cleanup_connection()
+            return self.connect()
+        return True
+
     def publish_task(self, task_data: Dict[str, Any]) -> bool:
         """
         Publish a task to the queue with automatic reconnection on failure.
@@ -116,13 +129,12 @@ class QueueService:
         for attempt in range(max_publish_retries):
             try:
                 # Ensure connection and channel are healthy before publishing
-                if not self.is_connected():
+                if not self._ensure_connection():
                     self.logger.warning(
-                        f"Channel/connection unavailable, attempting reconnect (attempt {attempt + 1}/{max_publish_retries})"
+                        f"Failed to establish connection (attempt {attempt + 1}/{max_publish_retries})"
                     )
-                    self._cleanup_connection()
-                    if not self.connect():
-                        continue
+                    continue
+                    
                 message = json.dumps(task_data)
                 self.channel.basic_publish(
                     exchange='',
@@ -164,18 +176,12 @@ class QueueService:
 
         for attempt in range(max_publish_retries):
             try:
-                # Check if channel/connection is closed or missing
-                if not self.channel or not self.connection or self.connection.is_closed:
-                    self.logger.warning(f"Channel/connection unavailable for batch to {queue_name}, attempting reconnect (attempt {attempt + 1}/{max_publish_retries})")
-                    self._cleanup_connection()
-                    if not self.connect():
-                        continue
-
-                if self.channel.is_closed:
-                    self.logger.warning(f"Channel closed for batch to {queue_name}, attempting reconnect (attempt {attempt + 1}/{max_publish_retries})")
-                    self._cleanup_connection()
-                    if not self.connect():
-                        continue
+                # Ensure connection and channel are healthy before publishing
+                if not self._ensure_connection():
+                    self.logger.warning(
+                        f"Failed to establish connection for batch to {queue_name} (attempt {attempt + 1}/{max_publish_retries})"
+                    )
+                    continue
 
                 # Publish all messages in the batch
                 for message in messages:
@@ -219,18 +225,12 @@ class QueueService:
 
         for attempt in range(max_publish_retries):
             try:
-                # Check if channel/connection is closed or missing
-                if not self.channel or not self.connection or self.connection.is_closed:
-                    self.logger.warning(f"Channel/connection unavailable for {queue_name}, attempting reconnect (attempt {attempt + 1}/{max_publish_retries})")
-                    self._cleanup_connection()
-                    if not self.connect():
-                        continue
-
-                if self.channel.is_closed:
-                    self.logger.warning(f"Channel closed for {queue_name}, attempting reconnect (attempt {attempt + 1}/{max_publish_retries})")
-                    self._cleanup_connection()
-                    if not self.connect():
-                        continue
+                # Ensure connection and channel are healthy before publishing
+                if not self._ensure_connection():
+                    self.logger.warning(
+                        f"Failed to establish connection for {queue_name} (attempt {attempt + 1}/{max_publish_retries})"
+                    )
+                    continue
 
                 message_body = json.dumps(message)
                 self.channel.basic_publish(
