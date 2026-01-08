@@ -115,20 +115,14 @@ class QueueService:
 
         for attempt in range(max_publish_retries):
             try:
-                # Check if channel/connection is closed or missing
-                if not self.channel or not self.connection or self.connection.is_closed:
-                    self.logger.warning(f"Channel/connection unavailable, attempting reconnect (attempt {attempt + 1}/{max_publish_retries})")
+                # Ensure connection and channel are healthy before publishing
+                if not self.is_connected():
+                    self.logger.warning(
+                        f"Channel/connection unavailable, attempting reconnect (attempt {attempt + 1}/{max_publish_retries})"
+                    )
                     self._cleanup_connection()
                     if not self.connect():
                         continue
-
-                # Also check if channel itself is closed (can happen independently)
-                if self.channel.is_closed:
-                    self.logger.warning(f"Channel closed, attempting reconnect (attempt {attempt + 1}/{max_publish_retries})")
-                    self._cleanup_connection()
-                    if not self.connect():
-                        continue
-
                 message = json.dumps(task_data)
                 self.channel.basic_publish(
                     exchange='',
