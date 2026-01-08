@@ -87,96 +87,180 @@ class QueueService:
         except Exception as e:
             print(f"[ERROR] Error closing RabbitMQ connection: {e}")
 
+    def is_connected(self) -> bool:
+        """
+        Check if the connection and channel are healthy.
+
+        Returns:
+            True if connection is healthy, False otherwise
+        """
+        return (
+            self.connection is not None and
+            not self.connection.is_closed and
+            self.channel is not None and
+            not self.channel.is_closed
+        )
+
     def publish_task(self, task_data: Dict[str, Any]) -> bool:
         """
-        Publish a task to the queue
-        
+        Publish a task to the queue with automatic reconnection on failure.
+
         Args:
             task_data: Dictionary containing task information
-            
+
         Returns:
             True if published successfully, False otherwise
         """
-        try:
-            if not self.channel:
-                if not self.connect():
-                    return False
-                    
-            message = json.dumps(task_data)
-            self.channel.basic_publish(
-                exchange='',
-                routing_key=self.queue_name,
-                body=message
-            )
-            # Log task info without the full message content to avoid polluting logs
-            task_info = {k: v for k, v in task_data.items() if k != 'page_content'}
-            print(f"[DEBUG] Published task to queue: {json.dumps(task_info)}")
-            return True
-            
-        except Exception as e:
-            print(f"[ERROR] Failed to publish task: {e}")
-            return False
+        max_publish_retries = 2
+
+        for attempt in range(max_publish_retries):
+            try:
+                # Check if channel/connection is closed or missing
+                if not self.channel or not self.connection or self.connection.is_closed:
+                    self.logger.warning(f"Channel/connection unavailable, attempting reconnect (attempt {attempt + 1}/{max_publish_retries})")
+                    self._cleanup_connection()
+                    if not self.connect():
+                        continue
+
+                # Also check if channel itself is closed (can happen independently)
+                if self.channel.is_closed:
+                    self.logger.warning(f"Channel closed, attempting reconnect (attempt {attempt + 1}/{max_publish_retries})")
+                    self._cleanup_connection()
+                    if not self.connect():
+                        continue
+
+                message = json.dumps(task_data)
+                self.channel.basic_publish(
+                    exchange='',
+                    routing_key=self.queue_name,
+                    body=message
+                )
+                # Log task info without the full message content to avoid polluting logs
+                task_info = {k: v for k, v in task_data.items() if k != 'page_content'}
+                self.logger.debug(f"Published task to queue: {json.dumps(task_info)}")
+                return True
+
+            except (pika.exceptions.ConnectionClosed,
+                    pika.exceptions.ChannelClosed,
+                    pika.exceptions.ConnectionWrongStateError) as e:
+                self.logger.warning(f"Connection error during publish (attempt {attempt + 1}/{max_publish_retries}): {e}")
+                self._cleanup_connection()
+                if attempt < max_publish_retries - 1:
+                    time.sleep(1)
+
+            except Exception as e:
+                self.logger.error(f"Unexpected error publishing task: {e}")
+                return False
+
+        self.logger.error(f"Failed to publish task after {max_publish_retries} attempts")
+        return False
     
     def publish_batch(self, queue_name: str, messages: list) -> bool:
         """
-        Publish multiple messages to a queue in a batch
-        
+        Publish multiple messages to a queue in a batch with automatic reconnection.
+
         Args:
             queue_name: Name of the queue to publish to
             messages: List of message dictionaries
-            
+
         Returns:
             True if all messages published successfully, False otherwise
         """
-        try:
-            if not self.channel:
-                if not self.connect():
-                    return False
-            
-            # Publish all messages in the batch
-            for message in messages:
+        max_publish_retries = 2
+
+        for attempt in range(max_publish_retries):
+            try:
+                # Check if channel/connection is closed or missing
+                if not self.channel or not self.connection or self.connection.is_closed:
+                    self.logger.warning(f"Channel/connection unavailable for batch to {queue_name}, attempting reconnect (attempt {attempt + 1}/{max_publish_retries})")
+                    self._cleanup_connection()
+                    if not self.connect():
+                        continue
+
+                if self.channel.is_closed:
+                    self.logger.warning(f"Channel closed for batch to {queue_name}, attempting reconnect (attempt {attempt + 1}/{max_publish_retries})")
+                    self._cleanup_connection()
+                    if not self.connect():
+                        continue
+
+                # Publish all messages in the batch
+                for message in messages:
+                    message_body = json.dumps(message)
+                    self.channel.basic_publish(
+                        exchange='',
+                        routing_key=queue_name,
+                        body=message_body
+                    )
+
+                self.logger.info(f"Published {len(messages)} messages to {queue_name} queue")
+                return True
+
+            except (pika.exceptions.ConnectionClosed,
+                    pika.exceptions.ChannelClosed,
+                    pika.exceptions.ConnectionWrongStateError) as e:
+                self.logger.warning(f"Connection error during batch publish to {queue_name} (attempt {attempt + 1}/{max_publish_retries}): {e}")
+                self._cleanup_connection()
+                if attempt < max_publish_retries - 1:
+                    time.sleep(1)
+
+            except Exception as e:
+                self.logger.error(f"Failed to publish batch to {queue_name}: {e}")
+                return False
+
+        self.logger.error(f"Failed to publish batch to {queue_name} after {max_publish_retries} attempts")
+        return False
+    
+    def publish(self, queue_name: str, message: Dict[str, Any]) -> bool:
+        """
+        Publish a single message to a specific queue with automatic reconnection.
+
+        Args:
+            queue_name: Name of the queue to publish to
+            message: Message dictionary to publish
+
+        Returns:
+            True if published successfully, False otherwise
+        """
+        max_publish_retries = 2
+
+        for attempt in range(max_publish_retries):
+            try:
+                # Check if channel/connection is closed or missing
+                if not self.channel or not self.connection or self.connection.is_closed:
+                    self.logger.warning(f"Channel/connection unavailable for {queue_name}, attempting reconnect (attempt {attempt + 1}/{max_publish_retries})")
+                    self._cleanup_connection()
+                    if not self.connect():
+                        continue
+
+                if self.channel.is_closed:
+                    self.logger.warning(f"Channel closed for {queue_name}, attempting reconnect (attempt {attempt + 1}/{max_publish_retries})")
+                    self._cleanup_connection()
+                    if not self.connect():
+                        continue
+
                 message_body = json.dumps(message)
                 self.channel.basic_publish(
                     exchange='',
                     routing_key=queue_name,
                     body=message_body
                 )
-            
-            self.logger.info(f"Published {len(messages)} messages to {queue_name} queue")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to publish batch to {queue_name}: {e}")
-            return False
-    
-    def publish(self, queue_name: str, message: Dict[str, Any]) -> bool:
-        """
-        Publish a single message to a specific queue
-        
-        Args:
-            queue_name: Name of the queue to publish to
-            message: Message dictionary to publish
-            
-        Returns:
-            True if published successfully, False otherwise
-        """
-        try:
-            if not self.channel:
-                if not self.connect():
-                    return False
-            
-            message_body = json.dumps(message)
-            self.channel.basic_publish(
-                exchange='',
-                routing_key=queue_name,
-                body=message_body
-            )
-            
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to publish to {queue_name}: {e}")
-            return False
+
+                return True
+
+            except (pika.exceptions.ConnectionClosed,
+                    pika.exceptions.ChannelClosed,
+                    pika.exceptions.ConnectionWrongStateError) as e:
+                self.logger.warning(f"Connection error during publish to {queue_name} (attempt {attempt + 1}/{max_publish_retries}): {e}")
+                self._cleanup_connection()
+                if attempt < max_publish_retries - 1:
+                    time.sleep(1)
+
+            except Exception as e:
+                self.logger.error(f"Failed to publish to {queue_name}: {e}")
+                return False
+
+        self.logger.error(f"Failed to publish to {queue_name} after {max_publish_retries} attempts")
+        return False
 
     def consume_tasks(self, callback: Callable[[Dict[str, Any]], None], shutdown_event: Optional[threading.Event] = None):
         """
