@@ -107,7 +107,7 @@ spec:
                 - rabbitmq-diagnostics
                 - -q
                 - check_running
-            initialDelaySeconds: 10
+            initialDelaySeconds: 25
             periodSeconds: 10
             timeoutSeconds: 5
       volumes:
