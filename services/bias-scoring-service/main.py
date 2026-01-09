@@ -108,10 +108,47 @@ class ScoreSnippetsRequest(BaseModel):
 # Batch size for snippet scoring (configurable via environment)
 LLM_BATCH_SIZE = int(os.getenv("LLM_BATCH_SIZE", "5"))
 
+def extract_page_title(content: str) -> str:
+    """Extract the page title from markdown content.
+
+    Looks for:
+    1. YAML frontmatter 'title:' field
+    2. First # heading
+    3. First ## heading as fallback
+    """
+    import re
+
+    if not content:
+        return ""
+
+    # Try YAML frontmatter first (between --- markers)
+    frontmatter_match = re.match(r'^---\s*\n(.*?)\n---', content, re.DOTALL)
+    if frontmatter_match:
+        frontmatter = frontmatter_match.group(1)
+        title_match = re.search(r'^title:\s*["\']?(.+?)["\']?\s*$', frontmatter, re.MULTILINE)
+        if title_match:
+            return title_match.group(1).strip()
+
+    # Try first # heading
+    h1_match = re.search(r'^#\s+(.+?)(?:\s*#*)?\s*$', content, re.MULTILINE)
+    if h1_match:
+        return h1_match.group(1).strip()
+
+    # Try first ## heading as fallback
+    h2_match = re.search(r'^##\s+(.+?)(?:\s*#*)?\s*$', content, re.MULTILINE)
+    if h2_match:
+        return h2_match.group(1).strip()
+
+    return ""
+
+
 @app.post("/score_page")
 async def score_page(req: ScorePageRequest):
     import json
     import re
+
+    # Extract page title from content
+    page_title = extract_page_title(req.page_content)
 
     prompt = f"""
 You are an expert in cross-platform documentation analysis.
@@ -148,6 +185,8 @@ Page content:
                 result = json.loads(match.group(0))
             else:
                 result = {"raw": text, "bias_types": []}
+            # Add page title to result
+            result["page_title"] = page_title
             return result
 
         except openai.RateLimitError as rate_error:
