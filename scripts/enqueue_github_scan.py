@@ -44,7 +44,12 @@ def enqueue_scan_task(url, scan_id, source, force_rescan=False):
     print(f"[DEBUG] Enqueueing message: {message}")
     
     print(f"[INFO] Enqueuing scan task: url={url}, scan_id={scan_id}, source={source}, force_rescan={force_rescan}")
-    channel.basic_publish(exchange='', routing_key='scan_tasks', body=message)
+    channel.basic_publish(
+        exchange='',
+        routing_key='scan_tasks',
+        body=message,
+        properties=pika.BasicProperties(delivery_mode=2)  # Persistent
+    )
     
     queue_state = channel.queue_declare(queue='scan_tasks', passive=True)
     print(f"[INFO] scan_tasks queue message count after publish: {queue_state.method.message_count}")

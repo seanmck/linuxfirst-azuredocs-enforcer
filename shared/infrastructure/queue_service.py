@@ -139,7 +139,8 @@ class QueueService:
                 self.channel.basic_publish(
                     exchange='',
                     routing_key=self.queue_name,
-                    body=message
+                    body=message,
+                    properties=pika.BasicProperties(delivery_mode=2)  # Persistent
                 )
                 # Log task info without the full message content to avoid polluting logs
                 task_info = {k: v for k, v in task_data.items() if k != 'page_content'}
@@ -189,7 +190,8 @@ class QueueService:
                     self.channel.basic_publish(
                         exchange='',
                         routing_key=queue_name,
-                        body=message_body
+                        body=message_body,
+                        properties=pika.BasicProperties(delivery_mode=2)  # Persistent
                     )
 
                 self.logger.info(f"Published {len(messages)} messages to {queue_name} queue")
@@ -236,7 +238,8 @@ class QueueService:
                 self.channel.basic_publish(
                     exchange='',
                     routing_key=queue_name,
-                    body=message_body
+                    body=message_body,
+                    properties=pika.BasicProperties(delivery_mode=2)  # Persistent
                 )
 
                 return True
