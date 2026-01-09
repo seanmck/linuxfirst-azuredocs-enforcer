@@ -17,9 +17,7 @@ import time
 import pika
 from packages.scorer.llm_client import LLMClient
 import requests
-import re
 import httpx
-from markdown import markdown as md_lib
 from functools import lru_cache
 from routes import admin, scan, llm, websocket, docset, auth, feedback, docpage
 from routes.scan import enqueue_scan_task
@@ -66,29 +64,7 @@ print(f"[DEBUG] Static directory: {STATIC_DIR}")
 print(f"[DEBUG] Static directory exists: {os.path.exists(STATIC_DIR)}")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# Register markdown filter for Jinja2
-
-def markdown_filter(text):
-    return md_lib(text or "")
-
-templates.env.filters['markdown'] = markdown_filter
-
-def truncate_url_filter(url, max_length=60):
-    """Truncate URL for display, keeping the end (most specific part)."""
-    if not url or len(url) <= max_length:
-        return url
-    # Keep the last part of the URL (the filename)
-    parts = url.split('/')
-    filename = parts[-1] if parts else url
-    if len(filename) >= max_length - 3:
-        return '...' + filename[-(max_length-3):]
-    remaining = max_length - len(filename) - 4  # 4 for ".../"
-    prefix = '/'.join(parts[:-1])
-    if len(prefix) > remaining:
-        prefix = '...' + prefix[-(remaining-3):]
-    return prefix + '/' + filename
-
-templates.env.filters['truncate_url'] = truncate_url_filter
+# Register additional Jinja2 filters (markdown, truncate_url, url_to_title are in jinja_env.py)
 
 def format_doc_set_name_filter(doc_set):
     """Jinja2 filter wrapper for format_doc_set_name."""

@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException, Cookie, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
 from shared.utils.database import SessionLocal
 from shared.models import Scan, Page, Snippet, User
 from datetime import datetime
@@ -12,11 +11,9 @@ import pika
 import json
 from shared.utils.bias_utils import is_page_biased, get_page_priority
 from routes.auth import get_current_user
+from jinja_env import templates
 
 router = APIRouter()
-
-TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "../templates")
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 
 @router.get("/scan/{scan_id}")

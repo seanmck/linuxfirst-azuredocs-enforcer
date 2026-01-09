@@ -350,28 +350,45 @@
                 <div class="page-card" data-priority="{{ page['priority_label']|lower }}">
                     <!-- Card Header -->
                     <div class="page-card-header">
-                        <div class="page-card-title">
-                            <a href="{{ page.url }}" target="_blank" rel="noopener noreferrer" class="page-card-url">{{ page.url }}</a>
+                        <div class="page-card-title-group">
+                            <span class="page-card-title">{{ page.url|url_to_title }}</span>
+                            <a href="{{ page.url }}" target="_blank" rel="noopener noreferrer" class="page-card-url">
+                                <svg class="page-card-url-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                    <polyline points="15,3 21,3 21,9"></polyline>
+                                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                                </svg>
+                                {{ page.url|truncate_url }}
+                            </a>
                         </div>
-                        <div class="page-card-actions">
+                        <div class="page-card-priority">
+                            <span class="priority-indicator priority-indicator-{{ page['priority_label']|lower }}">
+                                {{ page['priority_label'] }} Priority
+                            </span>
                             <a href="/docpage/{{ page.id }}" class="page-detail-link">View Details →</a>
                         </div>
                     </div>
 
-                    <!-- Badges Row -->
-                    <div class="page-card-badges">
-                        {% if page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm' %}
-                            <span class="badge badge-review-llm">LLM Reviewed</span>
-                        {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm_pending' %}
-                            <span class="badge badge-review-pending">LLM Pending</span>
-                        {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'heuristic_skip' %}
-                            <span class="badge badge-review-heuristic">Heuristic Skip</span>
-                        {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm_error' %}
-                            <span class="badge badge-review-error">LLM Error</span>
-                        {% else %}
-                            <span class="badge badge-review-unknown">Not Scored</span>
-                        {% endif %}
-                        <span class="badge badge-priority-{{ page['priority_label']|lower }}">{{ page['priority_label'] }} Priority</span>
+                    <!-- Metadata Row -->
+                    <div class="page-card-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Reviewed by:</span>
+                            {% if page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm' %}
+                                <span class="meta-value meta-value-llm">LLM Analysis</span>
+                            {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm_pending' %}
+                                <span class="meta-value meta-value-pending">Pending LLM Review</span>
+                            {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'heuristic_skip' %}
+                                <span class="meta-value meta-value-heuristic">Heuristic Rules</span>
+                            {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm_error' %}
+                                <span class="meta-value meta-value-error">LLM Error</span>
+                            {% else %}
+                                <span class="meta-value">Unknown</span>
+                            {% endif %}
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Issues:</span>
+                            <span class="meta-value">{{ page.mcp_holistic.get('bias_types', [])|length }} bias type{{ 's' if page.mcp_holistic.get('bias_types', [])|length != 1 else '' }}</span>
+                        </div>
                     </div>
 
                     <!-- Card Body - Analysis Content -->
