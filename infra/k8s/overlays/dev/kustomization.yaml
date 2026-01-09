@@ -18,7 +18,7 @@ patches:
 # Image versions for dev environment (updated by CI)
 images:
 - name: seanmckdemo.azurecr.io/bias-scoring-service
-  newTag: main-671eaf2
+  newTag: main-1bcfcf5
 - name: seanmckdemo.azurecr.io/linuxfirst-azuredocs-db-migrations
   newTag: main-2446c1d
 - name: seanmckdemo.azurecr.io/queue-worker
