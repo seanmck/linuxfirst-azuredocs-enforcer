@@ -650,6 +650,385 @@ h1 {
     color: #6b7280;
     font-size: 0.95em;
 }
+/* ===== PROBLEMATIC PAGES SECTION - REDESIGNED ===== */
+
+/* Section header */
+.problematic-pages-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.problematic-pages-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e293b;
+    letter-spacing: -0.025em;
+}
+
+.problematic-pages-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.875rem;
+    background: #fef2f2;
+    color: #dc2626;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+/* Page card container */
+.page-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    margin-bottom: 1.25rem;
+    overflow: hidden;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.page-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    border-color: #d1d5db;
+}
+
+/* Priority accent bar */
+.page-card[data-priority="high"] {
+    border-left: 4px solid #dc2626;
+}
+
+.page-card[data-priority="medium"] {
+    border-left: 4px solid #f59e0b;
+}
+
+.page-card[data-priority="low"] {
+    border-left: 4px solid #10b981;
+}
+
+/* Card header with URL */
+.page-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem 1.5rem;
+    background: #f8fafc;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.page-card-title {
+    flex: 1;
+    min-width: 0;
+}
+
+.page-card-url {
+    display: block;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #1e40af;
+    text-decoration: none;
+    word-break: break-word;
+    line-height: 1.4;
+    transition: color 0.15s ease;
+}
+
+.page-card-url:hover {
+    color: #1e3a8a;
+    text-decoration: underline;
+}
+
+.page-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.page-detail-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #64748b;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    text-decoration: none;
+    transition: all 0.15s ease;
+}
+
+.page-detail-link:hover {
+    color: #1e40af;
+    border-color: #1e40af;
+    background: #eff6ff;
+}
+
+/* Badges row */
+.page-card-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1.5rem;
+    background: #ffffff;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+/* Unified badge styling */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.3125rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    white-space: nowrap;
+}
+
+/* Review method badges */
+.badge-review-llm {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.badge-review-pending {
+    background: #f3e8ff;
+    color: #7c3aed;
+}
+
+.badge-review-heuristic {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.badge-review-error {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.badge-review-unknown {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+/* Priority badges */
+.badge-priority-high {
+    background: #dc2626;
+    color: #ffffff;
+}
+
+.badge-priority-medium {
+    background: #f59e0b;
+    color: #ffffff;
+}
+
+.badge-priority-low {
+    background: #10b981;
+    color: #ffffff;
+}
+
+/* Card body - analysis content */
+.page-card-body {
+    padding: 1.25rem 1.5rem;
+}
+
+/* Analysis sections */
+.analysis-section {
+    margin-bottom: 1.25rem;
+}
+
+.analysis-section:last-child {
+    margin-bottom: 0;
+}
+
+.analysis-label {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+}
+
+/* Bias type chips */
+.bias-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.bias-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.875rem;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1e40af;
+}
+
+.bias-chip-icon {
+    font-size: 1rem;
+}
+
+/* Summary and recommendations text */
+.analysis-text {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: #374151;
+}
+
+.analysis-text ul {
+    margin: 0.5rem 0 0 0;
+    padding-left: 1.25rem;
+}
+
+.analysis-text li {
+    margin-bottom: 0.375rem;
+    line-height: 1.5;
+}
+
+.analysis-text li:last-child {
+    margin-bottom: 0;
+}
+
+/* Card footer with actions */
+.page-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    background: #f8fafc;
+    border-top: 1px solid #e5e7eb;
+}
+
+/* GitHub PR button - unified style */
+.btn-github-pr {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.125rem;
+    background: #24292f;
+    color: #ffffff;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-github-pr:hover {
+    background: #32383f;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(36, 41, 47, 0.25);
+}
+
+.btn-github-pr img {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+}
+
+/* Empty state */
+.no-issues-found {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 2rem;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border: 2px dashed #86efac;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.no-issues-found-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.no-issues-found-text {
+    font-size: 1.0625rem;
+    font-weight: 500;
+    color: #166534;
+    margin: 0;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .problematic-pages-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .page-card-header {
+        flex-direction: column;
+        padding: 1rem;
+    }
+
+    .page-card-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .page-card-badges {
+        padding: 0.75rem 1rem;
+    }
+
+    .page-card-body {
+        padding: 1rem;
+    }
+
+    .page-card-footer {
+        padding: 0.875rem 1rem;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .btn-github-pr {
+        justify-content: center;
+    }
+
+    .bias-chip {
+        padding: 0.375rem 0.625rem;
+        font-size: 0.8125rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-card-url {
+        font-size: 0.875rem;
+    }
+
+    .badge {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.6875rem;
+    }
+
+    .analysis-text {
+        font-size: 0.875rem;
+    }
+}
+
+/* Legacy page-section - kept for backwards compatibility */
 .page-section {
     background: #fff;
     border-radius: 8px;
