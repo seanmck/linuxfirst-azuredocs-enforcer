@@ -58,8 +58,8 @@ def handle_error(exception_context):
         try:
             if conn.info['query_start_time']:
                 conn.info['query_start_time'].pop(-1)
-        except (IndexError, KeyError):
-            # List was empty or key was removed - safe to ignore
+        except IndexError:
+            # List was empty - safe to ignore
             pass
 
 
