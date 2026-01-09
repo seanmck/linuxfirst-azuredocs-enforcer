@@ -105,7 +105,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BRANCH_NAME="promote-to-prod/${{ steps.dev-tags.outputs.webui }}"
+          BRANCH_NAME="promote-to-prod/${{ steps.dev-tags.outputs.webui }}-${{ github.run_id }}"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
