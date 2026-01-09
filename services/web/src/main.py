@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, Form, BackgroundTasks, HTTPException, Depends, Cookie, Body, Query
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.concurrency import run_in_threadpool
+from sqlalchemy import text
 from shared.utils.database import SessionLocal
 from shared.models import Scan, Page, Snippet, BiasSnapshot
 from fastapi.staticfiles import StaticFiles
@@ -26,7 +27,10 @@ from shared.config import AZURE_DOCS_REPOS
 from jinja_env import templates
 from middleware.metrics import PrometheusMiddleware, create_metrics_endpoint
 from middleware.security import SecurityMiddleware
+from middleware.correlation import CorrelationMiddleware
 from shared.utils.metrics import get_metrics
+from shared.utils.tracing import setup_tracing
+from shared.utils.database import engine
 import logging
 
 # Configure logging
@@ -36,19 +40,28 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 
 
-# Add security middleware first (processes requests before other middleware)
+# Middleware is processed in reverse order of addition (last added = first to process)
+# Order of processing: Correlation -> Security -> Prometheus
+
+# Add Prometheus metrics middleware
+app.add_middleware(PrometheusMiddleware, service_name="webui")
+
+# Add security middleware (rate limiting, DDoS protection)
 app.add_middleware(
     SecurityMiddleware,
     rate_limit_per_minute=120,  # Increased limit
     block_duration_minutes=5   # Reduced block time
 )
 
-# Add Prometheus metrics middleware
-app.add_middleware(PrometheusMiddleware, service_name="webui")
+# Add correlation ID middleware first (outermost - processes requests first)
+app.add_middleware(CorrelationMiddleware)
 
 # Initialize metrics
 metrics = get_metrics()
 metrics.set_service_health("webui", True)
+
+# Initialize distributed tracing (only if OTEL_EXPORTER_OTLP_ENDPOINT is set)
+setup_tracing(app=app, db_engine=engine)
 
 # Ensure the static directory path is absolute
 # In Docker: static files are at /app/web/static (working dir is /app/web)
@@ -60,9 +73,49 @@ else:
     # Local development - static directory is one level up from src
     STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
 
+
+class CachedStaticFiles(StaticFiles):
+    """StaticFiles with Cache-Control headers for improved performance."""
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        # Add cache headers for static assets (1 day for versioned/immutable assets)
+        if path.endswith(('.css', '.js', '.png', '.jpg', '.jpeg', '.ico', '.woff2', '.woff', '.ttf')):
+            response.headers['Cache-Control'] = 'public, max-age=86400'  # 1 day
+        return response
+
+
 print(f"[DEBUG] Static directory: {STATIC_DIR}")
 print(f"[DEBUG] Static directory exists: {os.path.exists(STATIC_DIR)}")
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.mount("/static", CachedStaticFiles(directory=STATIC_DIR), name="static")
+
+
+# Health check endpoints for Kubernetes probes and monitoring
+@app.get("/health")
+async def health_check():
+    """Liveness probe - is the service running?"""
+    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+
+
+@app.get("/readiness")
+async def readiness_check():
+    """Readiness probe - can the service handle requests?"""
+    db = SessionLocal()
+    try:
+        # Quick database connectivity check
+        db.execute(text("SELECT 1"))
+        db_healthy = True
+    except Exception:
+        db_healthy = False
+    finally:
+        db.close()
+
+    return {
+        "status": "ready" if db_healthy else "not_ready",
+        "database": "connected" if db_healthy else "disconnected",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
 
 # Register additional Jinja2 filters (markdown, truncate_url, url_to_title are in jinja_env.py)
 

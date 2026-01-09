@@ -7,13 +7,19 @@
     <link rel="stylesheet" href="/static/dashboard.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        let pollInterval = null;
+        let pollTimeout = null;
         let pollCount = 0;
         const MAX_POLL_COUNT = 1000;
-        const POLL_INTERVAL = 3000; // Reduced to 3 seconds for faster updates
+
+        // Exponential backoff configuration
+        const INITIAL_POLL_INTERVAL = 1000;  // Start fast at 1 second
+        const MAX_POLL_INTERVAL = 15000;     // Cap at 15 seconds
+        let currentPollInterval = INITIAL_POLL_INTERVAL;
+        let consecutiveNoChange = 0;
 
         // Store the last progress data
         let lastProgressData = null;
+        let previousProgressJson = null;
 
         function renderProgress(data) {
             let prog = document.getElementById('progress');
@@ -115,7 +121,7 @@
         function pollProgress() {
             if (pollCount >= MAX_POLL_COUNT) {
                 console.warn('Max poll count reached, stopping polling');
-                clearInterval(pollInterval);
+                clearTimeout(pollTimeout);
                 fetchFinalResults();
                 return;
             }
@@ -131,38 +137,67 @@
                 })
                 .then(data => {
                     lastProgressData = data;
+
+                    // Check if data changed for adaptive polling
+                    const currentJson = JSON.stringify(data);
+                    const dataChanged = currentJson !== previousProgressJson;
+                    previousProgressJson = currentJson;
+
+                    if (dataChanged) {
+                        // Reset backoff when data changes
+                        consecutiveNoChange = 0;
+                        currentPollInterval = INITIAL_POLL_INTERVAL;
+                    } else {
+                        consecutiveNoChange++;
+                        // Exponential backoff when no changes (after 3 consecutive no-change polls)
+                        if (consecutiveNoChange > 2) {
+                            currentPollInterval = Math.min(
+                                currentPollInterval * 1.5,
+                                MAX_POLL_INTERVAL
+                            );
+                        }
+                    }
+
                     if (data.running) {
                         renderProgress(data);
+                        // Schedule next poll with adaptive interval
+                        pollTimeout = setTimeout(pollProgress, currentPollInterval);
                     } else {
-                        clearInterval(pollInterval);
+                        clearTimeout(pollTimeout);
                         renderFinalProgress();
                         fetchFinalResults();
-                        // window.location.reload(); // Removed to preserve styling
                     }
                 })
                 .catch(error => {
                     console.error('Error polling progress:', error);
+                    // On error, back off more aggressively
+                    currentPollInterval = Math.min(currentPollInterval * 2, MAX_POLL_INTERVAL);
                     if (pollCount > 10) {
-                        clearInterval(pollInterval);
+                        clearTimeout(pollTimeout);
                         fetchFinalResults();
+                    } else {
+                        // Retry with backoff
+                        pollTimeout = setTimeout(pollProgress, currentPollInterval);
                     }
                 });
         }
 
         function startPolling() {
-            if (pollInterval) {
-                clearInterval(pollInterval);
+            if (pollTimeout) {
+                clearTimeout(pollTimeout);
             }
             pollCount = 0;
-            pollInterval = setInterval(pollProgress, POLL_INTERVAL);
-            // Initial poll
+            consecutiveNoChange = 0;
+            currentPollInterval = INITIAL_POLL_INTERVAL;
+            previousProgressJson = null;
+            // Initial poll immediately
             pollProgress();
         }
 
         function stopPolling() {
-            if (pollInterval) {
-                clearInterval(pollInterval);
-                pollInterval = null;
+            if (pollTimeout) {
+                clearTimeout(pollTimeout);
+                pollTimeout = null;
             }
         }
 

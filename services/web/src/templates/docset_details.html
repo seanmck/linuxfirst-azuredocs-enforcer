@@ -367,10 +367,17 @@
 
         <!-- Flagged Pages -->
         <div class="section">
-            <h2>Pages with Bias Issues ({{ flagged_pages|length }})</h2>
-            
+            <h2>Pages with Bias Issues ({{ pagination.total if pagination else flagged_pages|length }})</h2>
+
+            <!-- Pagination info -->
+            {% if pagination and pagination.total > 0 %}
+            <div style="margin-bottom: 1em; color: #6b7280; font-size: 0.9em;">
+                Showing {{ pagination.start_idx }}-{{ pagination.end_idx }} of {{ pagination.total }} flagged pages
+            </div>
+            {% endif %}
+
             <!-- Contribution prompt will be handled by top navigation authentication -->
-            
+
             {% if flagged_pages and flagged_pages|length > 0 %}
                 {% for page in flagged_pages %}
                 <div class="flagged-page" data-page-index="{{ loop.index0 }}">
@@ -448,6 +455,28 @@
                     </div>
                 </div>
                 {% endfor %}
+
+                <!-- Pagination Controls -->
+                {% if pagination and pagination.total_pages > 1 %}
+                <div class="pagination-controls" style="display: flex; justify-content: center; align-items: center; gap: 1em; margin-top: 2em; padding: 1em; background: #f3f4f6; border-radius: 8px;">
+                    {% if pagination.has_prev %}
+                    <a href="?page={{ pagination.page - 1 }}&per_page={{ pagination.per_page }}" style="padding: 0.5em 1em; background: #2563eb; color: white; text-decoration: none; border-radius: 4px;">Previous</a>
+                    {% else %}
+                    <span style="padding: 0.5em 1em; background: #d1d5db; color: #6b7280; border-radius: 4px;">Previous</span>
+                    {% endif %}
+
+                    <span style="color: #374151;">
+                        Page {{ pagination.page }} of {{ pagination.total_pages }}
+                    </span>
+
+                    {% if pagination.has_next %}
+                    <a href="?page={{ pagination.page + 1 }}&per_page={{ pagination.per_page }}" style="padding: 0.5em 1em; background: #2563eb; color: white; text-decoration: none; border-radius: 4px;">Next</a>
+                    {% else %}
+                    <span style="padding: 0.5em 1em; background: #d1d5db; color: #6b7280; border-radius: 4px;">Next</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+
             {% else %}
                 <div class="empty-state">
                     <div class="empty-state-icon">🎉</div>
