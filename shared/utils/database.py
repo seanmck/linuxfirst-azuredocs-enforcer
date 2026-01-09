@@ -54,8 +54,13 @@ def handle_error(exception_context):
     conn = exception_context.connection
     if conn is not None and 'query_start_time' in conn.info:
         # Pop the start time to prevent unbounded list growth
-        if conn.info['query_start_time']:
-            conn.info['query_start_time'].pop(-1)
+        # Use try-except to handle edge cases where list might be empty
+        try:
+            if conn.info['query_start_time']:
+                conn.info['query_start_time'].pop(-1)
+        except (IndexError, KeyError):
+            # List was empty or key was removed - safe to ignore
+            pass
 
 
 @contextmanager
