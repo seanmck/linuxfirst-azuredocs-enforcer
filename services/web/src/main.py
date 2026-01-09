@@ -96,6 +96,56 @@ def format_doc_set_name_filter(doc_set):
 
 templates.env.filters['format_doc_set_name'] = format_doc_set_name_filter
 
+def url_to_title_filter(url):
+    """Extract a human-readable title from a GitHub docs URL.
+
+    Example:
+    https://github.com/MicrosoftDocs/azure-docs/blob/main/articles/active-directory-b2c/access-tokens.md
+    → "Active Directory B2C: Access Tokens"
+    """
+    if not url:
+        return "Untitled Page"
+
+    try:
+        # Extract the path after /articles/ or similar patterns
+        path_match = re.search(r'/articles/([^/]+)/([^/]+?)(?:\.md)?$', url)
+        if path_match:
+            folder = path_match.group(1)
+            filename = path_match.group(2)
+
+            # Convert kebab-case to Title Case
+            def to_title(s):
+                # Handle common acronyms
+                acronyms = {'b2c', 'b2b', 'api', 'sdk', 'cli', 'sql', 'vm', 'vms', 'aks', 'acr', 'dns', 'ssl', 'tls', 'ssh', 'rbac', 'aad', 'arm'}
+                words = s.replace('-', ' ').replace('_', ' ').split()
+                titled = []
+                for word in words:
+                    if word.lower() in acronyms:
+                        titled.append(word.upper())
+                    else:
+                        titled.append(word.capitalize())
+                return ' '.join(titled)
+
+            folder_title = to_title(folder)
+            file_title = to_title(filename)
+
+            # Avoid redundancy if folder and file have similar names
+            if file_title.lower().startswith(folder_title.lower().split()[0].lower()):
+                return file_title
+
+            return f"{folder_title}: {file_title}"
+
+        # Fallback: just get the last path segment
+        parts = url.rstrip('/').split('/')
+        filename = parts[-1] if parts else url
+        filename = re.sub(r'\.md$', '', filename)
+        return filename.replace('-', ' ').replace('_', ' ').title()
+
+    except Exception:
+        return url
+
+templates.env.filters['url_to_title'] = url_to_title_filter
+
 # Admin authentication is now handled in webui/routes/admin.py
 
 # Simple cache for expensive operations
