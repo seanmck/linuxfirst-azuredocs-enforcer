@@ -1,6 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
+# ============================================================================
+# DEPRECATED: This script reads from your LOCAL dev overlay which may be stale.
+# Use the GitHub Action instead:
+#   gh workflow run promote-to-prod.yml
+#   gh workflow run promote-to-prod.yml -f dry_run=true  # Preview only
+#
+# The Action always reads from origin/main and creates a PR for review.
+# This script is kept for offline/emergency use only.
+# ============================================================================
+
 # Verify kustomize is installed
 if ! command -v kustomize &> /dev/null; then
   echo "Error: kustomize is not installed"
