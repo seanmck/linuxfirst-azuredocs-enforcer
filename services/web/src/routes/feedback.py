@@ -32,8 +32,8 @@ def _get_feedback_stats_query(db: Session, filter_column=None, filter_value=None
     """
     query = db.query(
         func.count(UserFeedback.id).label('total'),
-        func.sum(case((UserFeedback.rating == True, 1), else_=0)).label('thumbs_up'),
-        func.sum(case((UserFeedback.rating == False, 1), else_=0)).label('thumbs_down'),
+        func.sum(case((UserFeedback.rating.is_(True), 1), else_=0)).label('thumbs_up'),
+        func.sum(case((UserFeedback.rating.is_(False), 1), else_=0)).label('thumbs_down'),
         func.sum(case((func.coalesce(func.length(func.trim(UserFeedback.comment)), 0) > 0, 1), else_=0)).label('has_comments')
     )
 
