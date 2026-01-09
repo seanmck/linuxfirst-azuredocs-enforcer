@@ -23,6 +23,9 @@ pip install -r services/bias-scoring-service/requirements.txt
 # Ensure infrastructure services (PostgreSQL and RabbitMQ) are accessible
 echo "Checking infrastructure services..."
 
+# Disable SSL for local PostgreSQL connections (Docker containers don't have SSL configured)
+export PGSSLMODE=disable
+
 # Check if PostgreSQL is accessible on localhost:5432
 if pg_isready -h localhost -p 5432 -U azuredocs_user -d azuredocs >/dev/null 2>&1; then
   echo "PostgreSQL is already accessible on localhost:5432"

@@ -322,127 +322,120 @@
     }
 }
 
-/* Review method badges */
-.page-badges {
-    display: flex;
-    gap: 0.5em;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.review-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.3em 0.7em;
-    border-radius: 6px;
-    font-size: 0.8em;
-    font-weight: 600;
-}
-
-.review-badge.review-llm {
-    background: rgba(37, 99, 235, 0.1);
-    color: #2563eb;
-    border: 1px solid rgba(37, 99, 235, 0.2);
-}
-
-.review-badge.review-heuristic {
-    background: rgba(107, 114, 128, 0.1);
-    color: #6b7280;
-    border: 1px solid rgba(107, 114, 128, 0.2);
-}
-
-.review-badge.review-error {
-    background: rgba(239, 68, 68, 0.1);
-    color: #dc2626;
-    border: 1px solid rgba(239, 68, 68, 0.2);
-}
-
-.review-badge.review-pending {
-    background: rgba(168, 85, 247, 0.1);
-    color: #9333ea;
-    border: 1px solid rgba(168, 85, 247, 0.2);
-}
-
-.review-badge.review-unknown {
-    background: rgba(234, 179, 8, 0.1);
-    color: #ca8a04;
-    border: 1px solid rgba(234, 179, 8, 0.2);
-}
 </style>
 
-<!-- Problematic Pages (Holistic MCP) -->
+<!-- Problematic Pages (Holistic MCP) - Redesigned -->
 <div class="scan-details">
-    <h2>Problematic Pages</h2>
+    {% set flagged_count = namespace(value=0) %}
+    {% if pages and pages|length > 0 %}
+        {% for page in pages %}
+            {% if page.mcp_holistic and page.mcp_holistic.get('bias_types') %}
+                {% set flagged_count.value = flagged_count.value + 1 %}
+            {% endif %}
+        {% endfor %}
+    {% endif %}
+
+    <div class="problematic-pages-header">
+        <h2>Problematic Pages</h2>
+        {% if flagged_count.value > 0 %}
+        <span class="problematic-pages-count">{{ flagged_count.value }} issue{{ 's' if flagged_count.value != 1 else '' }} found</span>
+        {% endif %}
+    </div>
+
     {% if pages and pages|length > 0 %}
         {% set has_flagged = false %}
         {% for page in pages %}
             {% if page.mcp_holistic and page.mcp_holistic.get('bias_types') %}
                 {% set has_flagged = true %}
-                <div class="page-section">
-                    <div class="page-header">
-                        <div class="page-url">
-                            <a href="{{ page.url }}" target="_blank" rel="noopener noreferrer">{{ page.url }}</a>
-                            <a href="/docpage/{{ page.id }}" style="margin-left: 0.5em; color: #2563eb; text-decoration: none; font-size: 0.9em;">[View Details]</a>
+                <div class="page-card" data-priority="{{ page['priority_label']|lower }}">
+                    <!-- Card Header -->
+                    <div class="page-card-header">
+                        <div class="page-card-title">
+                            <a href="{{ page.url }}" target="_blank" rel="noopener noreferrer" class="page-card-url">{{ page.url }}</a>
                         </div>
-                        <div class="page-badges">
-                            {% if page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm' %}
-                                <span class="review-badge review-llm">LLM Reviewed</span>
-                            {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm_pending' %}
-                                <span class="review-badge review-pending">LLM Pending</span>
-                            {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'heuristic_skip' %}
-                                <span class="review-badge review-heuristic">Heuristic Skip</span>
-                            {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm_error' %}
-                                <span class="review-badge review-error">LLM Error</span>
-                            {% else %}
-                                <span class="review-badge review-unknown">Not Scored</span>
-                            {% endif %}
-                            <span class="priority-badge priority-{{ page['priority_label']|lower }}">{{ page['priority_label'] }} Priority</span>
+                        <div class="page-card-actions">
+                            <a href="/docpage/{{ page.id }}" class="page-detail-link">View Details →</a>
                         </div>
                     </div>
-                    <div class="analysis-content">
-                        <div class="snippet-label">Bias Types:</div>
-                        <div class="bias-types-row">
-                            {% for bias in page.mcp_holistic.get('bias_types') %}
-                                <div class="bias-type-box">
-                                    <span class="bias-type-icon">{{ bias_icon_map.get(bias, '⚠️') }}</span>
-                                    {{ bias }}
-                                </div>
-                            {% endfor %}
-                        </div>
-                        <div class="snippet-label">Summary:</div>
-                        <div class="explanation-text">{{ page.mcp_holistic.summary }}</div>
-                        <div class="snippet-label">Recommendations:</div>
-                        {% if page.mcp_holistic.get('recommendations') is string %}
-                        <div class="explanation-text">{{ page.mcp_holistic.recommendations }}</div>
+
+                    <!-- Badges Row -->
+                    <div class="page-card-badges">
+                        {% if page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm' %}
+                            <span class="badge badge-review-llm">LLM Reviewed</span>
+                        {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm_pending' %}
+                            <span class="badge badge-review-pending">LLM Pending</span>
+                        {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'heuristic_skip' %}
+                            <span class="badge badge-review-heuristic">Heuristic Skip</span>
+                        {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm_error' %}
+                            <span class="badge badge-review-error">LLM Error</span>
                         {% else %}
-                        <ul class="explanation-text">
-                        {% for rec in page.mcp_holistic.get('recommendations', []) %}
-                            <li>{{ rec }}</li>
-                        {% endfor %}
-                        </ul>
+                            <span class="badge badge-review-unknown">Not Scored</span>
                         {% endif %}
+                        <span class="badge badge-priority-{{ page['priority_label']|lower }}">{{ page['priority_label'] }} Priority</span>
                     </div>
-                    <!-- Create Pull Request Button -->
-                    <div style="margin-top: 1em; text-align: right;">
-                        <a href="/proposed_change?page_id={{ page.id }}" class="github-pr-btn" style="display: inline-flex; align-items: center; gap: 0.5em; padding: 0.5em 1em; background: #24292f; color: #fff; border-radius: 5px; text-decoration: none; font-weight: 500;">
-                            <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 20px; height: 20px; vertical-align: middle;">
-                            Create pull request
+
+                    <!-- Card Body - Analysis Content -->
+                    <div class="page-card-body">
+                        <!-- Bias Types -->
+                        <div class="analysis-section">
+                            <span class="analysis-label">Detected Bias Types</span>
+                            <div class="bias-chips">
+                                {% for bias in page.mcp_holistic.get('bias_types') %}
+                                <span class="bias-chip">
+                                    <span class="bias-chip-icon">{{ bias_icon_map.get(bias, '⚠️') }}</span>
+                                    {{ bias }}
+                                </span>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Summary -->
+                        <div class="analysis-section">
+                            <span class="analysis-label">Summary</span>
+                            <div class="analysis-text">{{ page.mcp_holistic.summary }}</div>
+                        </div>
+
+                        <!-- Recommendations -->
+                        <div class="analysis-section">
+                            <span class="analysis-label">Recommendations</span>
+                            <div class="analysis-text">
+                                {% if page.mcp_holistic.get('recommendations') is string %}
+                                    {{ page.mcp_holistic.recommendations }}
+                                {% else %}
+                                    <ul>
+                                    {% for rec in page.mcp_holistic.get('recommendations', []) %}
+                                        <li>{{ rec }}</li>
+                                    {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Feedback Widget -->
+                        {% include 'feedback_widget.html' %}
+                    </div>
+
+                    <!-- Card Footer -->
+                    <div class="page-card-footer">
+                        <a href="/proposed_change?page_id={{ page.id }}" class="btn-github-pr">
+                            <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub">
+                            Create Pull Request
                         </a>
                     </div>
-                    
-                    <!-- Feedback Widget -->
-                    {% include 'feedback_widget.html' %}
                 </div>
             {% endif %}
         {% endfor %}
+
         {% if not has_flagged %}
-            <div class="no-flagged">
-                <p>No problematic pages found in this scan. All pages appear to be Linux-friendly! 🐧</p>
-            </div>
+        <div class="no-issues-found">
+            <div class="no-issues-found-icon">🐧</div>
+            <p class="no-issues-found-text">No problematic pages found in this scan. All pages appear to be Linux-friendly!</p>
+        </div>
         {% endif %}
     {% else %}
-        <div class="no-flagged">
-            <p>No pages were scanned in this run.</p>
+        <div class="no-issues-found">
+            <div class="no-issues-found-icon">📄</div>
+            <p class="no-issues-found-text">No pages were scanned in this run.</p>
         </div>
     {% endif %}
 </div>
