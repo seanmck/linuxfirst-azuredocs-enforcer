@@ -20,30 +20,42 @@ def upgrade():
     # Page indexes for common query patterns
     # Used in: docpage.py get_page_scan_history, docset.py queries
     print("Creating index idx_pages_scan_id on pages(scan_id)...")
-    op.create_index('idx_pages_scan_id', 'pages', ['scan_id'], if_not_exists=True)
+    op.execute("CREATE INDEX IF NOT EXISTS idx_pages_scan_id ON pages (scan_id)")
 
     print("Creating index idx_pages_url on pages(url)...")
-    op.create_index('idx_pages_url', 'pages', ['url'], if_not_exists=True)
+    op.execute("CREATE INDEX IF NOT EXISTS idx_pages_url ON pages (url)")
 
     # Composite index for the common (scan_id, url) lookup pattern
     print("Creating composite index idx_pages_scan_url on pages(scan_id, url)...")
-    op.create_index('idx_pages_scan_url', 'pages', ['scan_id', 'url'], if_not_exists=True)
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS idx_pages_scan_url "
+        "ON pages (scan_id, url)"
+    )
 
     # Snippet indexes
     # Used in: loading snippets for a page
     print("Creating index idx_snippets_page_id on snippets(page_id)...")
-    op.create_index('idx_snippets_page_id', 'snippets', ['page_id'], if_not_exists=True)
+    op.execute("CREATE INDEX IF NOT EXISTS idx_snippets_page_id ON snippets (page_id)")
 
     # UserFeedback indexes for aggregation queries
     # Used in: feedback.py stats calculations
     print("Creating index idx_user_feedback_rating on user_feedback(rating)...")
-    op.create_index('idx_user_feedback_rating', 'user_feedback', ['rating'], if_not_exists=True)
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_feedback_rating "
+        "ON user_feedback (rating)"
+    )
 
     print("Creating index idx_user_feedback_snippet_id on user_feedback(snippet_id)...")
-    op.create_index('idx_user_feedback_snippet_id', 'user_feedback', ['snippet_id'], if_not_exists=True)
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_feedback_snippet_id "
+        "ON user_feedback (snippet_id)"
+    )
 
     print("Creating index idx_user_feedback_page_id on user_feedback(page_id)...")
-    op.create_index('idx_user_feedback_page_id', 'user_feedback', ['page_id'], if_not_exists=True)
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_feedback_page_id "
+        "ON user_feedback (page_id)"
+    )
 
     print("Performance indexes created successfully")
 
