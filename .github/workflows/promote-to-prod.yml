@@ -127,6 +127,7 @@ jobs:
           fi
 
       - name: Create promotion PR
+        id: create-pr
         if: ${{ !inputs.dry_run && steps.diff.outputs.has_changes == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -141,9 +142,7 @@ jobs:
           git commit -m "chore(prod): promote dev images to production"
           git push --force origin "$BRANCH_NAME"
 
-          gh pr create \
-            --title "Promote to Production: ${{ steps.dev-tags.outputs.webui }}" \
-            --body "$(cat <<EOF
+          PR_BODY="$(cat <<EOF
           ## Production Promotion
 
           This PR promotes the current dev image tags to production.
@@ -164,6 +163,23 @@ jobs:
           EOF
           )"
 
+          # Check if a PR already exists for this branch
+          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --json number --jq '.[0].number' || echo "")
+          
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #$EXISTING_PR already exists for branch $BRANCH_NAME"
+            echo "pr_number=$EXISTING_PR" >> $GITHUB_OUTPUT
+            echo "pr_action=updated" >> $GITHUB_OUTPUT
+          else
+            gh pr create \
+              --title "Promote to Production: ${{ steps.dev-tags.outputs.webui }}" \
+              --body "$PR_BODY"
+            
+            NEW_PR=$(gh pr list --head "$BRANCH_NAME" --json number --jq '.[0].number')
+            echo "pr_number=$NEW_PR" >> $GITHUB_OUTPUT
+            echo "pr_action=created" >> $GITHUB_OUTPUT
+          fi
+
       - name: Summary
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
@@ -173,6 +189,11 @@ jobs:
             echo "### No Changes" >> $GITHUB_STEP_SUMMARY
             echo "Dev and prod already have the same image tags. No PR needed." >> $GITHUB_STEP_SUMMARY
           else
-            echo "### PR Created" >> $GITHUB_STEP_SUMMARY
-            echo "A pull request has been created for review."
+            if [ "${{ steps.create-pr.outputs.pr_action }}" == "created" ]; then
+              echo "### PR Created" >> $GITHUB_STEP_SUMMARY
+              echo "Pull request #${{ steps.create-pr.outputs.pr_number }} has been created for review." >> $GITHUB_STEP_SUMMARY
+            else
+              echo "### PR Already Exists" >> $GITHUB_STEP_SUMMARY
+              echo "Pull request #${{ steps.create-pr.outputs.pr_number }} already exists for this branch." >> $GITHUB_STEP_SUMMARY
+            fi
           fi
