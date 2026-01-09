@@ -351,7 +351,7 @@
                     <!-- Card Header -->
                     <div class="page-card-header">
                         <div class="page-card-title-group">
-                            <span class="page-card-title">{{ page.url|url_to_title }}</span>
+                            <span class="page-card-title">{{ page.mcp_holistic.get('page_title') or page.url|url_to_title }}</span>
                             <a href="{{ page.url }}" target="_blank" rel="noopener noreferrer" class="page-card-url">
                                 <svg class="page-card-url-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
