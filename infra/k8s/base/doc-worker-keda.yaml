@@ -134,7 +134,6 @@ spec:
       queueName: changed_files
       mode: QueueLength
       value: "10"
-      activationQueueLength: "0"  # Activate even when queue doesn't exist
       excludeUnacknowledged: "false"
     authenticationRef:
       name: rabbitmq-trigger-auth
