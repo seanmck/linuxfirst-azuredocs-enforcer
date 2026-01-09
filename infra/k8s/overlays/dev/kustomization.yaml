@@ -2,6 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
 - ../../base
+- jaeger.yaml  # Jaeger for distributed tracing (dev only)
 labels:
 - pairs:
     environment: dev
@@ -14,6 +15,7 @@ patches:
     kind: Ingress
     name: webui-ingress
 - path: openai-deployment-patch.yaml
+- path: webui-tracing-patch.yaml  # Enable OpenTelemetry tracing
 
 # Image versions for dev environment (updated by CI)
 images:

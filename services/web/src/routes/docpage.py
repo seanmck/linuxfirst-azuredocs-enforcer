@@ -77,30 +77,32 @@ def get_mslearn_url(page_url: str) -> str:
 
 
 def get_page_scan_history(db, page_url: str):
-    """Get scan history for a specific page URL across all scans."""
-    # Get all scans ordered by date
-    scans = db.query(Scan).order_by(Scan.started_at.desc()).all()
-    
+    """Get scan history for a specific page URL across all scans.
+
+    Optimized to use a single JOIN query instead of N+1 queries.
+    """
+    # Single JOIN query to get all pages matching the URL with their scans
+    results = (
+        db.query(Page, Scan)
+        .join(Scan, Page.scan_id == Scan.id)
+        .filter(Page.url == page_url)
+        .order_by(Scan.started_at.desc())
+        .all()
+    )
+
     history = []
-    for scan in scans:
-        # Find this page in the scan
-        page = db.query(Page).filter(
-            Page.scan_id == scan.id,
-            Page.url == page_url
-        ).first()
-        
-        if page:
-            # Check if page was biased in this scan
-            was_biased = is_page_biased(page)
-            
-            history.append({
-                'scan_id': scan.id,
-                'scan_date': scan.started_at,
-                'scan_status': scan.status,
-                'was_biased': was_biased,
-                'page_id': page.id  # Include page ID for that specific scan
-            })
-    
+    for page, scan in results:
+        # Check if page was biased in this scan
+        was_biased = is_page_biased(page)
+
+        history.append({
+            'scan_id': scan.id,
+            'scan_date': scan.started_at,
+            'scan_status': scan.status,
+            'was_biased': was_biased,
+            'page_id': page.id  # Include page ID for that specific scan
+        })
+
     return history
 
 

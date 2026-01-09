@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, Request, HTTPException, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy import func, case
 from pydantic import BaseModel, Field
 import logging
 
@@ -15,6 +16,44 @@ from routes.auth import get_current_user
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _get_feedback_stats_query(db: Session, filter_column=None, filter_value=None):
+    """
+    Get aggregated feedback statistics using SQL aggregation.
+
+    Args:
+        db: Database session
+        filter_column: Optional column to filter by (e.g., UserFeedback.snippet_id)
+        filter_value: Value to filter by
+
+    Returns:
+        Dict with total, thumbs_up, thumbs_down, has_comments
+    """
+    query = db.query(
+        func.count(UserFeedback.id).label('total'),
+        func.sum(case((UserFeedback.rating == True, 1), else_=0)).label('thumbs_up'),
+        func.sum(case((UserFeedback.rating == False, 1), else_=0)).label('thumbs_down'),
+        func.sum(case((func.coalesce(func.length(func.trim(UserFeedback.comment)), 0) > 0, 1), else_=0)).label('has_comments')
+    )
+
+    if filter_column is not None and filter_value is not None:
+        query = query.filter(filter_column == filter_value)
+
+    result = query.first()
+
+    total = result.total or 0
+    thumbs_up = result.thumbs_up or 0
+    thumbs_down = result.thumbs_down or 0
+    has_comments = result.has_comments or 0
+
+    return {
+        'total': total,
+        'thumbs_up': thumbs_up,
+        'thumbs_down': thumbs_down,
+        'thumbs_up_percentage': (thumbs_up / total * 100) if total > 0 else 0,
+        'has_comments': has_comments
+    }
 
 
 class FeedbackRequest(BaseModel):
@@ -165,16 +204,9 @@ async def get_snippet_feedback(
             UserFeedback.snippet_id == snippet_id
         ).first()
     
-    # Get aggregated feedback stats
-    all_feedback = db.query(UserFeedback).filter(
-        UserFeedback.snippet_id == snippet_id
-    ).all()
-    
-    thumbs_up = sum(1 for f in all_feedback if f.rating == True)
-    thumbs_down = sum(1 for f in all_feedback if f.rating == False)
-    total = len(all_feedback)
-    has_comments = sum(1 for f in all_feedback if f.comment and f.comment.strip())
-    
+    # Get aggregated feedback stats using SQL aggregation
+    stats = _get_feedback_stats_query(db, UserFeedback.snippet_id, snippet_id)
+
     return {
         "snippet_id": snippet_id,
         "user_feedback": {
@@ -183,11 +215,11 @@ async def get_snippet_feedback(
             "created_at": user_feedback.created_at.isoformat() if user_feedback else None
         } if user_feedback else None,
         "stats": {
-            "total_feedback": total,
-            "thumbs_up": thumbs_up,
-            "thumbs_down": thumbs_down,
-            "thumbs_up_percentage": (thumbs_up / total * 100) if total > 0 else 0,
-            "has_comments": has_comments
+            "total_feedback": stats['total'],
+            "thumbs_up": stats['thumbs_up'],
+            "thumbs_down": stats['thumbs_down'],
+            "thumbs_up_percentage": stats['thumbs_up_percentage'],
+            "has_comments": stats['has_comments']
         }
     }
 
@@ -212,16 +244,9 @@ async def get_page_feedback(
             UserFeedback.page_id == page_id
         ).first()
     
-    # Get aggregated feedback stats
-    all_feedback = db.query(UserFeedback).filter(
-        UserFeedback.page_id == page_id
-    ).all()
-    
-    thumbs_up = sum(1 for f in all_feedback if f.rating == True)
-    thumbs_down = sum(1 for f in all_feedback if f.rating == False)
-    total = len(all_feedback)
-    has_comments = sum(1 for f in all_feedback if f.comment and f.comment.strip())
-    
+    # Get aggregated feedback stats using SQL aggregation
+    stats = _get_feedback_stats_query(db, UserFeedback.page_id, page_id)
+
     return {
         "page_id": page_id,
         "user_feedback": {
@@ -230,11 +255,11 @@ async def get_page_feedback(
             "created_at": user_feedback.created_at.isoformat() if user_feedback else None
         } if user_feedback else None,
         "stats": {
-            "total_feedback": total,
-            "thumbs_up": thumbs_up,
-            "thumbs_down": thumbs_down,
-            "thumbs_up_percentage": (thumbs_up / total * 100) if total > 0 else 0,
-            "has_comments": has_comments
+            "total_feedback": stats['total'],
+            "thumbs_up": stats['thumbs_up'],
+            "thumbs_down": stats['thumbs_down'],
+            "thumbs_up_percentage": stats['thumbs_up_percentage'],
+            "has_comments": stats['has_comments']
         }
     }
 
@@ -259,16 +284,9 @@ async def get_rewritten_document_feedback(
             UserFeedback.rewritten_document_id == document_id
         ).first()
     
-    # Get aggregated feedback stats
-    all_feedback = db.query(UserFeedback).filter(
-        UserFeedback.rewritten_document_id == document_id
-    ).all()
-    
-    thumbs_up = sum(1 for f in all_feedback if f.rating == True)
-    thumbs_down = sum(1 for f in all_feedback if f.rating == False)
-    total = len(all_feedback)
-    has_comments = sum(1 for f in all_feedback if f.comment and f.comment.strip())
-    
+    # Get aggregated feedback stats using SQL aggregation
+    stats = _get_feedback_stats_query(db, UserFeedback.rewritten_document_id, document_id)
+
     return {
         "rewritten_document_id": document_id,
         "user_feedback": {
@@ -277,11 +295,11 @@ async def get_rewritten_document_feedback(
             "created_at": user_feedback.created_at.isoformat() if user_feedback else None
         } if user_feedback else None,
         "stats": {
-            "total_feedback": total,
-            "thumbs_up": thumbs_up,
-            "thumbs_down": thumbs_down,
-            "thumbs_up_percentage": (thumbs_up / total * 100) if total > 0 else 0,
-            "has_comments": has_comments
+            "total_feedback": stats['total'],
+            "thumbs_up": stats['thumbs_up'],
+            "thumbs_down": stats['thumbs_down'],
+            "thumbs_up_percentage": stats['thumbs_up_percentage'],
+            "has_comments": stats['has_comments']
         }
     }
 
@@ -292,20 +310,15 @@ async def get_feedback_stats(
     db: Session = Depends(get_db)
 ):
     """Get overall feedback statistics"""
-    # Get all feedback
-    all_feedback = db.query(UserFeedback).all()
-    
-    thumbs_up = sum(1 for f in all_feedback if f.rating == True)
-    thumbs_down = sum(1 for f in all_feedback if f.rating == False)
-    total = len(all_feedback)
-    has_comments = sum(1 for f in all_feedback if f.comment and f.comment.strip())
-    
+    # Get aggregated feedback stats using SQL aggregation (no filter = all feedback)
+    stats = _get_feedback_stats_query(db)
+
     return FeedbackStats(
-        total_feedback=total,
-        thumbs_up=thumbs_up,
-        thumbs_down=thumbs_down,
-        thumbs_up_percentage=(thumbs_up / total * 100) if total > 0 else 0,
-        has_comments=has_comments
+        total_feedback=stats['total'],
+        thumbs_up=stats['thumbs_up'],
+        thumbs_down=stats['thumbs_down'],
+        thumbs_up_percentage=stats['thumbs_up_percentage'],
+        has_comments=stats['has_comments']
     )
 
 
