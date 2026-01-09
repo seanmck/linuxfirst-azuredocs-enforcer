@@ -48,6 +48,16 @@ def after_cursor_execute(conn, cursor, statement, parameters, context, executema
         )
 
 
+@event.listens_for(engine, "handle_error")
+def handle_error(exception_context):
+    """Clean up query_start_time on exception to prevent memory leak."""
+    conn = exception_context.connection
+    if conn is not None and 'query_start_time' in conn.info:
+        # Pop the start time to prevent unbounded list growth
+        if conn.info['query_start_time']:
+            conn.info['query_start_time'].pop(-1)
+
+
 @contextmanager
 def get_db_session() -> Generator[Session, None, None]:
     """
