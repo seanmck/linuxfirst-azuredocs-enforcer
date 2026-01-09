@@ -149,7 +149,7 @@
                         currentPollInterval = INITIAL_POLL_INTERVAL;
                     } else {
                         consecutiveNoChange++;
-                        // Exponential backoff when no changes (after 2 consecutive no-change polls)
+                        // Exponential backoff when no changes (after 3 consecutive no-change polls)
                         if (consecutiveNoChange > 2) {
                             currentPollInterval = Math.min(
                                 currentPollInterval * 1.5,
