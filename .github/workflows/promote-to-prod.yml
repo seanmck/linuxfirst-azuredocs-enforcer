@@ -140,13 +140,13 @@ jobs:
 
       - name: Summary
         run: |
-          if [ "${{ inputs.dry_run }}" == "true" ]; then
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
             echo "### Dry Run Complete" >> $GITHUB_STEP_SUMMARY
             echo "No PR was created. Review the diff above." >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ steps.diff.outputs.has_changes }}" == "false" ]; then
+          elif [ "${{ steps.diff.outputs.has_changes }}" = "false" ]; then
             echo "### No Changes" >> $GITHUB_STEP_SUMMARY
             echo "Dev and prod already have the same image tags. No PR needed." >> $GITHUB_STEP_SUMMARY
           else
             echo "### PR Created" >> $GITHUB_STEP_SUMMARY
-            echo "A pull request has been created for review." >> $GITHUB_STEP_SUMMARY
+            echo "A pull request has been created for review."
           fi
