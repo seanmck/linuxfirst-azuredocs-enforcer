@@ -43,6 +43,19 @@ jobs:
           BIAS_TAG=$(yq eval '.images[] | select(.name == "'"$REGISTRY"'/bias-scoring-service") | .newTag' "$DEV_OVERLAY/kustomization.yaml")
           DB_TAG=$(yq eval '.images[] | select(.name == "'"$REGISTRY"'/linuxfirst-azuredocs-db-migrations") | .newTag' "$DEV_OVERLAY/kustomization.yaml")
 
+          # Validate all tags were extracted successfully
+          MISSING_TAGS=()
+          if [ -z "$WEBUI_TAG" ]; then MISSING_TAGS+=("webui"); fi
+          if [ -z "$WORKER_TAG" ]; then MISSING_TAGS+=("queue-worker"); fi
+          if [ -z "$BIAS_TAG" ]; then MISSING_TAGS+=("bias-scoring-service"); fi
+          if [ -z "$DB_TAG" ]; then MISSING_TAGS+=("linuxfirst-azuredocs-db-migrations"); fi
+
+          if [ ${#MISSING_TAGS[@]} -gt 0 ]; then
+            echo "::error::Failed to extract image tags for the following services from $DEV_OVERLAY/kustomization.yaml: ${MISSING_TAGS[*]}"
+            echo "::error::Please ensure all required images are defined in the dev overlay kustomization.yaml"
+            exit 1
+          fi
+
           echo "webui=$WEBUI_TAG" >> $GITHUB_OUTPUT
           echo "worker=$WORKER_TAG" >> $GITHUB_OUTPUT
           echo "bias=$BIAS_TAG" >> $GITHUB_OUTPUT
@@ -63,6 +76,19 @@ jobs:
           WORKER_TAG=$(yq eval '.images[] | select(.name == "'"$REGISTRY"'/queue-worker") | .newTag' "$PROD_OVERLAY/kustomization.yaml")
           BIAS_TAG=$(yq eval '.images[] | select(.name == "'"$REGISTRY"'/bias-scoring-service") | .newTag' "$PROD_OVERLAY/kustomization.yaml")
           DB_TAG=$(yq eval '.images[] | select(.name == "'"$REGISTRY"'/linuxfirst-azuredocs-db-migrations") | .newTag' "$PROD_OVERLAY/kustomization.yaml")
+
+          # Validate all tags were extracted successfully
+          MISSING_TAGS=()
+          if [ -z "$WEBUI_TAG" ]; then MISSING_TAGS+=("webui"); fi
+          if [ -z "$WORKER_TAG" ]; then MISSING_TAGS+=("queue-worker"); fi
+          if [ -z "$BIAS_TAG" ]; then MISSING_TAGS+=("bias-scoring-service"); fi
+          if [ -z "$DB_TAG" ]; then MISSING_TAGS+=("linuxfirst-azuredocs-db-migrations"); fi
+
+          if [ ${#MISSING_TAGS[@]} -gt 0 ]; then
+            echo "::error::Failed to extract image tags for the following services from $PROD_OVERLAY/kustomization.yaml: ${MISSING_TAGS[*]}"
+            echo "::error::Please ensure all required images are defined in the prod overlay kustomization.yaml"
+            exit 1
+          fi
 
           echo "webui=$WEBUI_TAG" >> $GITHUB_OUTPUT
           echo "worker=$WORKER_TAG" >> $GITHUB_OUTPUT
