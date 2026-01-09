@@ -61,12 +61,11 @@
             <!-- Unauthenticated user - show login prompt -->
             <div class="feedback-login-prompt">
                 <p class="feedback-prompt-text">
-                    <span class="feedback-icon">🔐</span>
+                    <span class="feedback-icon">💬</span>
                     Help us improve by rating this assessment
                 </p>
-                <a href="/auth/github/login?redirect={% if scan is defined %}/scan/{{ scan.id }}{% else %}{{ request.url }}{% endif %}" class="btn btn-primary btn-sm">
-                    <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" 
-                         alt="GitHub" style="width: 16px; height: 16px; vertical-align: middle;">
+                <a href="/auth/github/login?redirect={% if scan is defined %}/scan/{{ scan.id }}{% else %}{{ request.url }}{% endif %}" class="btn btn-primary">
+                    <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub">
                     Sign in with GitHub
                 </a>
             </div>
@@ -214,17 +213,51 @@
 }
 
 .feedback-login-prompt {
-    text-align: center;
-    padding: 1em;
-    background: rgba(255, 255, 255, 0.7);
-    border-radius: 6px;
-    border: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
 }
 
 .feedback-prompt-text {
-    margin: 0 0 0.75em 0;
-    color: #6b7280;
-    font-size: 0.9em;
+    margin: 0;
+    color: #475569;
+    font-size: 0.9rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.feedback-login-prompt .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background: #24292f;
+    color: #ffffff;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: 8px;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.feedback-login-prompt .btn-primary:hover {
+    background: #32383f;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(36, 41, 47, 0.25);
+}
+
+.feedback-login-prompt .btn-primary img {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
 }
 
 .feedback-status {
@@ -253,20 +286,36 @@
         padding: 0.75em;
         font-size: 0.85em;
     }
-    
+
     .feedback-buttons {
         flex-direction: column;
         gap: 0.4em;
     }
-    
+
     .feedback-btn {
         justify-content: center;
         padding: 0.6em 1em;
     }
-    
+
     .comment-actions {
         flex-direction: column;
         gap: 0.4em;
+    }
+
+    .feedback-login-prompt {
+        flex-direction: column;
+        text-align: center;
+        padding: 1rem;
+        gap: 0.75rem;
+    }
+
+    .feedback-prompt-text {
+        justify-content: center;
+    }
+
+    .feedback-login-prompt .btn-primary {
+        width: 100%;
+        justify-content: center;
     }
 }
 </style>
