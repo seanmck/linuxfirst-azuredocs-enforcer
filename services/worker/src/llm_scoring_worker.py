@@ -17,6 +17,7 @@ sys.path.insert(0, project_root)
 from shared.models import Page, Scan
 from shared.infrastructure.queue_service import QueueService
 from shared.application.progress_tracker import progress_tracker
+from shared.application.scan_completion_service import ScanCompletionService
 from shared.utils.database import SessionLocal
 from shared.utils.logging import get_logger
 from shared.utils.metrics import get_metrics
@@ -108,6 +109,10 @@ class LLMScoringWorker:
                 self.logger.warning(f"[LLM] Failed to score page {page_id}")
 
             db_session.commit()
+
+            # Check if scan can be finalized now that this LLM task is complete
+            completion_service = ScanCompletionService(db_session)
+            completion_service.check_and_finalize(scan_id)
 
             # Record metrics
             processing_time = time.time() - processing_start_time

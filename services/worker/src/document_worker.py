@@ -25,6 +25,7 @@ from shared.infrastructure.github_service import GitHubService
 from shared.infrastructure.url_lock_service import url_lock_service
 from shared.application.progress_tracker import progress_tracker
 from shared.application.processing_history_service import ProcessingHistoryService
+from shared.application.scan_completion_service import ScanCompletionService
 from shared.utils.database import SessionLocal
 from shared.utils.logging import get_logger
 from shared.utils.metrics import get_metrics
@@ -491,95 +492,25 @@ class DocumentWorker:
             scan = db_session.query(Scan).filter(Scan.id == scan_id).first()
             if not scan:
                 return
-            
+
             # Count completed files (including errors as they won't be retried)
             completed_count = db_session.query(Page).filter(
                 Page.scan_id == scan_id,
-                Page.status.in_(['processed', 'removed', 'skipped_locked', 'skipped_no_change', 
+                Page.status.in_(['processed', 'removed', 'skipped_locked', 'skipped_no_change',
                                'skipped_unreadable', 'skipped_too_large', 'skipped_windows_focused', 'error'])
             ).count()
-            
+
             # Update scan progress
             scan.total_files_completed = completed_count
             db_session.commit()
-            
-            # Check if scan is complete
-            if scan.total_files_queued > 0 and completed_count >= scan.total_files_queued:
-                self._finalize_scan(db_session, scan_id)
-                
+
+            # Check if scan can be finalized
+            completion_service = ScanCompletionService(db_session)
+            completion_service.check_and_finalize(scan_id)
+
         except Exception as e:
             self.logger.error(f"Error updating scan progress for scan {scan_id}: {e}")
 
-    def _finalize_scan(self, db_session: Session, scan_id: int):
-        """Finalize scan when all files are processed"""
-        try:
-            scan = db_session.query(Scan).filter(Scan.id == scan_id).first()
-            if not scan:
-                return
-
-            # Check if any pages are still pending LLM scoring
-            pending_llm = db_session.query(Page).filter(
-                Page.scan_id == scan_id,
-                Page.mcp_holistic['review_method'].astext == 'llm_pending'
-            ).count()
-
-            if pending_llm > 0:
-                self.logger.info(f"Scan {scan_id} has {pending_llm} pages still pending LLM scoring, skipping finalization")
-                return
-
-            # Calculate metrics
-            total_pages = db_session.query(Page).filter(Page.scan_id == scan.id).count()
-            processed_pages = db_session.query(Page).filter(
-                Page.scan_id == scan.id,
-                Page.status == 'processed'
-            ).count()
-            error_pages = db_session.query(Page).filter(
-                Page.scan_id == scan.id,
-                Page.status == 'error'
-            ).count()
-            
-            # Count biased pages (pages with bias detected)
-            biased_pages_count = db_session.query(Page).filter(
-                Page.scan_id == scan.id,
-                Page.mcp_holistic.isnot(None)
-            ).count()
-            
-            # Count flagged snippets
-            flagged_snippets_count = db_session.query(Snippet).join(Page).filter(
-                Page.scan_id == scan.id,
-                Snippet.llm_score.isnot(None)
-            ).count()
-            
-            # Mark scan as complete
-            scan.status = 'completed'
-            scan.finished_at = datetime.datetime.now(datetime.timezone.utc)
-            scan.biased_pages_count = biased_pages_count
-            scan.flagged_snippets_count = flagged_snippets_count
-            
-            # Set last_commit_sha for future incremental scans
-            if scan.working_commit_sha:
-                scan.last_commit_sha = scan.working_commit_sha
-            
-            db_session.commit()
-            
-            self.logger.info(f"Scan {scan_id} finalized successfully: {processed_pages} processed, {error_pages} errors, {biased_pages_count} biased pages, {flagged_snippets_count} flagged snippets")
-            
-            # Update bias snapshots after scan completion
-            try:
-                from shared.application.bias_snapshot_service import BiasSnapshotService
-                snapshot_service = BiasSnapshotService(db_session)
-                overall_snapshot, docset_snapshots = snapshot_service.calculate_and_save_today()
-                if overall_snapshot:
-                    self.logger.info(f"Updated bias snapshot for today: {overall_snapshot.bias_percentage}% bias ({overall_snapshot.biased_pages}/{overall_snapshot.total_pages} pages)")
-                else:
-                    self.logger.warning("Failed to create bias snapshot after scan completion")
-            except Exception as e:
-                self.logger.error(f"Error updating bias snapshot after scan {scan_id}: {e}", exc_info=True)
-                # Don't fail the scan finalization if snapshot update fails
-            
-        except Exception as e:
-            self.logger.error(f"Error finalizing scan {scan_id}: {e}")
-    
     def start_consuming(self):
         """Start consuming document tasks from the queue"""
         self.logger.info("Document worker starting...")
