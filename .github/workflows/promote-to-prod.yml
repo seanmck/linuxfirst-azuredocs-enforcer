@@ -113,7 +113,7 @@ jobs:
           git checkout -b "$BRANCH_NAME"
           git add "$PROD_OVERLAY/kustomization.yaml"
           git commit -m "chore(prod): promote dev images to production"
-          git push origin "$BRANCH_NAME"
+          git push --force origin "$BRANCH_NAME"
 
           gh pr create \
             --title "Promote to Production: ${{ steps.dev-tags.outputs.webui }}" \
