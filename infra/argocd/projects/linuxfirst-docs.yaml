@@ -35,9 +35,13 @@ spec:
       kind: Service
     - group: ''
       kind: ServiceAccount
+    - group: ''
+      kind: PersistentVolumeClaim
     # Workloads
     - group: apps
       kind: Deployment
+    - group: apps
+      kind: StatefulSet
     - group: batch
       kind: Job
     - group: batch
