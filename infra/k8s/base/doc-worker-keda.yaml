@@ -125,12 +125,16 @@ spec:
   minReplicaCount: 0
   maxReplicaCount: 4
   cooldownPeriod: 300
+  fallback:
+    failureThreshold: 3
+    replicas: 1  # Scale to 1 if trigger fails (e.g., queue missing after RabbitMQ restart)
   triggers:
   - type: rabbitmq
     metadata:
       queueName: changed_files
       mode: QueueLength
       value: "10"
+      activationQueueLength: "0"  # Activate even when queue doesn't exist
       excludeUnacknowledged: "false"
     authenticationRef:
       name: rabbitmq-trigger-auth
