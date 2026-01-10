@@ -582,24 +582,6 @@ async def suggest_linux_pr(request: Request, body: dict = Body(...)):
         proposed = f"Error generating suggestion: {e}"
     return JSONResponse({"original": doc_content, "proposed": proposed})
 
-def get_priority_label_and_score(mcp_holistic):
-    if not mcp_holistic:
-        return ("Low", 1)
-    bias_types = mcp_holistic.get('bias_types')
-    if isinstance(bias_types, str):
-        bias_types = [bias_types]
-    if not bias_types or not isinstance(bias_types, list):
-        return ("Low", 1)
-    n_bias = len(bias_types)
-    if n_bias >= 3:
-        return ("High", 3)
-    elif n_bias == 2:
-        return ("Medium", 2)
-    elif n_bias == 1:
-        return ("Low", 1)
-    else:
-        return ("Low", 1)
-
 
 # Import auth dependencies at the end to avoid circular imports
 from routes.auth import get_current_user

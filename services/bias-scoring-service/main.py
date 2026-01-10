@@ -156,6 +156,11 @@ Analyze the following documentation page for evidence of Windows bias, such as o
 - bias_types: list of bias types found (e.g., 'powershell_heavy', 'windows_first', 'missing_linux_example', 'windows_tools')
 - summary: a short summary of the bias
 - recommendations: suggestions to improve Linux parity
+- severity: "high", "medium", "low", or "none" - how significantly the bias impacts Linux/macOS users:
+  - "high": Critical sections are Windows-only; Linux users cannot complete the task
+  - "medium": Notable bias creating friction, but workarounds exist
+  - "low": Minor bias like Windows examples shown first
+  - "none": No meaningful bias detected
 
 Page content:
 {req.page_content}
