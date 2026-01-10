@@ -54,7 +54,7 @@ def detect_truncation(original_markdown: str, updated_markdown: str) -> dict:
 
     Returns a dict with:
       - is_truncated: bool
-      - warning_message: str (if truncated)
+      - warning_message: str | None (None if not truncated, otherwise a descriptive message)
       - line_ratio: float (updated lines / original lines)
       - missing_next_steps: bool
     """
