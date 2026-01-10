@@ -501,7 +501,7 @@ class BaselineManager:
         partial_baselines = self._analyze_partial_scans(repo_url)
         
         # Choose optimal strategy
-        if complete_baseline and complete_baseline.age < timedelta(days=7):
+        if complete_baseline:
             return complete_baseline
         elif partial_baselines.type == BaselineType.PARTIAL:
             return partial_baselines
