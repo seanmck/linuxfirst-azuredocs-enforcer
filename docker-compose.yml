@@ -12,7 +12,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
   rabbitmq:
-    image: mcr.microsoft.com/cbl-mariner/base/rabbitmq-server
+    image: mcr.microsoft.com/cbl-mariner/base/rabbitmq-server:3.11
     restart: always
     ports:
       - "5672:5672"
