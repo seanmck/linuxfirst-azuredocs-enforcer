@@ -10,6 +10,7 @@ import pprint
 import pika
 import json
 from shared.utils.bias_utils import is_page_biased, get_page_priority
+from shared.utils.url_utils import format_doc_set_name
 from routes.auth import get_current_user
 from jinja_env import templates
 
@@ -71,7 +72,8 @@ async def scan_details(scan_id: int, request: Request, current_user: Optional[Us
             'status': page.status,
             'mcp_holistic': mcp_holistic,
             'priority_label': priority_label,
-            'priority_score': priority_score
+            'priority_score': priority_score,
+            'doc_set_display': format_doc_set_name(page.doc_set)
         })
     pages_with_holistic.sort(key=lambda p: p['priority_score'], reverse=True)
     db.close()
@@ -152,7 +154,8 @@ async def scan_details_json(scan_id: int, request: Request, current_user: Option
             'status': page.status,
             'mcp_holistic': mcp_holistic,
             'priority_label': priority_label,
-            'priority_score': priority_score
+            'priority_score': priority_score,
+            'doc_set_display': format_doc_set_name(page.doc_set)
         })
     pages_with_holistic.sort(key=lambda p: p['priority_score'], reverse=True)
     db.close()

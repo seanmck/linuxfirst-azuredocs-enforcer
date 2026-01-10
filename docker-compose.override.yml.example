@@ -1,0 +1,79 @@
+# docker-compose.override.yml.example
+# Copy this file to docker-compose.override.yml for local development.
+# The override file is gitignored and won't be committed.
+#
+# Usage:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   ./scripts/start-dev.sh
+
+version: '3.8'
+
+services:
+  web:
+    volumes:
+      - ./services/web/src:/app/web:cached
+      - ./services/web/static:/app/web/static:cached
+      - ./shared:/app/shared:cached
+      - ./packages:/app/packages:cached
+      - ./config:/app/config:cached
+      - ./infra:/app/infra:cached
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment:
+      - DATABASE_URL=postgresql://azuredocs_user:azuredocs_pass@db:5432/azuredocs
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    restart: "no"
+
+  worker:
+    volumes:
+      - ./services/worker/src:/app/worker:cached
+      - ./shared:/app/shared:cached
+      - ./packages:/app/packages:cached
+      - ./config:/app/config:cached
+      - ./scripts:/app/scripts:cached
+    command: ["watchmedo", "auto-restart", "--directory=/app/worker", "--directory=/app/shared", "--pattern=*.py", "--recursive", "--", "python", "worker/queue_worker.py"]
+    environment:
+      - DATABASE_URL=postgresql://azuredocs_user:azuredocs_pass@db:5432/azuredocs
+      - RABBITMQ_HOST=rabbitmq
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    restart: "no"
+
+  document_worker:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    depends_on:
+      - db
+      - rabbitmq
+    volumes:
+      - ./services/worker/src:/app/worker:cached
+      - ./shared:/app/shared:cached
+      - ./packages:/app/packages:cached
+      - ./config:/app/config:cached
+    command: ["watchmedo", "auto-restart", "--directory=/app/worker", "--directory=/app/shared", "--pattern=*.py", "--recursive", "--", "python", "worker/document_worker.py"]
+    environment:
+      - DATABASE_URL=postgresql://azuredocs_user:azuredocs_pass@db:5432/azuredocs
+      - RABBITMQ_HOST=rabbitmq
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    restart: "no"
+
+  bias_scoring_service:
+    volumes:
+      - ./services/bias-scoring-service:/app:cached
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9000", "--reload"]
+    environment:
+      - DATABASE_URL=postgresql://azuredocs_user:azuredocs_pass@db:5432/azuredocs
+      - RABBITMQ_HOST=rabbitmq
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    restart: "no"
