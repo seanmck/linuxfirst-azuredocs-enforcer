@@ -80,16 +80,18 @@ def get_page_priority(page):
 
     # Prefer LLM-provided severity if available
     severity = mcp_data.get('severity')
-    if severity:
+    if isinstance(severity, str) and severity.strip():
         severity_map = {
             'high': ('High', 3),
             'medium': ('Medium', 2),
             'low': ('Low', 1),
-            'none': ('Low', 1)
+            'none': ('Low', 1),
         }
-        return severity_map.get(severity.lower(), ('Low', 1))
+        severity_key = severity.strip().lower()
+        if severity_key in severity_map:
+            return severity_map[severity_key]
 
-    # Fallback: count-based logic for legacy pages
+    # Fallback: count-based logic for legacy pages or invalid severity values
     bias_types = mcp_data.get('bias_types', [])
     if isinstance(bias_types, str):
         bias_types = [bias_types]
