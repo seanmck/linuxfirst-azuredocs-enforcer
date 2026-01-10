@@ -9,6 +9,7 @@ patches:
 - path: service-account-patch.yaml
 - path: secret-provider-class-patch.yaml
 - path: sc-azuredocsdbconnection-secret-patch.yaml
+- path: rabbitmq-patch.yaml
 
 # Image versions for prod environment (updated via promotion PR)
 images:
