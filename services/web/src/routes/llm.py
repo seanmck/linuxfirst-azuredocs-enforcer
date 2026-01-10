@@ -48,6 +48,59 @@ def create_content_hash(content: str) -> str:
     return hashlib.sha256(content.encode('utf-8')).hexdigest()
 
 
+def detect_truncation(original_markdown: str, updated_markdown: str) -> dict:
+    """
+    Detect if the LLM output appears to be truncated.
+
+    Returns a dict with:
+      - is_truncated: bool
+      - warning_message: str (if truncated)
+      - line_ratio: float (updated lines / original lines)
+      - missing_next_steps: bool
+    """
+    original_lines = original_markdown.strip().split('\n')
+    updated_lines = updated_markdown.strip().split('\n')
+
+    original_count = len(original_lines)
+    updated_count = len(updated_lines)
+
+    # Calculate line ratio
+    line_ratio = updated_count / original_count if original_count > 0 else 1.0
+
+    # Check for "Next steps" section (common in Azure docs)
+    original_has_next_steps = any(
+        'next steps' in line.lower() or '## next' in line.lower()
+        for line in original_lines
+    )
+    updated_has_next_steps = any(
+        'next steps' in line.lower() or '## next' in line.lower()
+        for line in updated_lines
+    )
+    missing_next_steps = original_has_next_steps and not updated_has_next_steps
+
+    # Determine if truncated (< 80% of original lines or missing Next steps)
+    is_truncated = line_ratio < 0.8 or missing_next_steps
+
+    warning_message = None
+    if is_truncated:
+        warnings = []
+        if line_ratio < 0.8:
+            percentage = int((1 - line_ratio) * 100)
+            warnings.append(f"Output is ~{percentage}% shorter than original ({updated_count} vs {original_count} lines)")
+        if missing_next_steps:
+            warnings.append("Missing 'Next steps' section from original document")
+        warning_message = ". ".join(warnings) + ". Try clicking 'Regenerate PR' for a complete rewrite."
+
+    return {
+        'is_truncated': is_truncated,
+        'warning_message': warning_message,
+        'line_ratio': round(line_ratio, 2),
+        'missing_next_steps': missing_next_steps,
+        'original_lines': original_count,
+        'updated_lines': updated_count
+    }
+
+
 def get_github_raw_url_for_page(page_url: str) -> tuple[str | None, str | None, str | None]:
     """
     Get the raw GitHub URL and repo path for a page.
@@ -277,6 +330,7 @@ async def generate_updated_markdown(page_id: int = Query(...), force: bool = Que
     debug_info['recommendations'] = recommendations
     debug_info['llm_prompt'] = None
     debug_info['llm_response'] = None
+    debug_info['truncation_info'] = None
     mcp_holistic = mcp_holistic or {}
     if not isinstance(mcp_holistic, dict):
         mcp_holistic = {}
@@ -290,25 +344,56 @@ async def generate_updated_markdown(page_id: int = Query(...), force: bool = Que
         debug_log.append('No recommendations provided, using original markdown.')
         debug_info['llm_status'] = 'No recommendations provided, using original markdown.'
     else:
-        prompt = f"""
-You are an expert technical writer. Given the following original markdown and a set of recommendations, rewrite the markdown to address the recommendations. Output the complete Markdown file contents, ready for direct replacement. All unchanged content must be included in full. Maintain correct Markdown syntax and Azure style guide consistency. \n\nOriginal Markdown:\n{original_markdown}\n\nRecommendations:\n{recommendations}\n\nUpdated Markdown:"""
+        prompt = f"""You are an expert technical writer specializing in Azure documentation.
+
+CRITICAL REQUIREMENTS:
+1. OUTPUT THE ENTIRE DOCUMENT - Do not truncate or omit ANY sections. Include everything from start to end.
+2. PRESERVE ALL CONTENT - Include every heading, paragraph, code block, list, table, and the "Next steps" section.
+3. DO NOT MODIFY CODE SYNTAX - Keep all commands, variables, flags, and arguments EXACTLY as written.
+4. DO NOT add or remove quotes, backticks, escape characters, or variable formatting in code blocks.
+5. When adding cross-platform examples (CLI alongside PowerShell), use Azure docs zone/pivot syntax:
+   :::zone pivot="platform-cli"
+   [Azure CLI example]
+   :::zone-end
+   :::zone pivot="platform-powershell"
+   [PowerShell example]
+   :::zone-end
+6. Maintain correct Markdown syntax and Azure style guide consistency.
+
+Given the original markdown and recommendations below, rewrite the markdown to address the recommendations while following ALL requirements above.
+
+Original Markdown:
+{original_markdown}
+
+Recommendations:
+{recommendations}
+
+Output the COMPLETE updated Markdown document below (do not truncate):"""
         logger.info(f"Calling LLM with {len(prompt)} character prompt")
         debug_info['llm_prompt'] = prompt
         try:
             response = llm.client.chat.completions.create(
                 model=llm.deployment,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=2048,
+                max_tokens=16384,  # Increased to handle full Azure docs pages (typically 4-10k tokens)
                 temperature=0.3
             )
             updated_markdown = response.choices[0].message.content.strip()
             debug_info['llm_response'] = updated_markdown
             debug_log.append('LLM call succeeded.')
             debug_info['llm_status'] = 'LLM call succeeded.'
+
+            # Check for truncation
+            truncation_info = detect_truncation(original_markdown, updated_markdown)
+            debug_info['truncation_info'] = truncation_info
+            if truncation_info['is_truncated']:
+                debug_log.append(f"Warning: {truncation_info['warning_message']}")
+                logger.warning(f"Truncation detected for page {page_id}: {truncation_info['warning_message']}")
         except Exception as e:
             updated_markdown = original_markdown
             debug_log.append(f'LLM call failed: {e}')
             debug_info['llm_status'] = f'LLM call failed: {e}'
+            debug_info['truncation_info'] = None
     yaml_dict, yaml_str, md_body = extract_yaml_header(updated_markdown)
     if yaml_str:
         updated_markdown_content = f"---\n{yaml_str}\n---\n{md_body}"
@@ -348,7 +433,8 @@ You are an expert technical writer. Given the following original markdown and a 
         "yaml_header_str": yaml_str,
         "debug_info": debug_info,
         "cached": False,
-        "rewritten_document_id": debug_info.get('rewritten_document_id')
+        "rewritten_document_id": debug_info.get('rewritten_document_id'),
+        "truncation_info": debug_info.get('truncation_info')
     })
 
 @router.post("/api/compute_diff")

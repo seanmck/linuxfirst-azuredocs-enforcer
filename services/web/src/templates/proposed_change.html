@@ -541,6 +541,50 @@
             border: 1px solid #fecaca;
         }
 
+        /* Truncation warning styles */
+        .truncation-warning {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border: 2px solid #f59e0b;
+            border-radius: 10px;
+            padding: 1em 1.5em;
+            margin-bottom: 1.5em;
+            display: none;
+        }
+
+        .truncation-warning-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            font-weight: 600;
+            color: #92400e;
+            font-size: 1.1em;
+            margin-bottom: 0.5em;
+        }
+
+        .truncation-warning-icon {
+            font-size: 1.3em;
+        }
+
+        .truncation-warning-message {
+            color: #78350f;
+            line-height: 1.5;
+        }
+
+        .truncation-warning-stats {
+            margin-top: 0.75em;
+            font-size: 0.9em;
+            color: #92400e;
+            display: flex;
+            gap: 1.5em;
+            flex-wrap: wrap;
+        }
+
+        .truncation-stat {
+            display: flex;
+            align-items: center;
+            gap: 0.3em;
+        }
+
         @media (max-width: 900px) {
             .container { padding: 1em; }
             .grid2x2 { grid-template-columns: 1fr; grid-template-rows: auto; }
@@ -611,6 +655,28 @@
         </div>
         {% endif %}
         
+        <!-- Truncation Warning Banner -->
+        <div id="truncation-warning" class="truncation-warning">
+            <div class="truncation-warning-header">
+                <span class="truncation-warning-icon">&#9888;</span>
+                <span>Content Truncation Detected</span>
+            </div>
+            <div class="truncation-warning-message" id="truncation-warning-message">
+                The generated rewrite appears to be incomplete.
+            </div>
+            <div class="truncation-warning-stats">
+                <div class="truncation-stat">
+                    <strong>Original lines:</strong> <span id="truncation-original-lines">-</span>
+                </div>
+                <div class="truncation-stat">
+                    <strong>Output lines:</strong> <span id="truncation-updated-lines">-</span>
+                </div>
+                <div class="truncation-stat">
+                    <strong>Ratio:</strong> <span id="truncation-ratio">-</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Tab navigation -->
         <div class="tab-navigation">
             <button class="tab-button active" data-tab="side-by-side">Side by Side</button>
@@ -1024,10 +1090,13 @@
                 console.log('fetchUpdatedMarkdown called with force:', force);
                 let url = `/generate_updated_markdown?page_id=${pageId}`;
                 if (force) url += '&force=true';
-                
+
                 document.getElementById('raw-new-markdown').textContent = 'Generating updated version of doc...';
                 document.getElementById('rendered-new-markdown').textContent = 'Generating updated version of doc...';
-                
+
+                // Hide truncation warning during regeneration
+                document.getElementById('truncation-warning').style.display = 'none';
+
                 // Reset diff computed flags
                 diffComputed = false;
                 splitDiffComputed = false;
@@ -1077,6 +1146,9 @@
                             if (data.rewritten_document_id) {
                                 showFeedbackWidget(data.rewritten_document_id);
                             }
+
+                            // Handle truncation warning
+                            handleTruncationWarning(data.truncation_info);
                         } else {
                             document.getElementById('raw-new-markdown').textContent = '[Error generating updated markdown]';
                             document.getElementById('rendered-new-markdown').textContent = '[Error generating updated markdown]';
@@ -1133,6 +1205,32 @@
                 console.error('Regenerate button not found');
             }
         });
+
+        // Truncation warning handler
+        function handleTruncationWarning(truncationInfo) {
+            const warningDiv = document.getElementById('truncation-warning');
+
+            if (!truncationInfo || !truncationInfo.is_truncated) {
+                // Hide warning
+                warningDiv.style.display = 'none';
+                return;
+            }
+
+            // Show warning with details
+            warningDiv.style.display = 'block';
+
+            // Update message
+            const messageEl = document.getElementById('truncation-warning-message');
+            messageEl.textContent = truncationInfo.warning_message || 'The generated rewrite appears to be incomplete.';
+
+            // Update stats
+            document.getElementById('truncation-original-lines').textContent = truncationInfo.original_lines || '-';
+            document.getElementById('truncation-updated-lines').textContent = truncationInfo.updated_lines || '-';
+            document.getElementById('truncation-ratio').textContent = truncationInfo.line_ratio ?
+                (truncationInfo.line_ratio * 100).toFixed(0) + '%' : '-';
+
+            console.log('Truncation warning displayed:', truncationInfo);
+        }
 
         // Feedback widget functions
         function showFeedbackWidget(rewrittenDocumentId) {
