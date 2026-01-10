@@ -322,10 +322,14 @@
         <!-- Large bias indicator -->
         <div class="bias-indicator">
             {% if is_biased %}
-                <div class="bias-status biased">❌</div>
+                <div class="bias-status biased">
+                    <img src="/static/sad_tux.png" alt="Sad Tux - Windows bias detected" style="width: 120px; height: auto;">
+                </div>
                 <div class="bias-status-text">This page contains Windows bias</div>
             {% else %}
-                <div class="bias-status clean">✅</div>
+                <div class="bias-status clean">
+                    <img src="/static/happy_tux.png" alt="Happy Tux - Linux-friendly" style="width: 120px; height: auto;">
+                </div>
                 <div class="bias-status-text">This page is Linux-friendly!</div>
             {% endif %}
         </div>
