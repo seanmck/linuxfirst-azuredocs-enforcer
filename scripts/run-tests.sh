@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/bin/bash
 # scripts/run-tests.sh
 # Runs unit tests and integration tests (if infrastructure is available).
 #
@@ -74,7 +74,7 @@ trap cleanup INT TERM
 echo "Starting web server for integration tests..."
 (cd services/web && TEST_MODE=1 uvicorn src.main:app --host 0.0.0.0 --port 8000) &
 WEB_PID=$!
-CLEANUP_PIDS+=$WEB_PID
+CLEANUP_PIDS+=($WEB_PID)
 
 # Wait for web server to be ready
 echo "Waiting for web server to be ready..."
