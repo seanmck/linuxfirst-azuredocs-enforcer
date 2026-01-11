@@ -32,7 +32,7 @@
     <!-- Overall Progress Bar -->
     <div class="progress-container">
         <div class="progress-bar-container">
-            {% set initial_progress = (scan.pages_processed / scan.total_pages_found * 100) if scan.total_pages_found and scan.total_pages_found > 0 else (100 if scan.status == 'completed' else 0) %}
+            {% set initial_progress = (scan.total_files_completed / scan.total_files_queued * 100) if scan.total_files_queued and scan.total_files_queued > 0 else (100 if scan.status == 'completed' else 0) %}
             <div class="progress-bar" id="overall-progress-bar" style="width: {{ initial_progress }}%" data-initial-progress="{{ initial_progress }}">{{ initial_progress|round|int }}%</div>
         </div>
     </div>
@@ -87,12 +87,12 @@
         <p><strong>Current Phase:</strong> {{ scan.current_phase }}</p>
         {% endif %}
         
-        {% if scan.total_pages_found %}
-        <p><strong>Pages Found:</strong> {{ scan.total_pages_found }}</p>
+        {% if scan.total_files_queued %}
+        <p><strong>Files Queued:</strong> {{ scan.total_files_queued }}</p>
         {% endif %}
-        
-        {% if scan.pages_processed %}
-        <p><strong>Pages Processed:</strong> {{ scan.pages_processed }}</p>
+
+        {% if scan.total_files_completed %}
+        <p><strong>Files Completed:</strong> {{ scan.total_files_completed }}</p>
         {% endif %}
         
         {% if scan.estimated_completion and scan.status != 'completed' %}

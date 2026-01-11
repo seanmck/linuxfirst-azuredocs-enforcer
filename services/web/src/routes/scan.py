@@ -30,10 +30,10 @@ async def scan_details(scan_id: int, request: Request, current_user: Optional[Us
     flagged_count = len(flagged_pages)
     percent_flagged = (flagged_count / scanned_count * 100) if scanned_count else 0
     
-    # Calculate initial progress for the UI
+    # Calculate initial progress for the UI (using file-based counters for GitHub scans)
     initial_progress = 0
-    if scan.total_pages_found and scan.total_pages_found > 0:
-        initial_progress = (scan.pages_processed / scan.total_pages_found) * 100
+    if scan.total_files_queued and scan.total_files_queued > 0:
+        initial_progress = (scan.total_files_completed / scan.total_files_queued) * 100
     elif scan.status == 'completed':
         initial_progress = 100
     
@@ -115,10 +115,10 @@ async def scan_details_json(scan_id: int, request: Request, current_user: Option
     flagged_count = len(flagged_pages)
     percent_flagged = (flagged_count / scanned_count * 100) if scanned_count else 0
     
-    # Calculate initial progress for the UI
+    # Calculate initial progress for the UI (using file-based counters for GitHub scans)
     initial_progress = 0
-    if scan.total_pages_found and scan.total_pages_found > 0:
-        initial_progress = (scan.pages_processed / scan.total_pages_found) * 100
+    if scan.total_files_queued and scan.total_files_queued > 0:
+        initial_progress = (scan.total_files_completed / scan.total_files_queued) * 100
     elif scan.status == 'completed':
         initial_progress = 100
     
