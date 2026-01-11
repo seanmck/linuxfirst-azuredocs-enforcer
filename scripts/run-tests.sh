@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 # scripts/run-tests.sh
 # Runs unit tests and integration tests (if infrastructure is available).
 #
