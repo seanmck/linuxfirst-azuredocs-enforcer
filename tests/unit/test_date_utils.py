@@ -3,6 +3,7 @@ Unit tests for shared/utils/date_utils.py
 """
 import pytest
 from datetime import datetime
+from unittest.mock import patch
 from shared.utils.date_utils import (
     get_current_date_mmddyyyy,
     update_ms_date_in_content,
