@@ -35,7 +35,7 @@ fi
 echo "=== Checking Infrastructure for Integration Tests ==="
 
 # Check PostgreSQL
-if ! pg_isready -h localhost -p 5432 -q 2>/dev/null; then
+if ! nc -z localhost 5432 2>/dev/null; then
   echo "WARNING: PostgreSQL not available on localhost:5432"
   echo "To run integration tests: docker-compose up -d db rabbitmq"
   echo "Skipping integration tests."
