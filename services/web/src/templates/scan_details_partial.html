@@ -356,10 +356,10 @@
     </div>
 
     {% if pages and pages|length > 0 %}
-        {% set has_flagged = false %}
+        {% set ns = namespace(has_flagged=false) %}
         {% for page in pages %}
             {% if page.mcp_holistic and page.mcp_holistic.get('bias_types') %}
-                {% set has_flagged = true %}
+                {% set ns.has_flagged = true %}
                 <div class="page-card" data-priority="{{ page['priority_label']|lower }}">
                     <!-- Card Header -->
                     <div class="page-card-header">
@@ -457,7 +457,7 @@
             {% endif %}
         {% endfor %}
 
-        {% if not has_flagged %}
+        {% if not ns.has_flagged %}
         <div class="no-issues-found">
             <div class="no-issues-found-icon">🐧</div>
             <p class="no-issues-found-text">No problematic pages found in this scan. All pages appear to be Linux-friendly!</p>
