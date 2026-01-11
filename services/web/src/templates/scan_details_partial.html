@@ -103,7 +103,7 @@
 
 <!-- Contribution prompt will be handled by top navigation authentication -->
 
-<!-- CSS for new components -->
+<!-- CSS for new components - Dark Theme -->
 <style>
 /* Key Metrics - Promoted and Enhanced */
 .key-metrics {
@@ -118,30 +118,32 @@
 }
 
 .summary-card {
-    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    background: var(--bg-card);
     border-radius: 12px;
     padding: 1.5em;
     text-align: center;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .summary-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    border-color: var(--accent-yellow);
 }
 
 .summary-value {
     font-size: 2.5em;
     font-weight: 800;
-    color: #1e293b;
+    color: var(--accent-yellow);
     margin-bottom: 0.3em;
     line-height: 1;
+    font-family: var(--font-mono);
 }
 
 .summary-label {
-    color: #64748b;
+    color: var(--text-muted);
     font-size: 0.95em;
     font-weight: 600;
     text-transform: uppercase;
@@ -150,11 +152,11 @@
 
 /* Compact Progress Section */
 .progress-section-compact {
-    background: #f8fafc;
+    background: var(--bg-secondary);
     border-radius: 8px;
     padding: 1em;
     margin-bottom: 1em;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
 }
 
 .progress-header-compact {
@@ -167,7 +169,8 @@
 .progress-header-compact h3 {
     font-size: 1.1em;
     margin: 0;
-    color: #374151;
+    color: var(--accent-yellow);
+    font-family: var(--font-mono);
 }
 
 .connection-status {
@@ -175,13 +178,13 @@
     font-weight: 600;
     padding: 0.2em 0.6em;
     border-radius: 6px;
-    background: #fee2e2;
-    color: #dc2626;
+    background: var(--accent-red-dim);
+    color: var(--accent-red);
 }
 
 .connection-status.connected {
-    background: #dcfce7;
-    color: #16a34a;
+    background: var(--accent-green-dim);
+    color: var(--accent-green);
 }
 
 .progress-container {
@@ -189,7 +192,7 @@
 }
 
 .progress-bar-container {
-    background: #e5e7eb;
+    background: rgba(51, 65, 85, 0.5);
     border-radius: 6px;
     height: 20px;
     position: relative;
@@ -197,13 +200,13 @@
 }
 
 .progress-bar {
-    background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+    background: linear-gradient(90deg, var(--accent-yellow), #eab308);
     height: 100%;
     border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--bg-primary);
     font-weight: 600;
     font-size: 0.85em;
     transition: width 0.3s ease;
@@ -211,13 +214,14 @@
 }
 
 .current-activity-compact {
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--bg-card);
     border-radius: 6px;
     padding: 0.75em;
     margin-bottom: 0.75em;
     display: flex;
     gap: 1.5em;
     flex-wrap: wrap;
+    color: var(--text-secondary);
 }
 
 .current-activity-compact .activity-item {
@@ -225,8 +229,12 @@
     margin-bottom: 0;
 }
 
+.current-activity-compact .activity-item strong {
+    color: var(--text-primary);
+}
+
 .activity-feed-details {
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--bg-card);
     border-radius: 6px;
     padding: 0.75em;
 }
@@ -234,7 +242,7 @@
 .activity-feed-details summary {
     cursor: pointer;
     font-weight: 600;
-    color: #374151;
+    color: var(--text-primary);
     font-size: 0.95em;
     margin-bottom: 0.5em;
 }
@@ -242,16 +250,16 @@
 .activity-feed {
     max-height: 150px;
     overflow-y: auto;
-    background: white;
+    background: var(--bg-primary);
     border-radius: 4px;
     padding: 0.6em;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-color);
     margin-top: 0.5em;
 }
 
 .activity-feed .activity-item {
     padding: 0.4em 0;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.5);
     display: flex;
     gap: 1em;
     font-size: 0.85em;
@@ -262,29 +270,34 @@
 }
 
 .activity-time {
-    color: #6b7280;
+    color: var(--text-muted);
     font-weight: 500;
     min-width: 60px;
 }
 
 .activity-message {
-    color: #374151;
+    color: var(--text-secondary);
     flex: 1;
 }
 
 .activity-item.error .activity-message {
-    color: #dc2626;
+    color: var(--accent-red);
 }
 
 .activity-item.error .activity-time {
-    color: #dc2626;
+    color: var(--accent-red);
 }
 
 .scan-info {
-    background: rgba(255, 255, 255, 0.9);
+    background: var(--bg-secondary);
     border-radius: 8px;
     padding: 1em;
     margin-top: 1em;
+    color: var(--text-secondary);
+}
+
+.scan-info strong {
+    color: var(--text-primary);
 }
 
 /* Mobile responsive adjustments */
@@ -293,24 +306,24 @@
         grid-template-columns: repeat(2, 1fr);
         gap: 0.75em;
     }
-    
+
     .summary-card {
         padding: 1.25em;
     }
-    
+
     .summary-value {
         font-size: 2em;
     }
-    
+
     .summary-label {
         font-size: 0.85em;
     }
-    
+
     .current-activity-compact {
         flex-direction: column;
         gap: 0.5em;
     }
-    
+
     .progress-section-compact {
         padding: 0.75em;
     }

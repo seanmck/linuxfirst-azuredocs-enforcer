@@ -5,142 +5,201 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="stylesheet" href="/static/dashboard.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
+
         body {
-            font-family: 'Segoe UI', Arial, sans-serif;
+            font-family: var(--font-body);
             margin: 0;
-            background: #f7fafd;
-            color: #222;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
         }
+
         .container {
-            max-width: 1200px;
-            margin: 2em auto;
-            padding: 0 2em;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2em;
         }
-        .header {
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
-            padding: 2em 2.5em;
-            margin-bottom: 2em;
-            display: flex;
-            align-items: center;
-            gap: 2em;
+
+        /* Page header */
+        .page-header {
+            margin-bottom: 1.5em;
         }
-        .tux-logo {
-            max-width: 80px;
-            flex-shrink: 0;
-        }
-        h1 {
-            font-size: 2.2em;
-            font-weight: 700;
+        .page-header h1 {
+            font-family: var(--font-mono);
+            font-size: 1.75em;
+            font-weight: 600;
             margin: 0;
-            color: #2563eb;
-            letter-spacing: -1px;
+            color: var(--accent-yellow);
+            letter-spacing: -0.5px;
         }
-        .subtitle {
-            color: #666;
-            font-size: 1.1em;
-            margin: 0.5em 0 0 0;
+        .page-header .subtitle {
+            color: var(--text-secondary);
+            font-size: 1em;
+            margin-top: 0.5em;
+            font-weight: 400;
         }
+
+        /* Breadcrumb */
         .breadcrumb {
-            background: #fff;
-            border-radius: 8px;
-            padding: 1em 1.5em;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.75em 1.25em;
             margin-bottom: 2em;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            font-size: 0.9em;
+            font-size: 0.875em;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
         }
         .breadcrumb a {
-            color: #2563eb;
+            color: var(--accent-yellow);
             text-decoration: none;
+            transition: color 0.2s;
         }
         .breadcrumb a:hover {
+            color: #fde047;
             text-decoration: underline;
         }
-        
-        /* Large bias indicator */
+
+        /* Hero bias indicator */
         .bias-indicator {
-            background: #fff;
             border-radius: 16px;
-            padding: 3em;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            padding: 3em 2em;
             text-align: center;
             margin-bottom: 2em;
+            position: relative;
+            overflow: hidden;
+        }
+        .bias-indicator.biased {
+            background: linear-gradient(135deg, #450a0a 0%, #1e293b 50%, #0f172a 100%);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            box-shadow: 0 0 60px rgba(239, 68, 68, 0.1), inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+        .bias-indicator.clean {
+            background: linear-gradient(135deg, #052e16 0%, #1e293b 50%, #0f172a 100%);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            box-shadow: 0 0 60px rgba(34, 197, 94, 0.1), inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+        .bias-indicator::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            opacity: 0.03;
+            pointer-events: none;
         }
         .bias-status {
-            font-size: 5em;
-            margin-bottom: 0.2em;
-        }
-        .bias-status.biased {
-            color: #dc2626;
-        }
-        .bias-status.clean {
-            color: #16a34a;
-        }
-        .bias-status-text {
-            font-size: 1.5em;
-            font-weight: 600;
-            color: #1e293b;
-        }
-        
-        /* Page summary section */
-        .page-summary-section {
-            background: #fff;
-            border-radius: 12px;
-            padding: 2em;
-            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
-            margin-bottom: 2em;
-        }
-        .page-summary-section h2 {
-            margin-top: 0;
-            color: #1f2937;
-            font-size: 1.5em;
+            position: relative;
+            z-index: 1;
             margin-bottom: 1em;
         }
-        .page-summary {
+        .bias-status img {
+            width: 140px;
+            height: auto;
+            background: #fff;
+            border-radius: 50%;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 0 0 4px rgba(255,255,255,0.1);
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        .bias-status-text {
+            font-family: var(--font-mono);
+            font-size: 1.5em;
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+        }
+        .bias-indicator.biased .bias-status-text {
+            color: var(--accent-red);
+        }
+        .bias-indicator.clean .bias-status-text {
+            color: var(--accent-green);
+        }
+
+        /* Card styles */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.75em;
+            margin-bottom: 1.5em;
+            transition: border-color 0.2s;
+        }
+        .card:hover {
+            border-color: #475569;
+        }
+        .card h2 {
+            font-family: var(--font-mono);
             font-size: 1.1em;
-            line-height: 1.6;
-            color: #374151;
+            font-weight: 600;
+            margin: 0 0 1.25em 0;
+            color: var(--accent-yellow);
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+        }
+        .card h2::before {
+            content: '>';
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        /* Page summary */
+        .page-summary {
+            color: var(--text-secondary);
+            font-size: 1em;
+            line-height: 1.7;
             margin-bottom: 1.5em;
         }
         .page-links {
             display: flex;
-            gap: 1em;
+            gap: 0.75em;
             flex-wrap: wrap;
         }
         .page-link {
             display: inline-flex;
             align-items: center;
             gap: 0.5em;
-            color: #2563eb;
+            color: var(--text-primary);
             text-decoration: none;
             font-weight: 500;
-            padding: 0.5em 1em;
-            border-radius: 8px;
-            background: rgba(37, 99, 235, 0.1);
-            border: 1px solid rgba(37, 99, 235, 0.2);
-            transition: all 0.3s ease;
+            font-size: 0.9em;
+            padding: 0.6em 1em;
+            border-radius: 6px;
+            background: var(--accent-yellow-dim);
+            border: 1px solid rgba(250, 204, 21, 0.25);
+            transition: all 0.2s;
         }
         .page-link:hover {
-            background: rgba(37, 99, 235, 0.2);
+            background: rgba(250, 204, 21, 0.25);
+            border-color: var(--accent-yellow);
             transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
         }
-        
-        /* Bias details section */
-        .bias-details-section {
-            background: #fff;
-            border-radius: 12px;
-            padding: 2em;
-            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
-            margin-bottom: 2em;
+        .page-link img {
+            width: 18px;
+            height: 18px;
+            filter: brightness(0) invert(1);
         }
-        .bias-details-section h2 {
-            margin-top: 0;
-            color: #1f2937;
-            font-size: 1.5em;
-            margin-bottom: 1em;
+
+        /* Bias details */
+        .label {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            font-size: 0.8em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75em;
         }
         .bias-types-row {
             display: flex;
@@ -149,230 +208,273 @@
             margin-bottom: 1.5em;
         }
         .bias-type-box {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.2);
-            border-radius: 8px;
-            padding: 0.5em 1em;
+            background: var(--accent-red-dim);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 6px;
+            padding: 0.5em 0.9em;
             display: flex;
             align-items: center;
-            gap: 0.5em;
-            font-size: 0.9em;
-            color: #dc2626;
+            gap: 0.4em;
+            font-size: 0.85em;
+            color: var(--accent-red);
             font-weight: 500;
+            font-family: var(--font-mono);
         }
         .bias-summary {
-            background: rgba(239, 68, 68, 0.05);
-            border-left: 4px solid #ef4444;
-            padding: 1em;
-            border-radius: 8px;
+            background: var(--accent-red-dim);
+            border-left: 3px solid var(--accent-red);
+            padding: 1em 1.25em;
+            border-radius: 0 8px 8px 0;
             margin-bottom: 1.5em;
+            color: var(--text-secondary);
+            font-size: 0.95em;
         }
         .bias-recommendations {
-            background: rgba(59, 130, 246, 0.05);
-            border-left: 4px solid #3b82f6;
-            padding: 1em;
-            border-radius: 8px;
+            background: var(--accent-blue-dim);
+            border-left: 3px solid var(--accent-blue);
+            padding: 1em 1.25em;
+            border-radius: 0 8px 8px 0;
+            color: var(--text-secondary);
+            font-size: 0.95em;
         }
         .bias-recommendations ul {
             margin: 0.5em 0;
-            padding-left: 1.5em;
+            padding-left: 1.25em;
+        }
+        .bias-recommendations li {
+            margin-bottom: 0.4em;
         }
         .github-pr-btn {
             display: inline-flex;
             align-items: center;
             gap: 0.5em;
-            padding: 0.6em 1.2em;
-            background: #24292f;
-            color: #fff;
-            border-radius: 8px;
+            padding: 0.7em 1.25em;
+            background: linear-gradient(135deg, #facc15 0%, #eab308 100%);
+            color: #0f172a;
+            border-radius: 6px;
             text-decoration: none;
-            font-weight: 500;
-            transition: all 0.3s ease;
+            font-weight: 600;
+            font-size: 0.9em;
+            transition: all 0.2s;
             margin-top: 1.5em;
+            box-shadow: 0 2px 8px rgba(250, 204, 21, 0.3);
         }
         .github-pr-btn:hover {
-            background: #1a1e23;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(250, 204, 21, 0.4);
         }
-        
-        /* Scan history section */
-        .scan-history-section {
-            background: #fff;
-            border-radius: 12px;
-            padding: 2em;
-            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
-            margin-bottom: 2em;
+        .github-pr-btn img {
+            width: 18px;
+            height: 18px;
         }
-        .scan-history-section h2 {
-            margin-top: 0;
-            color: #1f2937;
-            font-size: 1.5em;
-            margin-bottom: 1em;
-        }
+
+        /* Scan history table */
         .history-table {
             width: 100%;
             border-collapse: collapse;
+            font-size: 0.9em;
         }
         .history-table th {
             text-align: left;
-            padding: 0.8em;
-            border-bottom: 2px solid #e5e7eb;
-            color: #6b7280;
-            font-weight: 600;
-            font-size: 0.9em;
+            padding: 0.9em 1em;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            font-weight: 500;
+            font-size: 0.8em;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
         .history-table td {
-            padding: 0.8em;
-            border-bottom: 1px solid #f3f4f6;
+            padding: 0.9em 1em;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+            color: var(--text-secondary);
         }
-        .history-table tr:hover {
-            background: #f9fafb;
+        .history-table tr:hover td {
+            background: rgba(51, 65, 85, 0.3);
+        }
+        .history-table tr:last-child td {
+            border-bottom: none;
         }
         .bias-badge {
             display: inline-flex;
             align-items: center;
-            gap: 0.3em;
-            padding: 0.3em 0.8em;
-            border-radius: 20px;
+            gap: 0.4em;
+            padding: 0.35em 0.75em;
+            border-radius: 4px;
             font-size: 0.85em;
             font-weight: 600;
+            font-family: var(--font-mono);
         }
         .bias-badge.biased {
-            background: rgba(239, 68, 68, 0.1);
-            color: #dc2626;
-            border: 1px solid rgba(239, 68, 68, 0.2);
+            background: var(--accent-red-dim);
+            color: var(--accent-red);
+            border: 1px solid rgba(239, 68, 68, 0.3);
         }
         .bias-badge.clean {
-            background: rgba(16, 185, 129, 0.1);
-            color: #059669;
-            border: 1px solid rgba(16, 185, 129, 0.2);
+            background: var(--accent-green-dim);
+            color: var(--accent-green);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        .bias-badge img {
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            padding: 2px;
         }
         .scan-link {
-            color: #2563eb;
+            color: var(--accent-yellow);
             text-decoration: none;
+            font-family: var(--font-mono);
         }
         .scan-link:hover {
             text-decoration: underline;
         }
-        
-        /* Code snippets section */
-        .snippets-section {
-            background: #fff;
-            border-radius: 12px;
+        .empty-state {
+            text-align: center;
             padding: 2em;
-            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
-            margin-bottom: 2em;
+            color: var(--text-muted);
+            font-style: italic;
         }
-        .snippets-section h2 {
-            margin-top: 0;
-            color: #1f2937;
-            font-size: 1.5em;
-            margin-bottom: 1em;
-        }
+
+        /* Code snippets */
         .snippet-card {
-            background: #f8fafc;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
-            padding: 1.5em;
+            padding: 1.25em;
             margin-bottom: 1em;
-            border: 1px solid #e2e8f0;
         }
-        .snippet-code {
-            background: #1e293b;
-            color: #e2e8f0;
-            padding: 1em;
-            border-radius: 6px;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 0.9em;
-            overflow-x: auto;
-            margin: 0.5em 0;
+        .snippet-card:last-child {
+            margin-bottom: 0;
         }
         .snippet-context {
-            color: #64748b;
-            font-size: 0.9em;
-            margin-bottom: 0.5em;
+            color: var(--text-muted);
+            font-size: 0.85em;
+            margin-bottom: 0.75em;
+            font-family: var(--font-mono);
         }
-        .label {
-            font-weight: 600;
-            color: #475569;
-            margin-bottom: 0.5em;
-            font-size: 0.95em;
+        .snippet-code {
+            background: #0c0c0c;
+            color: #22c55e;
+            padding: 1em 1.25em;
+            border-radius: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.85em;
+            overflow-x: auto;
+            margin: 0.75em 0;
+            border: 1px solid #1a1a1a;
+            line-height: 1.5;
+        }
+        .snippet-analysis {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+            margin-top: 1em;
+            padding-top: 1em;
+            border-top: 1px solid var(--border-color);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1em;
+            }
+            .bias-indicator {
+                padding: 2em 1.5em;
+            }
+            .bias-status img {
+                width: 120px;
+            }
+            .bias-status-text {
+                font-size: 1.2em;
+            }
+            .page-links {
+                flex-direction: column;
+            }
+            .history-table {
+                font-size: 0.8em;
+            }
+            .history-table th,
+            .history-table td {
+                padding: 0.6em;
+            }
         }
     </style>
 </head>
 <body>
     <!-- Include Top Navigation -->
     {% include 'components/top_nav.html' %}
-    
+
     <div class="container">
         <div class="page-header">
             <h1>Document Details</h1>
             <div class="subtitle">{{ page_title }}</div>
         </div>
-        
+
         <!-- Breadcrumb navigation -->
         <div class="breadcrumb">
             <a href="/">Home</a> /
             {% if scan %}
-            <a href="/scan/{{ scan.id }}">Scan {{ scan.id }}</a> /
+            <a href="/scan/{{ scan.id }}">Scan #{{ scan.id }}</a> /
             {% endif %}
             {{ page_title }}
         </div>
-        
-        <!-- Large bias indicator -->
-        <div class="bias-indicator">
+
+        <!-- Hero bias indicator -->
+        <div class="bias-indicator {% if is_biased %}biased{% else %}clean{% endif %}">
             {% if is_biased %}
-                <div class="bias-status biased">
-                    <img src="/static/sad_tux.png" alt="Sad Tux - Windows bias detected" style="width: 120px; height: auto;">
+                <div class="bias-status">
+                    <img src="/static/sad_tux.png" alt="Sad Tux - Windows bias detected">
                 </div>
                 <div class="bias-status-text">This page contains Windows bias</div>
             {% else %}
-                <div class="bias-status clean">
-                    <img src="/static/happy_tux.png" alt="Happy Tux - Linux-friendly" style="width: 120px; height: auto;">
+                <div class="bias-status">
+                    <img src="/static/happy_tux.png" alt="Happy Tux - Linux-friendly">
                 </div>
                 <div class="bias-status-text">This page is Linux-friendly!</div>
             {% endif %}
         </div>
-        
+
         <!-- Page summary and links -->
-        <div class="page-summary-section">
+        <div class="card">
             <h2>About This Page</h2>
             <div class="page-summary">{{ page_summary }}</div>
             <div class="page-links">
                 <a href="{{ github_url }}" target="_blank" rel="noopener noreferrer" class="page-link">
-                    <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 20px; height: 20px;">
+                    <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub">
                     View on GitHub
                 </a>
                 <a href="{{ mslearn_url }}" target="_blank" rel="noopener noreferrer" class="page-link">
-                    📚 View on Microsoft Learn
+                    <span style="font-size: 1.1em;">&#128218;</span>
+                    View on Microsoft Learn
                 </a>
             </div>
         </div>
-        
+
         <!-- Bias details (if biased) -->
         {% if is_biased %}
-        <div class="bias-details-section">
+        <div class="card">
             <h2>Bias Analysis</h2>
-            
+
             {% if bias_types %}
-            <div class="label">Bias Types:</div>
+            <div class="label">Detected Bias Types</div>
             <div class="bias-types-row">
                 {% for bias_type in bias_types %}
                 <div class="bias-type-box">
-                    <span>⚠️</span>
                     {{ bias_type }}
                 </div>
                 {% endfor %}
             </div>
             {% endif %}
-            
+
             {% if bias_summary %}
-            <div class="label">Summary:</div>
+            <div class="label">Summary</div>
             <div class="bias-summary">{{ bias_summary }}</div>
             {% endif %}
-            
+
             {% if bias_recommendations %}
-            <div class="label">Recommendations:</div>
+            <div class="label">Recommendations</div>
             <div class="bias-recommendations">
                 {% if bias_recommendations is string %}
                     {{ bias_recommendations }}
@@ -385,28 +487,26 @@
                 {% endif %}
             </div>
             {% endif %}
-            
-            <!-- Contribution prompt will be handled by top navigation authentication -->
-            
+
             <!-- Create Pull Request Button -->
             <a href="/proposed_change?page_id={{ page.id }}" class="github-pr-btn">
-                <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 20px; height: 20px; filter: invert(1);">
-                Create pull request
+                <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub">
+                Create Pull Request
             </a>
         </div>
         {% endif %}
-        
+
         <!-- Scan history -->
-        <div class="scan-history-section">
+        <div class="card">
             <h2>Scan History</h2>
             {% if scan_history %}
             <table class="history-table">
                 <thead>
                     <tr>
                         <th>Date</th>
-                        <th>Scan ID</th>
+                        <th>Scan</th>
                         <th>Status</th>
-                        <th>Bias Status</th>
+                        <th>Result</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -419,9 +519,13 @@
                         <td>{{ history_item.scan_status }}</td>
                         <td>
                             {% if history_item.was_biased %}
-                                <span class="bias-badge biased">❌ Biased</span>
+                                <span class="bias-badge biased">
+                                    <img src="/static/sad_tux.png" alt="Biased"> Biased
+                                </span>
                             {% else %}
-                                <span class="bias-badge clean">✅ Clean</span>
+                                <span class="bias-badge clean">
+                                    <img src="/static/happy_tux.png" alt="Clean"> Clean
+                                </span>
                             {% endif %}
                         </td>
                     </tr>
@@ -429,31 +533,35 @@
                 </tbody>
             </table>
             {% else %}
-            <p>No scan history available for this page.</p>
+            <div class="empty-state">
+                No scan history available for this page yet.
+            </div>
             {% endif %}
         </div>
-        
+
         <!-- Code snippets (if biased and has snippets) -->
         {% if is_biased and snippets %}
-        <div class="snippets-section">
+        <div class="card">
             <h2>Flagged Code Snippets</h2>
             {% for snippet in snippets %}
                 {% if snippet.llm_score and snippet.llm_score.get('windows_biased') %}
                 <div class="snippet-card">
                     {% if snippet.context %}
-                    <div class="snippet-context">Context: {{ snippet.context }}</div>
+                    <div class="snippet-context">// {{ snippet.context }}</div>
                     {% endif %}
-                    <div class="snippet-code">{{ snippet.code }}</div>
+                    <div class="snippet-code"><pre style="margin: 0; white-space: pre-wrap;">{{ snippet.code }}</pre></div>
                     {% if snippet.llm_score.get('rationale') %}
-                    <div class="label">Analysis:</div>
-                    <div>{{ snippet.llm_score.get('rationale') }}</div>
+                    <div class="snippet-analysis">
+                        <div class="label">Analysis</div>
+                        {{ snippet.llm_score.get('rationale') }}
+                    </div>
                     {% endif %}
                 </div>
                 {% endif %}
             {% endfor %}
         </div>
         {% endif %}
-        
+
         <!-- Feedback Widget -->
         {% if user %}
         {% include 'feedback_widget.html' %}
