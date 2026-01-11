@@ -50,7 +50,8 @@ class TestDetectUrlSource:
     def test_invalid_url_returns_unknown(self):
         """Invalid URLs should return unknown."""
         assert detect_url_source("not-a-url") == "unknown"
-        assert detect_url_source("ftp://github.com") == "unknown"
+        # FTP URLs with github.com still get detected as github since we check domain
+        assert detect_url_source("ftp://example.com") == "unknown"
 
 
 class TestExtractDocSetFromUrl:

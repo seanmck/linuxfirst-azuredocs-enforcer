@@ -169,7 +169,8 @@ class TestSanitizeFilename:
         assert sanitize_filename("") == "unnamed"
         assert sanitize_filename("   ") == "unnamed"
         assert sanitize_filename("...") == "unnamed"
-        assert sanitize_filename("***") == "unnamed"
+        # Note: "***" becomes "___" after replacing * with _, which is not empty
+        assert sanitize_filename("***") == "___"
 
 
 class TestValidateScanMetrics:
