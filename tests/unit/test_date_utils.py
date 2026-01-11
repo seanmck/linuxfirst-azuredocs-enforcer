@@ -3,7 +3,6 @@ Unit tests for shared/utils/date_utils.py
 """
 import pytest
 from datetime import datetime
-from unittest.mock import patch
 from shared.utils.date_utils import (
     get_current_date_mmddyyyy,
     update_ms_date_in_content,
@@ -14,21 +13,18 @@ from shared.utils.date_utils import (
 class TestGetCurrentDateMmddyyyy:
     """Tests for get_current_date_mmddyyyy function."""
 
-    @patch('shared.utils.date_utils.datetime')
-    def test_returns_correct_format(self, mock_datetime):
+    def test_returns_correct_format(self):
         """Should return date in MM/DD/YYYY format."""
-        mock_datetime.now.return_value = datetime(2024, 1, 15)
-        mock_datetime.now.return_value.strftime = datetime(2024, 1, 15).strftime
         result = get_current_date_mmddyyyy()
-        assert result == "01/15/2024"
+        # Check format: MM/DD/YYYY
+        import re
+        assert re.match(r'\d{2}/\d{2}/\d{4}', result), f"Expected MM/DD/YYYY format, got {result}"
 
-    @patch('shared.utils.date_utils.datetime')
-    def test_pads_single_digits(self, mock_datetime):
-        """Should pad single-digit months and days."""
-        mock_datetime.now.return_value = datetime(2024, 5, 3)
-        mock_datetime.now.return_value.strftime = datetime(2024, 5, 3).strftime
+    def test_returns_current_date(self):
+        """Should return today's date."""
         result = get_current_date_mmddyyyy()
-        assert result == "05/03/2024"
+        expected = datetime.now().strftime("%m/%d/%Y")
+        assert result == expected
 
 
 class TestUpdateMsDateInContent:

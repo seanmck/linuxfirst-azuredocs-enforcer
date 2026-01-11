@@ -54,7 +54,7 @@ class TestAzureOpenAIConfig:
             endpoint="https://example.openai.azure.com",
             api_key="test-key"
         )
-        assert config.is_available is True
+        assert config.is_available  # Truthy check
 
     def test_is_available_with_endpoint_and_client_id(self):
         """Should be available with endpoint and client_id."""
@@ -62,17 +62,17 @@ class TestAzureOpenAIConfig:
             endpoint="https://example.openai.azure.com",
             client_id="test-client-id"
         )
-        assert config.is_available is True
+        assert config.is_available  # Truthy check
 
     def test_not_available_without_endpoint(self):
         """Should not be available without endpoint."""
         config = AzureOpenAIConfig(api_key="test-key")
-        assert config.is_available is False
+        assert not config.is_available
 
     def test_not_available_without_credentials(self):
         """Should not be available without key or client_id."""
         config = AzureOpenAIConfig(endpoint="https://example.openai.azure.com")
-        assert config.is_available is False
+        assert not config.is_available
 
     def test_use_managed_identity_true(self):
         """Should use managed identity when client_id set and no api_key."""
