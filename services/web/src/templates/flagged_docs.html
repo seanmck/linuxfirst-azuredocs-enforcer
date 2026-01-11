@@ -6,21 +6,17 @@
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="stylesheet" href="/static/dashboard.css">
     <style>
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            margin: 0;
-            background: #f7fafd;
-            color: #222;
-        }
+        /* Dark theme styles for flagged docs page */
         .container {
             max-width: 1400px;
             margin: 2em auto;
             padding: 0 2em;
         }
         .header {
-            background: #fff;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
-            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            box-shadow: 0 2px 16px rgba(0,0,0,0.2);
             padding: 2em 2.5em;
             margin-bottom: 2em;
             display: flex;
@@ -30,24 +26,29 @@
         .header-icon {
             flex-shrink: 0;
         }
+        .header-icon path[stroke="#374151"] {
+            stroke: var(--text-muted);
+        }
         h1 {
             font-size: 2.2em;
             font-weight: 700;
             margin: 0;
-            color: #2563eb;
+            color: var(--accent-yellow);
             letter-spacing: -1px;
+            font-family: var(--font-mono);
         }
         .subtitle {
-            color: #666;
+            color: var(--text-secondary);
             font-size: 1.1em;
             margin: 0.5em 0 0 0;
         }
         .filter-section {
-            background: #fff;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 1.5em;
             margin-bottom: 2em;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
             display: flex;
             align-items: center;
             gap: 1em;
@@ -55,30 +56,32 @@
         }
         .filter-section label {
             font-weight: 600;
-            color: #374151;
+            color: var(--text-secondary);
         }
         .filter-section select {
             padding: 0.5em 1em;
-            border: 1px solid #d1d5db;
+            border: 1px solid var(--border-color);
             border-radius: 6px;
             font-size: 1em;
             min-width: 250px;
-            background: #fff;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
         }
         .filter-section select:focus {
             outline: none;
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            border-color: var(--accent-yellow);
+            box-shadow: 0 0 0 3px var(--accent-yellow-dim);
         }
         .results-count {
             margin-left: auto;
-            color: #6b7280;
+            color: var(--text-muted);
             font-size: 0.95em;
         }
         .table-container {
-            background: #fff;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
-            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            box-shadow: 0 2px 16px rgba(0,0,0,0.2);
             overflow: hidden;
         }
         .flagged-table {
@@ -86,53 +89,58 @@
             border-collapse: collapse;
         }
         .flagged-table th {
-            background: #f8fafc;
+            background: var(--bg-secondary);
             padding: 1em 1.25em;
             text-align: left;
             font-weight: 600;
-            color: #374151;
-            border-bottom: 2px solid #e5e7eb;
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--border-color);
             white-space: nowrap;
+            font-family: var(--font-mono);
         }
         .flagged-table th.sortable {
             cursor: pointer;
             user-select: none;
         }
         .flagged-table th.sortable:hover {
-            background: #f1f5f9;
+            background: var(--bg-card-hover);
         }
         .flagged-table th.sorted-asc::after {
             content: ' ▲';
             font-size: 0.8em;
+            color: var(--accent-yellow);
         }
         .flagged-table th.sorted-desc::after {
             content: ' ▼';
             font-size: 0.8em;
+            color: var(--accent-yellow);
         }
         .flagged-table td {
             padding: 1em 1.25em;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
             vertical-align: middle;
+            color: var(--text-secondary);
         }
         .flagged-table tr:hover {
-            background: #f8fafc;
+            background: rgba(51, 65, 85, 0.3);
         }
         .flagged-table tr:last-child td {
             border-bottom: none;
         }
         .doc-set-link {
-            color: #2563eb;
+            color: var(--accent-yellow);
             text-decoration: none;
             font-weight: 500;
         }
         .doc-set-link:hover {
             text-decoration: underline;
+            color: #fde047;
         }
         .page-url-cell {
             max-width: 350px;
         }
         .page-link {
-            color: #2563eb;
+            color: var(--accent-blue);
             text-decoration: none;
             word-break: break-word;
         }
@@ -155,16 +163,16 @@
             font-weight: 500;
             white-space: nowrap;
         }
-        .bias-type-powershell-heavy { background: #fef3c7; color: #92400e; }
-        .bias-type-windows-first { background: #fee2e2; color: #dc2626; }
-        .bias-type-missing-linux-example { background: #fdf2f8; color: #be185d; }
-        .bias-type-windows-tools { background: #f3e8ff; color: #7c3aed; }
-        .bias-type-windows-paths { background: #dbeafe; color: #1e40af; }
-        .bias-type-windows-commands { background: #ffedd5; color: #c2410c; }
-        .bias-type-default { background: #f3f4f6; color: #374151; }
+        .bias-type-powershell-heavy { background: var(--accent-yellow-dim); color: var(--accent-yellow); }
+        .bias-type-windows-first { background: var(--accent-red-dim); color: var(--accent-red); }
+        .bias-type-missing-linux-example { background: rgba(190, 24, 93, 0.2); color: #f472b6; }
+        .bias-type-windows-tools { background: rgba(167, 139, 250, 0.2); color: #a78bfa; }
+        .bias-type-windows-paths { background: var(--accent-blue-dim); color: var(--accent-blue); }
+        .bias-type-windows-commands { background: rgba(251, 146, 60, 0.2); color: #fb923c; }
+        .bias-type-default { background: rgba(100, 116, 139, 0.2); color: var(--text-secondary); }
         .more-badge {
-            background: #e5e7eb;
-            color: #6b7280;
+            background: rgba(100, 116, 139, 0.3);
+            color: var(--text-muted);
             padding: 0.2em 0.5em;
             border-radius: 0.5em;
             font-size: 0.75em;
@@ -178,61 +186,65 @@
             font-size: 0.85em;
         }
         .priority-high {
-            background: #fee2e2;
-            color: #dc2626;
+            background: var(--accent-red-dim);
+            color: var(--accent-red);
         }
         .priority-medium {
-            background: #fef3c7;
-            color: #92400e;
+            background: var(--accent-yellow-dim);
+            color: var(--accent-yellow);
         }
         .priority-low {
-            background: #dcfce7;
-            color: #166534;
+            background: var(--accent-green-dim);
+            color: var(--accent-green);
         }
         .view-btn {
             display: inline-block;
             padding: 0.4em 0.8em;
-            background: #2563eb;
-            color: #fff;
+            background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%);
+            color: var(--bg-primary);
             border-radius: 6px;
             text-decoration: none;
             font-size: 0.85em;
-            font-weight: 500;
-            transition: background 0.2s;
+            font-weight: 600;
+            transition: all 0.2s;
         }
         .view-btn:hover {
-            background: #1d4ed8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
         }
         .empty-state {
             text-align: center;
             padding: 4em 2em;
-            background: #fff;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
-            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            box-shadow: 0 2px 16px rgba(0,0,0,0.2);
         }
         .empty-state-icon {
             font-size: 4em;
             margin-bottom: 0.3em;
         }
         .empty-state h3 {
-            color: #374151;
+            color: var(--accent-green);
             margin: 0 0 0.5em 0;
+            font-family: var(--font-mono);
         }
         .empty-state p {
-            color: #6b7280;
+            color: var(--text-secondary);
             margin: 0 0 1.5em 0;
         }
         .btn-primary {
             display: inline-block;
             padding: 0.6em 1.2em;
-            background: #2563eb;
-            color: #fff;
+            background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%);
+            color: var(--bg-primary);
             border-radius: 6px;
             text-decoration: none;
-            font-weight: 500;
+            font-weight: 600;
         }
         .btn-primary:hover {
-            background: #1d4ed8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
         }
         @media (max-width: 900px) {
             .container {
