@@ -6,7 +6,7 @@ Consolidates multiple database queries into efficient single queries.
 from sqlalchemy import func, and_, or_, text
 from sqlalchemy.orm import Session
 from shared.models import Scan, Page, Snippet, BiasSnapshotByDocset
-from shared.utils.bias_utils import is_page_biased, get_parsed_mcp_holistic
+from shared.utils.bias_utils import is_page_biased, get_parsed_mcp_holistic, get_page_priority
 from shared.utils.url_utils import extract_doc_set_from_url
 from shared.utils.logging import get_logger
 from datetime import datetime, date, timedelta
@@ -113,20 +113,25 @@ def get_docset_complete_data(db: Session, doc_set: str) -> Dict[str, Any]:
             # Use cached parsed mcp_holistic data
             mcp_holistic = get_parsed_mcp_holistic(page)
             
+            # Get priority for this page
+            priority_label, priority_score = get_page_priority(page)
+
             # Build flagged page data
             flagged_pages.append({
                 'id': page.id,
                 'url': page.url,
                 'scan_id': page.scan_id,
                 'scan_date': scan_date,
+                'priority_label': priority_label,
+                'priority_score': priority_score,
                 'bias_details': {
                     'mcp_holistic': mcp_holistic,
                     'snippets': snippets
                 }
             })
     
-    # Sort flagged pages by most recent scan
-    flagged_pages.sort(key=lambda x: x['scan_date'], reverse=True)
+    # Sort flagged pages by priority (high first) then by most recent scan
+    flagged_pages.sort(key=lambda x: (-x['priority_score'], -x['scan_date'].timestamp()))
     
     # Calculate summary statistics
     total_pages = len(all_pages)

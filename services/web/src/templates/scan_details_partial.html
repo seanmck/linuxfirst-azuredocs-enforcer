@@ -81,7 +81,7 @@
             </button>
             {% endif %}
         </p>
-        <p><strong>Target URL:</strong> {{ scan.url or 'Default path' }}</p>
+        <p><strong>Target Repo:</strong> {{ scan.url|url_to_repo_display }}</p>
         
         {% if scan.current_phase %}
         <p><strong>Current Phase:</strong> {{ scan.current_phase }}</p>

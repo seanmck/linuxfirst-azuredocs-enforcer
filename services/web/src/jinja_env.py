@@ -21,6 +21,40 @@ def truncate_url_filter(url, max_length=60):
         prefix = '...' + prefix[-(remaining-3):]
     return prefix + '/' + filename
 
+def url_to_repo_display_filter(url):
+    """Convert a scan URL or repo name to a friendly display name.
+
+    Uses naming convention: azure-foo-docs or azure-foo-docs-pr → "Azure Foo"
+
+    Examples:
+    - https://github.com/MicrosoftDocs/azure-docs/... → "Azure"
+    - https://github.com/MicrosoftDocs/azure-compute-docs/... → "Azure Compute"
+    - azure-aks-docs-pr → "Azure Aks"
+    - azure-management-docs → "Azure Management"
+    """
+    if not url:
+        return "All Repos"
+
+    try:
+        repo_name = url
+
+        # Extract repo name from GitHub URL if present
+        if 'github.com' in url.lower():
+            match = re.search(r'github\.com/[^/]+/([^/]+)', url, re.IGNORECASE)
+            if match:
+                repo_name = match.group(1)
+
+        # Remove -docs-pr or -docs suffix
+        repo_name = re.sub(r'-docs-pr$', '', repo_name, flags=re.IGNORECASE)
+        repo_name = re.sub(r'-docs$', '', repo_name, flags=re.IGNORECASE)
+
+        # Convert kebab-case to Title Case
+        return repo_name.replace('-', ' ').title()
+
+    except Exception:
+        return url
+
+
 def url_to_title_filter(url):
     """Extract a human-readable title from a GitHub docs URL.
 
@@ -74,3 +108,4 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 templates.env.filters['markdown'] = markdown_filter
 templates.env.filters['truncate_url'] = truncate_url_filter
 templates.env.filters['url_to_title'] = url_to_title_filter
+templates.env.filters['url_to_repo_display'] = url_to_repo_display_filter

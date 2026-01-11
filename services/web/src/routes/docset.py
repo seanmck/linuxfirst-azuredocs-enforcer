@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from shared.utils.database import SessionLocal
 from shared.models import Scan, Page, Snippet, BiasSnapshotByDocset, User
 from datetime import datetime, date, timedelta
@@ -13,11 +12,25 @@ from shared.utils.bias_utils import is_page_biased, count_biased_pages, get_bias
 from shared.utils.url_utils import extract_doc_set_from_url, format_doc_set_name
 from utils.docset_queries import get_docset_complete_data, get_available_docsets
 from routes.auth import get_current_user
+from jinja_env import templates
 
 router = APIRouter()
 
-TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "../templates")
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
+# Bias type to icon mapping (consistent with scan_details)
+BIAS_ICON_MAP = {
+    "Platform Bias": "💻",
+    "Language Bias": "🗣️",
+    "Geography Bias": "🌍",
+    "Vendor Bias": "🏢",
+    "OS Bias": "🐧",
+    "Cloud Bias": "☁️",
+    "powershell": "💻",
+    "windows_paths": "📁",
+    "windows_commands": "⌨️",
+    "windows_tools": "🔧",
+    "windows_syntax": "📝",
+    "missing_linux": "🐧",
+}
 
 
 
@@ -266,6 +279,7 @@ async def docset_details(
             "bias_history": bias_history,
             "flagged_pages": flagged_pages,
             "pagination": pagination,
+            "bias_icon_map": BIAS_ICON_MAP,
             "user": current_user
         })
         
