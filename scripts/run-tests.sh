@@ -72,7 +72,7 @@ trap cleanup INT TERM
 
 # Start web server in background for API tests
 echo "Starting web server for integration tests..."
-(cd services/web && TEST_MODE=1 uvicorn src.main:app --host 0.0.0.0 --port 8000) &
+(cd services/web && TEST_MODE=1 uvicorn src.main:app --host 127.0.0.1 --port 8000) &
 WEB_PID=$!
 CLEANUP_PIDS+=$WEB_PID
 
