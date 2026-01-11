@@ -1,7 +1,6 @@
 """
 Unit tests for shared/utils/url_utils.py
 """
-import pytest
 from unittest.mock import patch, MagicMock
 from shared.utils.url_utils import detect_url_source, extract_doc_set_from_url, format_doc_set_name
 

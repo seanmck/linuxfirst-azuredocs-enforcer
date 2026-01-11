@@ -1,7 +1,6 @@
 """
 Unit tests for packages/scorer/heuristics.py
 """
-import pytest
 from packages.scorer.heuristics import page_has_windows_signals, is_windows_biased
 
 

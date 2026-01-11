@@ -1,7 +1,6 @@
 """
 Unit tests for shared/utils/validation.py
 """
-import pytest
 from shared.utils.validation import (
     is_valid_url,
     is_github_url,

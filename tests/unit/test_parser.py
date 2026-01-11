@@ -1,7 +1,6 @@
 """
 Unit tests for packages/extractor/parser.py
 """
-import pytest
 from packages.extractor.parser import extract_code_snippets
 
 
