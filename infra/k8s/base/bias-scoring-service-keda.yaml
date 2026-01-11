@@ -34,9 +34,11 @@ spec:
       containers:
         - name: bias-scoring-service
           image: seanmckdemo.azurecr.io/bias-scoring-service
-          env:            
+          env:
             - name: AZURE_OPENAI_DEPLOYMENT
               value: "gpt-4.1"
+            - name: AZURE_OPENAI_RPM
+              value: "10"
           envFrom:
             - secretRef:
                 name: sc-linuxdocsazureopenai-secret
@@ -73,7 +75,7 @@ spec:
   scaleTargetRef:
     name: bias-scoring-service
   minReplicaCount: 2
-  maxReplicaCount: 10
+  maxReplicaCount: 2
   cooldownPeriod: 60
   triggers:
   - type: cpu
