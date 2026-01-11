@@ -669,7 +669,7 @@
                 <thead>
                     <tr>
                         <th>Started</th>
-                        <th>Target URL</th>
+                        <th>Repo</th>
                         <th>Pages</th>
                         <th>Flagged</th>
                         <th>Bias Rate</th>
@@ -681,8 +681,8 @@
                 {% for scan in all_scans[:10] %}
                     <tr>
                         <td data-label="Started">{{ scan.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                        <td data-label="Target URL" style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">
-                            {{ scan.url or 'Default path' }}
+                        <td data-label="Repo">
+                            {{ scan.url|url_to_repo_display }}
                         </td>
                         <td data-label="Pages">{{ scan.scanned_count }}</td>
                         <td data-label="Flagged">{{ scan.flagged_count }}</td>

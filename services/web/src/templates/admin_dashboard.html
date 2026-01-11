@@ -190,7 +190,7 @@
                     <thead>
                         <tr>
                             <th>Started</th>
-                            <th>Target URL</th>
+                            <th>Repo</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -199,8 +199,8 @@
                     {% for scan in scans[:20] %}
                         <tr>
                             <td>{{ scan.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">
-                                {{ scan.url or 'Default path' }}
+                            <td>
+                                {{ scan.url|url_to_repo_display }}
                             </td>
                             <td>
                                 <span class="status-badge 
