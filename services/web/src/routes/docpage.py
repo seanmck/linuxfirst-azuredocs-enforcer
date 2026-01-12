@@ -1,22 +1,18 @@
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from jinja_env import templates
 from shared.utils.database import SessionLocal
 from shared.models import Scan, Page, Snippet, User
 from shared.utils.bias_utils import is_page_biased
 from shared.config import AZURE_DOCS_REPOS, get_repo_from_url
 from routes.auth import get_current_user
 from typing import Optional
-import os
 import json
 import re
 from urllib.parse import urlparse
 from datetime import datetime
 
 router = APIRouter()
-
-TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "../templates")
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 
 def get_github_url(page_url: str) -> str:
