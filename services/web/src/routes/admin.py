@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request, Form, HTTPException, Cookie
 from fastapi.responses import RedirectResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
+from jinja_env import templates
 from shared.utils.database import SessionLocal
 from shared.models import Scan, Page, Snippet
 from sqlalchemy import text
@@ -185,10 +185,6 @@ def cleanup_expired_sessions():
         logging.info(f"Cleanup complete")
     else:
         logging.info("Redis handles session expiration automatically")
-
-# Templates
-TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "../templates")
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 @router.get("/admin/login")
 async def admin_login_page(request: Request):
