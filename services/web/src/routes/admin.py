@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Request, Form, HTTPException, Cookie
+from fastapi import APIRouter, Request, Form, HTTPException, Cookie, Query
 from fastapi.responses import RedirectResponse, JSONResponse
 from jinja_env import templates
 from shared.utils.database import SessionLocal
-from shared.models import Scan, Page, Snippet
-from sqlalchemy import text
+from shared.models import Scan, Page, Snippet, UserFeedback, User, RewrittenDocument
+from sqlalchemy import text, func, case, or_
+from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
+from typing import Optional
 import os
 import secrets
 import hashlib
@@ -441,5 +443,168 @@ async def admin_wipe_database(request: Request, confirmation: str = Form(...), s
         db.rollback()
         logging.error(f"Database wipe failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database wipe failed: {str(e)}")
+    finally:
+        db.close()
+
+
+def get_admin_feedback(
+    db,
+    page: int = 1,
+    per_page: int = 25,
+    target_type: Optional[str] = None,
+    rating: Optional[str] = None,
+    has_comment: Optional[str] = None,
+    sort_by: str = "date",
+    sort_order: str = "desc"
+):
+    """
+    Query feedback with server-side pagination, filtering, and sorting.
+
+    Args:
+        db: Database session
+        page: Page number (1-indexed)
+        per_page: Items per page (max 100)
+        target_type: Filter by target type (snippet, page, rewritten)
+        rating: Filter by rating (up, down)
+        has_comment: Filter by comment presence (yes, no)
+        sort_by: Sort field (date, rating)
+        sort_order: Sort direction (asc, desc)
+
+    Returns:
+        Dict with feedback items, pagination info, and stats
+    """
+    # Validate and cap per_page
+    per_page = min(max(1, per_page), 100)
+    page = max(1, page)
+
+    # Base query with eager loading
+    query = db.query(UserFeedback).options(
+        joinedload(UserFeedback.user),
+        joinedload(UserFeedback.snippet),
+        joinedload(UserFeedback.page),
+        joinedload(UserFeedback.rewritten_document)
+    )
+
+    # Apply filters
+    if target_type:
+        if target_type == "snippet":
+            query = query.filter(UserFeedback.snippet_id.isnot(None))
+        elif target_type == "page":
+            query = query.filter(UserFeedback.page_id.isnot(None))
+        elif target_type == "rewritten":
+            query = query.filter(UserFeedback.rewritten_document_id.isnot(None))
+
+    if rating:
+        if rating == "up":
+            query = query.filter(UserFeedback.rating.is_(True))
+        elif rating == "down":
+            query = query.filter(UserFeedback.rating.is_(False))
+
+    if has_comment:
+        if has_comment == "yes":
+            query = query.filter(
+                UserFeedback.comment.isnot(None),
+                func.length(func.trim(UserFeedback.comment)) > 0
+            )
+        elif has_comment == "no":
+            query = query.filter(
+                or_(
+                    UserFeedback.comment.is_(None),
+                    func.length(func.trim(UserFeedback.comment)) == 0
+                )
+            )
+
+    # Apply sorting
+    if sort_by == "rating":
+        order_col = UserFeedback.rating
+    else:  # default to date
+        order_col = UserFeedback.created_at
+
+    if sort_order == "asc":
+        query = query.order_by(order_col.asc())
+    else:
+        query = query.order_by(order_col.desc())
+
+    # Get total count (before pagination)
+    total = query.count()
+    total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+
+    # Apply pagination
+    offset = (page - 1) * per_page
+    feedback_items = query.offset(offset).limit(per_page).all()
+
+    # Get stats using aggregation
+    stats_query = db.query(
+        func.count(UserFeedback.id).label('total'),
+        func.sum(case((UserFeedback.rating.is_(True), 1), else_=0)).label('thumbs_up'),
+        func.sum(case((UserFeedback.rating.is_(False), 1), else_=0)).label('thumbs_down'),
+        func.sum(case((func.coalesce(func.length(func.trim(UserFeedback.comment)), 0) > 0, 1), else_=0)).label('has_comments')
+    ).first()
+
+    stats = {
+        'total': stats_query.total or 0,
+        'thumbs_up': stats_query.thumbs_up or 0,
+        'thumbs_down': stats_query.thumbs_down or 0,
+        'has_comments': stats_query.has_comments or 0
+    }
+
+    return {
+        'items': feedback_items,
+        'pagination': {
+            'page': page,
+            'per_page': per_page,
+            'total': total,
+            'total_pages': total_pages,
+            'has_prev': page > 1,
+            'has_next': page < total_pages,
+            'start_idx': offset + 1 if total > 0 else 0,
+            'end_idx': min(offset + per_page, total)
+        },
+        'stats': stats
+    }
+
+
+@router.get("/admin/feedback")
+async def admin_feedback_page(
+    request: Request,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(25, ge=1, le=100),
+    target_type: Optional[str] = Query(None),
+    rating: Optional[str] = Query(None),
+    has_comment: Optional[str] = Query(None),
+    sort_by: str = Query("date"),
+    sort_order: str = Query("desc"),
+    session_token: str = Cookie(None)
+):
+    """Admin feedback viewer with filtering, sorting, and pagination."""
+    if not verify_admin_session(session_token):
+        return RedirectResponse(url="/admin/login", status_code=302)
+
+    db = SessionLocal()
+    try:
+        result = get_admin_feedback(
+            db=db,
+            page=page,
+            per_page=per_page,
+            target_type=target_type,
+            rating=rating,
+            has_comment=has_comment,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
+
+        return templates.TemplateResponse("admin_feedback.html", {
+            "request": request,
+            "feedback_items": result['items'],
+            "pagination": result['pagination'],
+            "stats": result['stats'],
+            "filters": {
+                "target_type": target_type,
+                "rating": rating,
+                "has_comment": has_comment,
+                "sort_by": sort_by,
+                "sort_order": sort_order
+            }
+        })
     finally:
         db.close()
