@@ -57,6 +57,18 @@
             color: var(--accent-yellow);
             font-family: var(--font-mono);
         }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1em;
+        }
+        .section-header h2 {
+            margin: 0;
+        }
+        .section-header .btn {
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body>
@@ -139,9 +151,9 @@
 
         <!-- Feedback Analytics -->
         <div class="admin-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;">
-                <h2 style="margin: 0;">User Feedback Analytics</h2>
-                <a href="/admin/feedback" class="btn btn-secondary" style="font-size: 0.9em;">View All Feedback</a>
+            <div class="section-header">
+                <h2>User Feedback Analytics</h2>
+                <a href="/admin/feedback" class="btn btn-secondary">View All Feedback</a>
             </div>
             <div class="feedback-stats">
                 <div class="stat-card">
