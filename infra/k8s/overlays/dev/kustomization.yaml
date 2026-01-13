@@ -26,4 +26,4 @@ images:
 - name: seanmckdemo.azurecr.io/queue-worker
   newTag: main-da8df5c
 - name: seanmckdemo.azurecr.io/webui
-  newTag: main-da8df5c
+  newTag: main-dc1b92b
