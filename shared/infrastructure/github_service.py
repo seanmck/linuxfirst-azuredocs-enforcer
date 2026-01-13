@@ -13,6 +13,7 @@ from github.Repository import Repository
 from github.GithubException import UnknownObjectException
 from shared.config import config
 from shared.utils.logging import get_logger
+from shared.utils.markdown_utils import extract_yaml_frontmatter, extract_title_from_frontmatter
 
 
 
@@ -132,11 +133,10 @@ class GitHubService:
             return False
 
         # Check YAML frontmatter title
-        frontmatter_match = re.match(r'^---\s*\n(.*?)\n---', content, re.DOTALL)
-        if frontmatter_match:
-            frontmatter = frontmatter_match.group(1)
-            title_match = re.search(r'^title:\s*["\']?(.+?)["\']?\s*$', frontmatter, re.MULTILINE)
-            if title_match and is_windows_intentional_title(title_match.group(1).strip()):
+        frontmatter = extract_yaml_frontmatter(content)
+        if frontmatter:
+            title = extract_title_from_frontmatter(frontmatter)
+            if title and is_windows_intentional_title(title):
                 return True
 
         # Check H1 heading
