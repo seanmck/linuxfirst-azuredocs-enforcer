@@ -58,7 +58,7 @@ class GitHubService:
             # Don't let rate limit checking break the actual operation
             self.logger.warning(f"Could not check rate limit: {e}")
 
-    def _get_cached_repo(self, repo_full_name: str):
+    def _get_cached_repo(self, repo_full_name: str) -> Repository:
         """
         Get a Repository object, using cache to avoid redundant API calls.
 
