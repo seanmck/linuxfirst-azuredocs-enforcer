@@ -165,6 +165,9 @@
             border-radius: 50%;
             border: 2px solid var(--border-color);
         }
+        .user-avatar-placeholder {
+            background: var(--bg-secondary);
+        }
         .user-name {
             color: var(--text-primary);
             font-weight: 500;
@@ -444,7 +447,7 @@
                                 {% if feedback.user and feedback.user.avatar_url %}
                                 <img src="{{ feedback.user.avatar_url }}" alt="" class="user-avatar">
                                 {% else %}
-                                <div class="user-avatar" style="background: var(--bg-secondary);"></div>
+                                <div class="user-avatar user-avatar-placeholder"></div>
                                 {% endif %}
                                 <span class="user-name">
                                     {% if feedback.user %}
