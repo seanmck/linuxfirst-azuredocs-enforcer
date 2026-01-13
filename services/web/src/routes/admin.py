@@ -496,42 +496,45 @@ def get_admin_feedback(
     per_page = min(max(1, per_page), 100)
     page = max(1, page)
 
-    # Base query with eager loading
-    query = db.query(UserFeedback).options(
-        joinedload(UserFeedback.user),
-        joinedload(UserFeedback.snippet),
-        joinedload(UserFeedback.page),
-        joinedload(UserFeedback.rewritten_document)
-    )
+    # Build base query with filters (to be shared by main query and stats query)
+    base_query = db.query(UserFeedback)
 
-    # Apply filters
+    # Apply filters to base query
     if target_type:
         if target_type == "snippet":
-            query = query.filter(UserFeedback.snippet_id.isnot(None))
+            base_query = base_query.filter(UserFeedback.snippet_id.isnot(None))
         elif target_type == "page":
-            query = query.filter(UserFeedback.page_id.isnot(None))
+            base_query = base_query.filter(UserFeedback.page_id.isnot(None))
         elif target_type == "rewritten":
-            query = query.filter(UserFeedback.rewritten_document_id.isnot(None))
+            base_query = base_query.filter(UserFeedback.rewritten_document_id.isnot(None))
 
     if rating:
         if rating == "up":
-            query = query.filter(UserFeedback.rating.is_(True))
+            base_query = base_query.filter(UserFeedback.rating.is_(True))
         elif rating == "down":
-            query = query.filter(UserFeedback.rating.is_(False))
+            base_query = base_query.filter(UserFeedback.rating.is_(False))
 
     if has_comment:
         if has_comment == "yes":
-            query = query.filter(
+            base_query = base_query.filter(
                 UserFeedback.comment.isnot(None),
                 func.length(func.trim(UserFeedback.comment)) > 0
             )
         elif has_comment == "no":
-            query = query.filter(
+            base_query = base_query.filter(
                 or_(
                     UserFeedback.comment.is_(None),
                     func.length(func.trim(UserFeedback.comment)) == 0
                 )
             )
+
+    # Create main query from base query with eager loading
+    query = base_query.options(
+        joinedload(UserFeedback.user),
+        joinedload(UserFeedback.snippet),
+        joinedload(UserFeedback.page),
+        joinedload(UserFeedback.rewritten_document)
+    )
 
     # Apply sorting
     if sort_by == "rating":
@@ -552,8 +555,8 @@ def get_admin_feedback(
     offset = (page - 1) * per_page
     feedback_items = query.offset(offset).limit(per_page).all()
 
-    # Get stats using aggregation
-    stats_query = db.query(
+    # Get stats using aggregation with the same filters applied via base_query
+    stats_query = base_query.with_entities(
         func.count(UserFeedback.id).label('total'),
         func.sum(case((UserFeedback.rating.is_(True), 1), else_=0)).label('thumbs_up'),
         func.sum(case((UserFeedback.rating.is_(False), 1), else_=0)).label('thumbs_down'),
