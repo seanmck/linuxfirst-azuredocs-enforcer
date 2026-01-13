@@ -448,7 +448,7 @@
                                 {% endif %}
                                 <span class="user-name">
                                     {% if feedback.user %}
-                                        {{ feedback.user.display_name or feedback.user.github_username or 'User #' ~ feedback.user_id }}
+                                        {{ feedback.user.github_username or 'User #' ~ feedback.user_id }}
                                     {% else %}
                                         User #{{ feedback.user_id }}
                                     {% endif %}
