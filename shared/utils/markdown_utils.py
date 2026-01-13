@@ -1,6 +1,8 @@
 """
-Markdown utility functions for parsing and extracting information from markdown content.
+Shared utilities for parsing markdown content.
+Provides consistent title extraction logic across all services.
 """
+
 import re
 from typing import Optional
 

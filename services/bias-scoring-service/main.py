@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 import os
+import sys
 import time
 import random
 import threading
@@ -9,6 +10,11 @@ import openai
 from azure.identity import ManagedIdentityCredential
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from shared.utils.markdown_utils import extract_title_from_markdown
+
+# Add the project root to Python path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
 from shared.utils.markdown_utils import extract_title_from_markdown
 
 app = FastAPI()
@@ -110,6 +116,11 @@ class ScoreSnippetsRequest(BaseModel):
 
 # Batch size for snippet scoring (configurable via environment)
 LLM_BATCH_SIZE = int(os.getenv("LLM_BATCH_SIZE", "5"))
+
+# Use the shared utility function for title extraction
+# This eliminates duplication with shared/infrastructure/github_service.py
+extract_page_title = extract_title_from_markdown
+
 
 @app.post("/score_page")
 async def score_page(req: ScorePageRequest):

@@ -133,15 +133,13 @@ class GitHubService:
             return False
 
         # Check YAML frontmatter title
-        frontmatter = extract_yaml_frontmatter(content)
-        if frontmatter:
-            title = extract_title_from_frontmatter(frontmatter)
-            if title and is_windows_intentional_title(title):
-                return True
+        frontmatter_title = extract_frontmatter_title(content)
+        if frontmatter_title and is_windows_intentional_title(frontmatter_title):
+            return True
 
         # Check H1 heading
-        h1_match = re.search(r'^#\s+(.+?)(?:\s*#*)?\s*$', content, re.MULTILINE)
-        if h1_match and is_windows_intentional_title(h1_match.group(1).strip()):
+        h1_heading = extract_h1_heading(content)
+        if h1_heading and is_windows_intentional_title(h1_heading):
             return True
 
         return False
