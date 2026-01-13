@@ -24,6 +24,6 @@ images:
 - name: seanmckdemo.azurecr.io/linuxfirst-azuredocs-db-migrations
   newTag: main-0cced15
 - name: seanmckdemo.azurecr.io/queue-worker
-  newTag: main-dc1b92b
+  newTag: main-96a6db3
 - name: seanmckdemo.azurecr.io/webui
   newTag: main-96a6db3
