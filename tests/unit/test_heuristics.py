@@ -249,7 +249,7 @@ class TestIsWindowsIntentionalTitle:
         """Should detect win2016, win2019, win2022 patterns."""
         assert is_windows_intentional_title("Using win2019 image") is True
         assert is_windows_intentional_title("win2022 datacenter setup") is True
-        assert is_windows_intentional_title("Legacy win16 support") is True
+        assert is_windows_intentional_title("Legacy win2016 support") is True
 
     def test_detects_iis(self):
         """Should detect IIS in title."""
