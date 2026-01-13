@@ -6,11 +6,8 @@ Tests the shared markdown parsing utilities used across services.
 import pytest
 from shared.utils.markdown_utils import (
     extract_title_from_markdown,
-    extract_frontmatter_title,
-    extract_h1_heading
+    extract_title_from_frontmatter,
 )
-
-
 class TestExtractTitleFromMarkdown:
     """Test cases for extract_title_from_markdown function"""
 
