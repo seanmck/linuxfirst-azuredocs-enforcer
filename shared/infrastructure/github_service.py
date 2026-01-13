@@ -9,6 +9,7 @@ import random
 import json
 from typing import List, Dict, Optional, Tuple
 from github import Github
+from github.Repository import Repository
 from github.GithubException import UnknownObjectException
 from shared.config import config
 from shared.utils.logging import get_logger
@@ -25,7 +26,7 @@ class GitHubService:
         
         self.github_client = Github(self.github_token)
         self.logger = get_logger(__name__)
-        self._repo_cache: Dict[str, object] = {}
+        self._repo_cache: Dict[str, Repository] = {}
 
     def _check_rate_limit(self):
         """
