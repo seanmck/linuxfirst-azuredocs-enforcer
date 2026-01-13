@@ -442,7 +442,7 @@
                         <td>
                             <div class="user-cell">
                                 {% if feedback.user and feedback.user.avatar_url %}
-                                <img src="{{ feedback.user.avatar_url }}" alt="" class="user-avatar">
+                                <img src="{{ feedback.user.avatar_url }}" alt="Avatar for {{ feedback.user.display_name or feedback.user.github_username or 'User #' ~ feedback.user_id }}" class="user-avatar">
                                 {% else %}
                                 <div class="user-avatar" style="background: var(--bg-secondary);"></div>
                                 {% endif %}
