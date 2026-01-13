@@ -1,12 +1,18 @@
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 import os
+import sys
 import time
 import random
 import threading
 from collections import deque
 import openai
 from azure.identity import ManagedIdentityCredential
+
+# Add the project root to Python path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+from shared.utils.markdown_utils import extract_title_from_markdown
 
 app = FastAPI()
 
@@ -108,38 +114,9 @@ class ScoreSnippetsRequest(BaseModel):
 # Batch size for snippet scoring (configurable via environment)
 LLM_BATCH_SIZE = int(os.getenv("LLM_BATCH_SIZE", "5"))
 
-def extract_page_title(content: str) -> str:
-    """Extract the page title from markdown content.
-
-    Looks for:
-    1. YAML frontmatter 'title:' field
-    2. First # heading
-    3. First ## heading as fallback
-    """
-    import re
-
-    if not content:
-        return ""
-
-    # Try YAML frontmatter first (between --- markers)
-    frontmatter_match = re.match(r'^---\s*\n(.*?)\n---', content, re.DOTALL)
-    if frontmatter_match:
-        frontmatter = frontmatter_match.group(1)
-        title_match = re.search(r'^title:\s*["\']?(.+?)["\']?\s*$', frontmatter, re.MULTILINE)
-        if title_match:
-            return title_match.group(1).strip()
-
-    # Try first # heading
-    h1_match = re.search(r'^#\s+(.+?)(?:\s*#*)?\s*$', content, re.MULTILINE)
-    if h1_match:
-        return h1_match.group(1).strip()
-
-    # Try first ## heading as fallback
-    h2_match = re.search(r'^##\s+(.+?)(?:\s*#*)?\s*$', content, re.MULTILINE)
-    if h2_match:
-        return h2_match.group(1).strip()
-
-    return ""
+# Use the shared utility function for title extraction
+# This eliminates duplication with shared/infrastructure/github_service.py
+extract_page_title = extract_title_from_markdown
 
 
 @app.post("/score_page")
