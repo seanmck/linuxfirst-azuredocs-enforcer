@@ -531,13 +531,11 @@ class BaselineManager:
             ).order_by(Scan.finished_at.desc()).first()
 
             if last_scan:
-                age = datetime.now(timezone.utc) - last_scan.finished_at if last_scan.finished_at else timedelta(days=999)
                 self.logger.debug(f"Found complete scan: id={last_scan.id}, url={last_scan.url}, commit={last_scan.last_commit_sha}")
                 return BaselineInfo(
                     type=BaselineType.COMPLETE,
                     commit_sha=last_scan.last_commit_sha,
                     scan_id=last_scan.id,
-                    age=age,
                     reason=f"Last complete scan from {last_scan.finished_at}"
                 )
 
