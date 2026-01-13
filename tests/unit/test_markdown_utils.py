@@ -95,18 +95,14 @@ class TestExtractFrontmatterTitle:
 
     def test_frontmatter_with_title(self):
         """Should extract title from valid frontmatter"""
-        content = '''---
-title: "Test Title"
-author: test
----'''
+        content = '''title: "Test Title"
+author: test'''
         assert extract_frontmatter_title(content) == "Test Title"
 
     def test_frontmatter_without_title(self):
         """Should return None when frontmatter has no title"""
-        content = '''---
-author: test
-date: 2024-01-01
----'''
+        content = '''author: test
+date: 2024-01-01'''
         assert extract_frontmatter_title(content) is None
 
 
