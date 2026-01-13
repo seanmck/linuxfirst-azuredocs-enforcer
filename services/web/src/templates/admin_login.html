@@ -5,20 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-yellow: #facc15;
+            --accent-yellow-dim: rgba(250, 204, 21, 0.15);
+            --accent-red: #ef4444;
+            --accent-red-dim: rgba(239, 68, 68, 0.15);
+            --border-color: #334155;
+        }
         body {
             font-family: 'Segoe UI', Arial, sans-serif;
             margin: 0;
-            background: #f7fafd;
-            color: #222;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             display: flex;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
         }
         .login-container {
-            background: #fff;
+            background: var(--bg-card);
             border-radius: 12px;
-            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            box-shadow: 0 2px 16px rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color);
             padding: 3em;
             width: 100%;
             max-width: 400px;
@@ -35,10 +49,10 @@
             font-size: 1.8em;
             font-weight: 700;
             margin: 0;
-            color: #2563eb;
+            color: var(--accent-yellow);
         }
         .subtitle {
-            color: #666;
+            color: var(--text-secondary);
             font-size: 1em;
             margin: 0.5em 0 0 0;
         }
@@ -49,20 +63,24 @@
         }
         input[type="password"] {
             padding: 0.8em 1em;
-            border: 1px solid #d1d5db;
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             font-size: 1em;
-            background: #f9fafb;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
             transition: all 0.2s;
         }
         input[type="password"]:focus {
-            border-color: #2563eb;
+            border-color: var(--accent-yellow);
             outline: none;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            box-shadow: 0 0 0 3px var(--accent-yellow-dim);
+        }
+        input[type="password"]::placeholder {
+            color: var(--text-muted);
         }
         button {
-            background: #2563eb;
-            color: #fff;
+            background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%);
+            color: var(--bg-primary);
             border: none;
             border-radius: 8px;
             padding: 0.8em 1.5em;
@@ -72,13 +90,13 @@
             transition: all 0.2s;
         }
         button:hover {
-            background: #1d4ed8;
             transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
         }
         .error {
-            background: #fee2e2;
-            border: 1px solid #fecaca;
-            color: #991b1b;
+            background: var(--accent-red-dim);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: var(--accent-red);
             padding: 0.8em;
             border-radius: 8px;
             font-size: 0.9em;
@@ -88,10 +106,11 @@
             margin-top: 1.5em;
         }
         .back-link a {
-            color: #6b7280;
+            color: var(--text-secondary);
             text-decoration: none;
         }
         .back-link a:hover {
+            color: var(--accent-yellow);
             text-decoration: underline;
         }
     </style>
