@@ -8,16 +8,17 @@
     <style>
         body {
             font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
-            background: #f4f6fa;
+            background: var(--bg-primary);
             margin: 0;
             padding: 0;
         }
         .container {
             max-width: 1200px;
             margin: 2em auto;
-            background: #fff;
+            background: var(--bg-card);
             border-radius: 12px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color);
             padding: 2.5em 2em 2em 2em;
         }
         .auth-status {
@@ -25,11 +26,11 @@
             top: 20px;
             right: 20px;
             z-index: 1000;
-            background: linear-gradient(135deg, #ffffff, #f3f4f6);
-            border: 1px solid #d1d5db;
+            background: linear-gradient(135deg, var(--bg-secondary), var(--bg-primary));
+            border: 1px solid var(--border-color);
             border-radius: 16px;
             padding: 1.5em 2em;
-            box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.3);
             display: flex;
             align-items: center;
             gap: 2em;
@@ -39,19 +40,19 @@
             width: 48px;
             height: 48px;
             border-radius: 50%;
-            border: 3px solid #d1d5db;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            border: 3px solid var(--border-color);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
         }
         .auth-status span {
             font-weight: 600;
-            color: #374151;
+            color: var(--text-primary);
             font-size: 1em;
             display: flex;
             align-items: center;
             margin-right: 1em;
         }
         .auth-status .logout-btn {
-            background-color: #ef4444;
+            background-color: var(--accent-red);
             color: #fff;
             border: none;
             border-radius: 12px;
@@ -60,7 +61,7 @@
             font-size: 0.95em;
             font-weight: 600;
             transition: background-color 0.3s ease, box-shadow 0.3s ease;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
         }
         .auth-status .logout-btn:hover {
             background-color: #dc2626;
@@ -68,26 +69,26 @@
         }
         h1 {
             text-align: center;
-            color: #2d3a4a;
+            color: var(--accent-yellow);
             margin-bottom: 2em;
         }
         .markdown-box {
-            background: #f8f8fa;
-            border: 1.5px solid #e0e4ea;
+            background: #0c0c0c;
+            border: 1.5px solid var(--border-color);
             padding: 1em;
             border-radius: 8px;
             white-space: pre-wrap;
             font-family: 'Fira Mono', 'Consolas', monospace;
             font-size: 1em;
-            color: #2d3a4a;
+            color: var(--text-primary);
         }
         .markdown-rendered {
-            background: #fdfdfd;
-            border: 1.5px solid #e0e4ea;
+            background: var(--bg-secondary);
+            border: 1.5px solid var(--border-color);
             padding: 1em;
             border-radius: 8px;
             font-size: 1em;
-            color: #2d3a4a;
+            color: var(--text-primary);
             /* Add GitHub-like markdown styles */
             line-height: 1.7;
             overflow-x: auto;
@@ -96,32 +97,34 @@
             font-weight: 600;
             margin-top: 1.2em;
             margin-bottom: 0.6em;
-            color: #1a237e;
+            color: var(--accent-yellow);
             line-height: 1.2;
         }
-        .markdown-rendered h1 { font-size: 2em; border-bottom: 1px solid #e0e4ea; padding-bottom: 0.3em; }
-        .markdown-rendered h2 { font-size: 1.5em; border-bottom: 1px solid #e0e4ea; padding-bottom: 0.2em; }
+        .markdown-rendered h1 { font-size: 2em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
+        .markdown-rendered h2 { font-size: 1.5em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.2em; }
         .markdown-rendered h3 { font-size: 1.2em; }
         .markdown-rendered p { margin: 0.7em 0; }
         .markdown-rendered ul, .markdown-rendered ol { margin: 0.7em 0 0.7em 2em; }
         .markdown-rendered pre, .markdown-rendered code {
-            background: #f6f8fa;
+            background: #0c0c0c;
             border-radius: 6px;
             font-family: 'Fira Mono', 'Consolas', monospace;
             font-size: 0.97em;
+            color: var(--text-primary);
         }
         .markdown-rendered pre {
             padding: 0.8em 1em;
             margin: 1em 0;
             overflow-x: auto;
+            border: 1px solid var(--border-color);
         }
         .markdown-rendered code {
             padding: 0.2em 0.4em;
         }
         .markdown-rendered blockquote {
-            border-left: 4px solid #b3c0d1;
-            background: #f7fafd;
-            color: #555;
+            border-left: 4px solid var(--accent-yellow);
+            background: rgba(250, 204, 21, 0.1);
+            color: var(--text-secondary);
             margin: 1em 0;
             padding: 0.7em 1em;
             border-radius: 4px;
@@ -132,15 +135,16 @@
             width: 100%;
         }
         .markdown-rendered th, .markdown-rendered td {
-            border: 1px solid #e0e4ea;
+            border: 1px solid var(--border-color);
             padding: 0.5em 1em;
             text-align: left;
         }
         .markdown-rendered th {
-            background: #f4f6fa;
+            background: var(--bg-primary);
+            color: var(--text-primary);
         }
         .markdown-rendered a {
-            color: #2563eb;
+            color: var(--accent-blue);
             text-decoration: underline;
         }
         .markdown-rendered img {
@@ -151,7 +155,7 @@
         .section-title {
             font-weight: 600;
             margin-bottom: 0.5em;
-            color: #3b82f6;
+            color: var(--accent-yellow);
             letter-spacing: 0.5px;
         }
         .grid2x2 {
@@ -160,9 +164,9 @@
             grid-template-rows: 1fr 1fr;
             gap: 2em;
             margin-bottom: 2em;
-            border: 1.5px solid #e0e4ea;
+            border: 1.5px solid var(--border-color);
             border-radius: 10px;
-            background: #f7faff;
+            background: var(--bg-secondary);
             padding: 2em 1em;
         }
         .grid2x2 > div { min-width: 0; }
@@ -170,27 +174,27 @@
             display: flex;
             gap: 2em;
             margin-bottom: 2em;
-            border: 1.5px solid #e0e4ea;
+            border: 1.5px solid var(--border-color);
             border-radius: 10px;
-            background: #f7faff;
+            background: var(--bg-secondary);
             padding: 2em 1em;
         }
         .new-markdown-flex > div { flex: 1 1 0; min-width: 0; }
         /* Remove grid2x2 whitespace bug */
         .grid2x2 { display: none !important; }
         .debug-box {
-            background: #fffbe6;
-            border: 1.5px solid #ffe58f;
-            color: #ad8b00;
+            background: rgba(250, 204, 21, 0.1);
+            border: 1.5px solid rgba(250, 204, 21, 0.4);
+            color: var(--accent-yellow);
             padding: 1em;
             border-radius: 8px;
             margin-bottom: 2em;
             font-size: 0.97em;
-            box-shadow: 0 2px 8px rgba(255,229,143,0.08);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
         .debug-box details summary {
             cursor: pointer;
-            color: #ad8b00;
+            color: var(--accent-yellow);
         }
         .github-pr-btn {
             display: inline-flex;
@@ -203,18 +207,18 @@
             text-decoration: none;
             font-weight: 600;
             font-size: 1.1em;
-            box-shadow: 0 2px 8px rgba(36,41,47,0.08);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
             transition: background 0.2s, box-shadow 0.2s;
             border: none;
             cursor: pointer;
         }
         .github-pr-btn:hover {
-            background: #3b82f6;
+            background: #32383f;
             color: #fff;
-            box-shadow: 0 4px 16px rgba(59,130,246,0.12);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
         }
         .github-pr-btn:disabled {
-            background: #9ca3af;
+            background: var(--text-muted);
             cursor: not-allowed;
             opacity: 0.7;
         }
@@ -232,7 +236,7 @@
             100% { transform: rotate(360deg); }
         }
         .success-message {
-            background: #10b981;
+            background: var(--accent-green);
             color: white;
             padding: 1em;
             border-radius: 6px;
@@ -240,7 +244,7 @@
             display: none;
         }
         .error-message {
-            background: #ef4444;
+            background: var(--accent-red);
             color: white;
             padding: 1em;
             border-radius: 6px;
@@ -262,33 +266,33 @@
             display: flex;
             gap: 1em;
             margin-bottom: 1.5em;
-            border-bottom: 2px solid #e0e4ea;
+            border-bottom: 2px solid var(--border-color);
         }
-        
+
         .tab-button {
             padding: 0.7em 1.5em;
             background: none;
             border: none;
-            color: #6b7280;
+            color: var(--text-muted);
             font-weight: 600;
             cursor: pointer;
             border-bottom: 3px solid transparent;
             transition: all 0.2s;
         }
-        
+
         .tab-button.active {
-            color: #2563eb;
-            border-bottom-color: #2563eb;
+            color: var(--accent-yellow);
+            border-bottom-color: var(--accent-yellow);
         }
-        
+
         .tab-button:hover:not(.active) {
-            color: #374151;
+            color: var(--text-secondary);
         }
-        
+
         .tab-content {
             display: none;
         }
-        
+
         .tab-content.active {
             display: block;
         }
@@ -298,49 +302,50 @@
             margin-bottom: 1em;
             font-family: monospace;
             font-size: 0.9em;
+            color: var(--text-secondary);
         }
-        
-        .additions { 
-            color: #22c55e; 
-            margin-right: 1em; 
+
+        .additions {
+            color: var(--accent-green);
+            margin-right: 1em;
             font-weight: 600;
         }
-        
-        .deletions { 
-            color: #ef4444; 
+
+        .deletions {
+            color: var(--accent-red);
             font-weight: 600;
         }
-        
+
         #diff-container {
-            border: 1.5px solid #e0e4ea;
+            border: 1.5px solid var(--border-color);
             border-radius: 8px;
             overflow: hidden;
-            background: #fdfdfd;
+            background: var(--bg-secondary);
         }
-        
+
         /* Style diff2html output */
         .d2h-wrapper {
             font-family: 'Fira Mono', 'Consolas', monospace;
             font-size: 0.9em;
         }
-        
+
         /* Loading spinner for diff loading text */
         .loading-text .loading-spinner {
             display: inline-block;
             width: 20px;
             height: 20px;
-            border: 3px solid rgba(255,255,255,.3);
+            border: 3px solid rgba(250,204,21,.3);
             border-radius: 50%;
-            border-top-color: #fff;
+            border-top-color: var(--accent-yellow);
             animation: spin 1s ease-in-out infinite;
         }
-        
+
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-        
+
         .loading-text {
-            color: #f59e0b;
+            color: var(--accent-yellow);
             font-weight: 600;
             display: flex;
             align-items: center;
@@ -353,127 +358,130 @@
             display: inline-flex;
             align-items: center;
             gap: 0.5em;
-            color: #2563eb;
+            color: var(--accent-blue);
             text-decoration: none;
             font-weight: 500;
             padding: 0.5em 1em;
             border-radius: 8px;
-            background: rgba(37, 99, 235, 0.1);
-            border: 1px solid rgba(37, 99, 235, 0.2);
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.3);
             transition: all 0.3s ease;
         }
         .doc-link:hover {
-            background: rgba(37, 99, 235, 0.2);
+            background: rgba(59, 130, 246, 0.25);
             transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
         }
         
         /* Feedback Widget Styles */
         .feedback-widget {
             margin-top: 1.5em;
             padding: 1em;
-            background: #f8fafc;
+            background: var(--bg-secondary);
             border-radius: 8px;
-            border: 1px solid #e2e8f0;
+            border: 1px solid var(--border-color);
             font-size: 0.9em;
         }
-        
+
         .feedback-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 0.75em;
         }
-        
+
         .feedback-label {
             font-weight: 600;
-            color: #374151;
+            color: var(--text-primary);
             font-size: 0.95em;
         }
-        
+
         .feedback-stats {
             font-size: 0.8em;
-            color: #6b7280;
+            color: var(--text-secondary);
         }
-        
+
         .feedback-buttons {
             display: flex;
             gap: 0.5em;
             margin-bottom: 0.75em;
         }
-        
+
         .feedback-btn {
             display: flex;
             align-items: center;
             gap: 0.5em;
-            padding: 0.75em 1.25em; /* Increased padding for larger buttons */
-            border: 1px solid #d1d5db;
+            padding: 0.75em 1.25em;
+            border: 1px solid var(--border-color);
             border-radius: 6px;
-            background: white;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             cursor: pointer;
             transition: all 0.2s ease;
-            font-size: 1em; /* Slightly larger font size */
+            font-size: 1em;
         }
-        
+
         .feedback-btn:hover {
-            background: #f9fafb;
-            border-color: #9ca3af;
+            background: var(--bg-card-hover);
+            border-color: var(--text-muted);
         }
-        
+
         .feedback-btn.active {
-            background: #2563eb;
-            border-color: #2563eb;
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
             color: white;
         }
-        
+
         .feedback-btn.active.thumbs-up {
-            background: #10b981;
-            border-color: #10b981;
+            background: var(--accent-green);
+            border-color: var(--accent-green);
         }
-        
+
         .feedback-btn.active.thumbs-down {
-            background: #ef4444;
-            border-color: #ef4444;
+            background: var(--accent-red);
+            border-color: var(--accent-red);
         }
-        
+
         .feedback-btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
         }
-        
+
         .feedback-icon {
-            font-size: 1.3em; /* Increased icon size */
+            font-size: 1.3em;
         }
-        
+
         .feedback-comment-section {
             margin-top: 0.75em;
             padding-top: 0.75em;
-            border-top: 1px solid #e5e7eb;
+            border-top: 1px solid var(--border-color);
         }
-        
+
         .feedback-comment {
             width: 100%;
             padding: 0.75em;
-            border: 1px solid #d1d5db;
+            border: 1px solid var(--border-color);
             border-radius: 6px;
             font-size: 1.1em;
             font-family: 'Arial', sans-serif;
             resize: vertical;
             min-height: 80px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
         }
-        
+
         .feedback-comment:focus {
             outline: none;
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            border-color: var(--accent-yellow);
+            box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.15);
         }
-        
+
         .comment-actions {
             display: flex;
             gap: 0.5em;
             margin-top: 0.5em;
         }
-        
+
         .btn {
             padding: 0.5em 1em;
             border: none;
@@ -483,44 +491,44 @@
             font-weight: 500;
             transition: all 0.2s ease;
         }
-        
+
         .btn-primary {
-            background: #2563eb;
-            color: white;
+            background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%);
+            color: var(--bg-primary);
         }
-        
+
         .btn-primary:hover {
-            background: #1d4ed8;
+            box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
         }
-        
+
         .btn-secondary {
-            background: #6b7280;
+            background: var(--text-muted);
             color: white;
         }
-        
+
         .btn-secondary:hover {
             background: #4b5563;
         }
-        
+
         .btn-sm {
             padding: 0.4em 0.8em;
             font-size: 0.8em;
         }
-        
+
         .feedback-login-prompt {
             text-align: center;
             padding: 1em;
-            background: rgba(255, 255, 255, 0.7);
+            background: var(--bg-primary);
             border-radius: 6px;
-            border: 1px solid #e5e7eb;
+            border: 1px solid var(--border-color);
         }
-        
+
         .feedback-prompt-text {
             margin: 0 0 0.75em 0;
-            color: #6b7280;
+            color: var(--text-secondary);
             font-size: 0.9em;
         }
-        
+
         .feedback-status {
             padding: 0.5em;
             border-radius: 6px;
@@ -528,23 +536,23 @@
             text-align: center;
             font-size: 0.85em;
         }
-        
+
         .feedback-status.success {
-            background: #dcfce7;
-            color: #166534;
-            border: 1px solid #bbf7d0;
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--accent-green);
+            border: 1px solid rgba(34, 197, 94, 0.3);
         }
-        
+
         .feedback-status.error {
-            background: #fee2e2;
-            color: #dc2626;
-            border: 1px solid #fecaca;
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+            border: 1px solid rgba(239, 68, 68, 0.3);
         }
 
         /* Truncation warning styles */
         .truncation-warning {
-            background: linear-gradient(135deg, #fef3c7, #fde68a);
-            border: 2px solid #f59e0b;
+            background: rgba(245, 158, 11, 0.15);
+            border: 2px solid rgba(245, 158, 11, 0.5);
             border-radius: 10px;
             padding: 1em 1.5em;
             margin-bottom: 1.5em;
@@ -556,7 +564,7 @@
             align-items: center;
             gap: 0.5em;
             font-weight: 600;
-            color: #92400e;
+            color: #f59e0b;
             font-size: 1.1em;
             margin-bottom: 0.5em;
         }
@@ -566,14 +574,14 @@
         }
 
         .truncation-warning-message {
-            color: #78350f;
+            color: var(--text-secondary);
             line-height: 1.5;
         }
 
         .truncation-warning-stats {
             margin-top: 0.75em;
             font-size: 0.9em;
-            color: #92400e;
+            color: var(--text-secondary);
             display: flex;
             gap: 1.5em;
             flex-wrap: wrap;
@@ -623,12 +631,12 @@
         <table class="yaml-header-table" style="width:100%; margin-bottom: 1.5em; border-collapse:collapse;">
           <tr>
             {% for key, value in yaml_header_orig.items() %}
-              <th style="padding:0.3em 0.7em; border-bottom:1.5px solid #e0e4ea; background:#f7f7f7; text-align:left; font-weight:600; color:#1a237e;">{{ key }}</th>
+              <th style="padding:0.3em 0.7em; border-bottom:1.5px solid var(--border-color); background:var(--bg-primary); text-align:left; font-weight:600; color:var(--accent-yellow);">{{ key }}</th>
             {% endfor %}
           </tr>
           <tr>
             {% for key, value in yaml_header_orig.items() %}
-              <td style="padding:0.3em 0.7em; border-bottom:1.5px solid #e0e4ea;">{{ value }}</td>
+              <td style="padding:0.3em 0.7em; border-bottom:1.5px solid var(--border-color); color:var(--text-primary);">{{ value }}</td>
             {% endfor %}
           </tr>
         </table>
@@ -636,8 +644,8 @@
         
         <!-- Document Links Section -->
         {% if github_url or mslearn_url %}
-        <div style="background: #f8fafc; border: 1.5px solid #e0e4ea; border-radius: 10px; padding: 1.5em; margin-bottom: 2em;">
-            <div style="font-weight: 600; margin-bottom: 1em; color: #3b82f6; font-size: 1.1em;">📄 Document Links</div>
+        <div style="background: var(--bg-secondary); border: 1.5px solid var(--border-color); border-radius: 10px; padding: 1.5em; margin-bottom: 2em;">
+            <div style="font-weight: 600; margin-bottom: 1em; color: var(--accent-yellow); font-size: 1.1em;">📄 Document Links</div>
             <div style="display: flex; gap: 1em; flex-wrap: wrap;">
                 {% if github_url %}
                 <a href="{{ github_url }}" target="_blank" rel="noopener noreferrer" class="doc-link">
@@ -707,8 +715,8 @@
                 <span class="deletions">-<span id="deletions-count">0</span></span>
             </div>
             <div id="diff-container">
-                <div style="padding: 1em; color: #6b7280; text-align: center;">
-                    <button id="compute-inline-diff-btn" style="background: #2563eb; color: #fff; border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                <div style="padding: 1em; color: var(--text-muted); text-align: center;">
+                    <button id="compute-inline-diff-btn" style="background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%); color: var(--bg-primary); border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">
                         Compute Inline Diff
                     </button>
                     <div id="inline-diff-loading" style="display: none;" class="loading-text">
@@ -726,8 +734,8 @@
                 <span class="deletions">-<span id="split-deletions-count">0</span></span>
             </div>
             <div id="split-diff-container">
-                <div style="padding: 1em; color: #6b7280; text-align: center;">
-                    <button id="compute-split-diff-btn" style="background: #2563eb; color: #fff; border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                <div style="padding: 1em; color: var(--text-muted); text-align: center;">
+                    <button id="compute-split-diff-btn" style="background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%); color: var(--bg-primary); border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">
                         Compute Split Diff
                     </button>
                     <div id="split-diff-loading" style="display: none;" class="loading-text">
@@ -753,12 +761,12 @@
                 <span id="pr-btn-text">Create Pull Request</span>
                 <div class="loading-spinner"></div>
             </button>
-            <button id="regenerate-pr-btn" style="margin-left:1em; padding:0.7em 1.5em; background:#f3f4f6; color:#3b82f6; border:1.5px solid #3b82f6; border-radius:6px; font-weight:600; font-size:1.1em; cursor:pointer;">Regenerate PR</button>
+            <button id="regenerate-pr-btn" style="margin-left:1em; padding:0.7em 1.5em; background:var(--bg-secondary); color:var(--accent-yellow); border:1.5px solid var(--accent-yellow); border-radius:6px; font-weight:600; font-size:1.1em; cursor:pointer;">Regenerate PR</button>
         </div>
         
         <!-- Status Messages -->
         <div id="pr-success" class="success-message">
-            <strong>Success!</strong> Branch created successfully. <a id="pr-link" href="#" target="_blank" style="color: #dcfce7; text-decoration: underline;">Create Pull Request on GitHub</a>
+            <strong>Success!</strong> Branch created successfully. <a id="pr-link" href="#" target="_blank" style="color: #ffffff; text-decoration: underline;">Create Pull Request on GitHub</a>
         </div>
         <div id="pr-error" class="error-message">
             <strong>Error:</strong> <span id="pr-error-text"></span>
@@ -804,7 +812,7 @@
             } else if (showError) {
                 console.error('Failed to load libraries after maximum attempts');
                 // Show error in all diff containers
-                const errorHtml = '<div style="padding: 1em; color: #ef4444; text-align: center;">Error: Required libraries could not be loaded. Please refresh the page or check your internet connection.</div>';
+                const errorHtml = '<div style="padding: 1em; color: var(--accent-red); text-align: center;">Error: Required libraries could not be loaded. Please refresh the page or check your internet connection.</div>';
                 document.getElementById('diff-container').innerHTML = errorHtml;
                 document.getElementById('split-diff-container').innerHTML = errorHtml;
                 document.getElementById('rendered-new-markdown').innerHTML = errorHtml;
@@ -822,17 +830,17 @@
                 } else if (tries < 20) {
                     setTimeout(() => waitForMarked(cb, tries+1), 200);
                 } else {
-                    document.getElementById('rendered-new-markdown').innerHTML = '<span style="color:red">Error: marked.js not loaded. Cannot render markdown.</span>';
+                    document.getElementById('rendered-new-markdown').innerHTML = '<span style="color:var(--accent-red)">Error: marked.js not loaded. Cannot render markdown.</span>';
                 }
             }
             
             // Show initial loading state for libraries
             function showLibraryLoadingState() {
                 const loadingHtml = '<div style="padding: 1em; text-align: center;" class="loading-text">' +
-                    '<span class="loading-spinner" style="border-color: rgba(245,158,11,.3); border-top-color: #f59e0b;"></span>' +
+                    '<span class="loading-spinner" style="border-color: rgba(250,204,21,.3); border-top-color: var(--accent-yellow);"></span>' +
                     'Loading diff libraries...' +
                     '</div>';
-                
+
                 document.getElementById('diff-container').innerHTML = loadingHtml;
                 document.getElementById('split-diff-container').innerHTML = loadingHtml;
             }
@@ -852,9 +860,9 @@
                 showLibraryLoadingState();
                 waitForLibraries(() => {
                     // Reset to initial state once libraries are loaded
-                    document.getElementById('diff-container').innerHTML = 
-                        '<div style="padding: 1em; color: #6b7280; text-align: center;">' +
-                        '<button id="compute-inline-diff-btn" style="background: #2563eb; color: #fff; border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">' +
+                    document.getElementById('diff-container').innerHTML =
+                        '<div style="padding: 1em; color: var(--text-muted); text-align: center;">' +
+                        '<button id="compute-inline-diff-btn" style="background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%); color: var(--bg-primary); border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">' +
                         'Compute Inline Diff' +
                         '</button>' +
                         '<div id="inline-diff-loading" style="display: none;" class="loading-text">' +
@@ -862,10 +870,10 @@
                         'Computing diff...' +
                         '</div>' +
                         '</div>';
-                    
-                    document.getElementById('split-diff-container').innerHTML = 
-                        '<div style="padding: 1em; color: #6b7280; text-align: center;">' +
-                        '<button id="compute-split-diff-btn" style="background: #2563eb; color: #fff; border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">' +
+
+                    document.getElementById('split-diff-container').innerHTML =
+                        '<div style="padding: 1em; color: var(--text-muted); text-align: center;">' +
+                        '<button id="compute-split-diff-btn" style="background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%); color: var(--bg-primary); border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">' +
                         'Compute Split Diff' +
                         '</button>' +
                         '<div id="split-diff-loading" style="display: none;" class="loading-text">' +
@@ -899,10 +907,10 @@
                 if (!checkLibraries()) {
                     console.error('Diff libraries not loaded');
                     const containerId = isInline ? 'diff-container' : 'split-diff-container';
-                    document.getElementById(containerId).innerHTML = 
-                        '<div style="padding: 1em; color: #ef4444; text-align: center;">' +
+                    document.getElementById(containerId).innerHTML =
+                        '<div style="padding: 1em; color: var(--accent-red); text-align: center;">' +
                         'Error: Diff libraries not loaded<br>' +
-                        '<button onclick="location.reload()" style="margin-top: 0.5em; background: #2563eb; color: #fff; border: none; padding: 0.5em 1em; border-radius: 4px; cursor: pointer;">Reload Page</button>' +
+                        '<button onclick="location.reload()" style="margin-top: 0.5em; background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%); color: var(--bg-primary); border: none; padding: 0.5em 1em; border-radius: 4px; cursor: pointer;">Reload Page</button>' +
                         '</div>';
                     return;
                 }
@@ -984,9 +992,9 @@
                 } catch (error) {
                     console.error('Error computing diff:', error);
                     const containerId = isInline ? 'diff-container' : 'split-diff-container';
-                    document.getElementById(containerId).innerHTML = 
-                        '<div style="padding: 1em; color: #ef4444; text-align: center;">Error computing diff: ' + error.message + '<br>' +
-                        '<button onclick="location.reload()" style="margin-top: 0.5em; background: #2563eb; color: #fff; border: none; padding: 0.5em 1em; border-radius: 4px; cursor: pointer;">Reload Page</button>' +
+                    document.getElementById(containerId).innerHTML =
+                        '<div style="padding: 1em; color: var(--accent-red); text-align: center;">Error computing diff: ' + error.message + '<br>' +
+                        '<button onclick="location.reload()" style="margin-top: 0.5em; background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%); color: var(--bg-primary); border: none; padding: 0.5em 1em; border-radius: 4px; cursor: pointer;">Reload Page</button>' +
                         '</div>';
                 }
             }
@@ -1166,28 +1174,28 @@
                     .catch((error) => {
                         clearTimeout(timeoutId);
                         console.error('Error fetching updated markdown:', error);
-                        
+
                         let errorMessage = '[Error generating updated markdown]';
                         if (error.name === 'AbortError') {
                             errorMessage = '[Request timed out after 2 minutes. The server may be busy or there might be a network issue.]';
                         } else if (error.message) {
                             errorMessage = `[Error: ${error.message}]`;
                         }
-                        
-                        document.getElementById('raw-new-markdown').innerHTML = 
-                            `<span style="color: #ef4444;">${errorMessage}</span><br>` +
-                            `<button onclick="fetchUpdatedMarkdown(${force})" style="margin-top: 0.5em; background: #2563eb; color: #fff; border: none; padding: 0.5em 1em; border-radius: 4px; cursor: pointer;">Retry</button>`;
-                        document.getElementById('rendered-new-markdown').innerHTML = 
-                            `<span style="color: #ef4444;">${errorMessage}</span><br>` +
-                            `<button onclick="location.reload()" style="margin-top: 0.5em; background: #2563eb; color: #fff; border: none; padding: 0.5em 1em; border-radius: 4px; cursor: pointer;">Reload Page</button>`;
-                        
+
+                        document.getElementById('raw-new-markdown').innerHTML =
+                            `<span style="color: var(--accent-red);">${errorMessage}</span><br>` +
+                            `<button onclick="fetchUpdatedMarkdown(${force})" style="margin-top: 0.5em; background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%); color: var(--bg-primary); border: none; padding: 0.5em 1em; border-radius: 4px; cursor: pointer;">Retry</button>`;
+                        document.getElementById('rendered-new-markdown').innerHTML =
+                            `<span style="color: var(--accent-red);">${errorMessage}</span><br>` +
+                            `<button onclick="location.reload()" style="margin-top: 0.5em; background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%); color: var(--bg-primary); border: none; padding: 0.5em 1em; border-radius: 4px; cursor: pointer;">Reload Page</button>`;
+
                         // Show error in debug box if available
                         if (document.querySelector('.debug-box')) {
                             document.querySelector('.debug-box').innerHTML =
                                 `<summary><strong>Error Info</strong></summary>` +
                                 `Error Type: ${error.name || 'Unknown'}<br>` +
                                 `Error Message: ${error.message || 'Unknown error'}<br>` +
-                                `<span style="color:#ef4444;">Please check browser console for details</span>`;
+                                `<span style="color:var(--accent-red);">Please check browser console for details</span>`;
                         }
                     });
             }
