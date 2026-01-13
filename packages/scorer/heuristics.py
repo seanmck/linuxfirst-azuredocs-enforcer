@@ -34,7 +34,7 @@ WINDOWS_FOCUSED_TITLE_PATTERNS = [
     r'\bWindows\b',                    # General Windows reference
     r'\bPowerShell\b',                 # PowerShell-focused content
     r'\bWindows Server\b',             # Windows Server documentation
-    r'\bwin(?:20)?(?:16|19|22)\b',     # win2019, win2022, win2016, win16, etc.
+    r'\bwin(?:2016|2019|2022)\b',      # Windows Server versions: win2016, win2019, win2022
     r'\bIIS\b',                        # Internet Information Services
     r'\.NET Framework\b',              # .NET Framework (not .NET Core/5+)
     r'\bWCF\b',                        # Windows Communication Foundation
