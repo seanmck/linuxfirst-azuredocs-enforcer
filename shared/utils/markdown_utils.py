@@ -38,9 +38,23 @@ def extract_title_from_frontmatter(frontmatter: str) -> Optional[str]:
     if not frontmatter:
         return None
     
-    title_match = re.search(r'^title:\s*["\']?(.+?)["\']?\s*$', frontmatter, re.MULTILINE)
+    # Match title with or without quotes, handling escaped quotes
+    # Pattern explanation:
+    # - title:\s* - Match "title:" followed by optional whitespace
+    # - (?:"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'|(.+?)) - Match:
+    #   1. Double-quoted string with escaped characters
+    #   2. Single-quoted string with escaped characters
+    #   3. Unquoted string (non-greedy)
+    # - \s*$ - Optional trailing whitespace to end of line
+    title_match = re.search(
+        r'^title:\s*(?:"([^"\\]*(?:\\.[^"\\]*)*)"|\'([^\'\\]*(?:\\.[^\'\\]*)*)\'|(.+?))\s*$',
+        frontmatter,
+        re.MULTILINE
+    )
     if title_match:
-        return title_match.group(1).strip()
+        # Return the first non-None group (double-quoted, single-quoted, or unquoted)
+        title = title_match.group(1) or title_match.group(2) or title_match.group(3)
+        return title.strip() if title else None
     
     return None
 
