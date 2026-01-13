@@ -74,7 +74,7 @@ class GitHubDiscoveryService:
             return 0
 
         # Try discovery with the original repo
-        files_queued, repo_not_found = self._try_discovery(parsed_url, scan_id, force_full_scan)
+        files_queued, repo_not_found = self._try_discovery(parsed_url, scan_id, force_full_scan, repo_url)
 
         # If repo not found (404), try fallback to public repo
         if repo_not_found:
@@ -86,23 +86,31 @@ class GitHubDiscoveryService:
                 public_parsed_url = parsed_url.copy()
                 public_parsed_url['repo_full_name'] = repo_config.public_full_name
 
-                files_queued, _ = self._try_discovery(public_parsed_url, scan_id, force_full_scan)
+                # Reconstruct URL with public repo name for baseline lookup
+                public_url = repo_url.replace(repo_config.full_name, repo_config.public_full_name)
+
+                files_queued, _ = self._try_discovery(public_parsed_url, scan_id, force_full_scan, public_url)
                 if files_queued > 0:
                     self.logger.info(f"Successfully used public repo fallback: {repo_config.public_full_name}")
 
         return files_queued
 
-    def _try_discovery(self, parsed_url: Dict, scan_id: int, force_full_scan: bool) -> tuple[int, bool]:
+    def _try_discovery(self, parsed_url: Dict, scan_id: int, force_full_scan: bool, original_url: str) -> tuple[int, bool]:
         """
         Attempt discovery with the given parsed URL
+
+        Args:
+            parsed_url: Parsed GitHub URL components
+            scan_id: Database scan ID
+            force_full_scan: Force full scan regardless of baseline availability
+            original_url: Original GitHub URL (used for baseline lookup to match stored scan URLs)
 
         Returns:
             Tuple of (files_queued, repo_not_found)
         """
-        repo_url = f"https://github.com/{parsed_url['repo_full_name']}"
-
         # Get optimal baseline for incremental scanning
-        baseline = self.baseline_manager.get_optimal_baseline(repo_url) if not force_full_scan else BaselineInfo(type=BaselineType.NONE, reason="Forced full scan")
+        # Use original_url to match against stored scan URLs (which include branch/path)
+        baseline = self.baseline_manager.get_optimal_baseline(original_url) if not force_full_scan else BaselineInfo(type=BaselineType.NONE, reason="Forced full scan")
 
         self.logger.info(f"Using baseline type: {baseline.type.value}, reason: {baseline.reason}")
 
@@ -487,25 +495,30 @@ class BaselineManager:
     def get_optimal_baseline(self, repo_url: str) -> BaselineInfo:
         """
         Find the best baseline for incremental scanning
-        
+
         Args:
             repo_url: GitHub repository URL
-            
+
         Returns:
             BaselineInfo with optimal baseline strategy
         """
+        self.logger.info(f"Looking for baseline with URL: {repo_url}")
+
         # Option 1: Last complete scan
         complete_baseline = self._get_last_complete_scan(repo_url)
-        
+
         # Option 2: Partial baselines from incomplete scans
         partial_baselines = self._analyze_partial_scans(repo_url)
-        
+
         # Choose optimal strategy
         if complete_baseline:
+            self.logger.info(f"Found complete baseline: scan_id={complete_baseline.scan_id}, commit={complete_baseline.commit_sha}")
             return complete_baseline
         elif partial_baselines.type == BaselineType.PARTIAL:
+            self.logger.info(f"Using partial baseline: {partial_baselines.reason}")
             return partial_baselines
         else:
+            self.logger.info(f"No baseline found for URL: {repo_url}")
             return BaselineInfo(type=BaselineType.NONE, reason="No suitable baseline found")
     
     def _get_last_complete_scan(self, repo_url: str) -> Optional[BaselineInfo]:
@@ -516,9 +529,10 @@ class BaselineManager:
                 Scan.status == 'completed',
                 Scan.last_commit_sha.isnot(None)
             ).order_by(Scan.finished_at.desc()).first()
-            
+
             if last_scan:
                 age = datetime.now(timezone.utc) - last_scan.finished_at if last_scan.finished_at else timedelta(days=999)
+                self.logger.debug(f"Found complete scan: id={last_scan.id}, url={last_scan.url}, commit={last_scan.last_commit_sha}")
                 return BaselineInfo(
                     type=BaselineType.COMPLETE,
                     commit_sha=last_scan.last_commit_sha,
@@ -526,10 +540,20 @@ class BaselineManager:
                     age=age,
                     reason=f"Last complete scan from {last_scan.finished_at}"
                 )
-                
+
+            # Log recent scan URLs to help debug URL mismatch issues
+            recent_scans = self.db.query(Scan).filter(
+                Scan.status == 'completed',
+                Scan.last_commit_sha.isnot(None)
+            ).order_by(Scan.finished_at.desc()).limit(3).all()
+
+            if recent_scans:
+                recent_urls = [s.url for s in recent_scans]
+                self.logger.debug(f"No match for '{repo_url}'. Recent completed scan URLs: {recent_urls}")
+
         except Exception as e:
             self.logger.error(f"Error getting last complete scan: {e}")
-            
+
         return None
     
     def _analyze_partial_scans(self, repo_url: str) -> BaselineInfo:
