@@ -556,6 +556,8 @@ def get_admin_feedback(
     feedback_items = query.offset(offset).limit(per_page).all()
 
     # Get stats using aggregation with the same filters applied via base_query
+    # Using base_query.with_entities() ensures stats reflect the filtered subset,
+    # not all feedback items in the database
     stats_query = base_query.with_entities(
         func.count(UserFeedback.id).label('total'),
         func.sum(case((UserFeedback.rating.is_(True), 1), else_=0)).label('thumbs_up'),
