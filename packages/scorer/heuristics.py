@@ -28,6 +28,48 @@ PROSE_WINDOWS_PATTERNS = [
 ]
 
 
+# Patterns for detecting intentionally Windows-focused page titles
+# Used to skip scoring for pages that are clearly about Windows-specific topics
+WINDOWS_FOCUSED_TITLE_PATTERNS = [
+    r'\bWindows\b',                    # General Windows reference
+    r'\bPowerShell\b',                 # PowerShell-focused content
+    r'\bWindows Server\b',             # Windows Server documentation
+    r'\bwin(?:2016|2019|2022)\b',      # Windows Server versions: win2016, win2019, win2022
+    r'\bIIS\b',                        # Internet Information Services
+    r'\.NET Framework\b',              # .NET Framework (not .NET Core/5+)
+    r'\bWCF\b',                        # Windows Communication Foundation
+    r'\bWPF\b',                        # Windows Presentation Foundation
+    r'\bWinForms?\b',                  # Windows Forms
+    r'\bActive Directory\b',           # Active Directory
+    r'\bAD DS\b',                      # AD Domain Services
+    r'\bHyper-V\b',                    # Hyper-V virtualization
+    r'\bwinget\b',                     # Windows package manager
+    r'\bChocolatey\b',                 # Chocolatey package manager
+]
+
+
+def is_windows_intentional_title(title: str) -> bool:
+    """
+    Check if a page title indicates intentionally Windows-focused documentation.
+
+    Used to skip bias detection for pages that are legitimately about
+    Windows-specific topics (e.g., "Configure Windows Server on Azure").
+
+    Args:
+        title: Page title from frontmatter or H1 heading
+
+    Returns:
+        True if the title indicates Windows-intentional content
+    """
+    if not title:
+        return False
+
+    for pattern in WINDOWS_FOCUSED_TITLE_PATTERNS:
+        if re.search(pattern, title, re.IGNORECASE):
+            return True
+    return False
+
+
 def page_has_windows_signals(page_content: str) -> bool:
     """
     Check if a page has Windows-specific content that needs LLM review.

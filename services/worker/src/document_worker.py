@@ -108,13 +108,13 @@ class DocumentWorker:
             # Generate GitHub URL for this file
             github_url = self.github_service.generate_github_url(repo_full_name, branch, file_path)
             
-            # Skip Windows-focused files
+            # Skip Windows-intentional files (pages about Windows-specific topics)
             if self.github_service.is_windows_focused_url(github_url):
-                self.logger.info(f"Skipping Windows-focused file: {github_url}")
+                self.logger.info(f"Skipping Windows-intentional file: {github_url}")
                 # Create page record to track the skip
                 page = self._create_or_update_page(db_session, scan_id, github_url, file_path, file_sha, "")
                 if page:
-                    page.status = 'skipped_windows_focused'
+                    page.status = 'skipped_windows_intentional'
                     # Clear processing lock metadata
                     page.processing_started_at = None
                     page.processing_worker_id = None
@@ -174,13 +174,13 @@ class DocumentWorker:
                 self._update_scan_progress(db_session, scan_id)
                 return True
             
-            # Skip Windows-focused content
+            # Skip Windows-intentional content (pages about Windows-specific topics)
             if self.github_service.is_windows_focused_content(file_content):
-                self.logger.info(f"Skipping Windows-focused content: {file_path}")
+                self.logger.info(f"Skipping Windows-intentional content: {file_path}")
                 # Update page status to track the skip
                 page = self._create_or_update_page(db_session, scan_id, github_url, file_path, file_sha, "")
                 if page:
-                    page.status = 'skipped_windows_focused'
+                    page.status = 'skipped_windows_intentional'
                     # Clear processing lock metadata
                     page.processing_started_at = None
                     page.processing_worker_id = None
@@ -497,7 +497,7 @@ class DocumentWorker:
             completed_count = db_session.query(Page).filter(
                 Page.scan_id == scan_id,
                 Page.status.in_(['processed', 'removed', 'skipped_locked', 'skipped_no_change',
-                               'skipped_unreadable', 'skipped_too_large', 'skipped_windows_focused', 'error'])
+                               'skipped_unreadable', 'skipped_too_large', 'skipped_windows_intentional', 'error'])
             ).count()
 
             # Update scan progress

@@ -1,7 +1,7 @@
 """
 Unit tests for packages/scorer/heuristics.py
 """
-from packages.scorer.heuristics import page_has_windows_signals, is_windows_biased
+from packages.scorer.heuristics import page_has_windows_signals, is_windows_biased, is_windows_intentional_title
 
 
 class TestPageHasWindowsSignals:
@@ -221,3 +221,75 @@ class TestIsWindowsBiased:
         ]
         for snippet in snippets:
             assert is_windows_biased(snippet) is False, f"Should not flag: {snippet['code']}"
+
+
+class TestIsWindowsIntentionalTitle:
+    """Tests for is_windows_intentional_title function."""
+
+    def test_empty_title_returns_false(self):
+        """Empty title should return False."""
+        assert is_windows_intentional_title("") is False
+        assert is_windows_intentional_title(None) is False
+
+    def test_detects_windows_keyword(self):
+        """Should detect 'Windows' in title."""
+        assert is_windows_intentional_title("Configure Windows Server on Azure") is True
+        assert is_windows_intentional_title("Windows VM deployment") is True
+
+    def test_detects_powershell(self):
+        """Should detect PowerShell in title."""
+        assert is_windows_intentional_title("Using PowerShell with Azure") is True
+        assert is_windows_intentional_title("PowerShell quickstart") is True
+
+    def test_detects_windows_server(self):
+        """Should detect Windows Server in title."""
+        assert is_windows_intentional_title("Deploy Windows Server 2019") is True
+
+    def test_detects_win_versions(self):
+        """Should detect win2016, win2019, win2022 patterns."""
+        assert is_windows_intentional_title("Using win2019 image") is True
+        assert is_windows_intentional_title("win2022 datacenter setup") is True
+        assert is_windows_intentional_title("Legacy win2016 support") is True
+
+    def test_detects_iis(self):
+        """Should detect IIS in title."""
+        assert is_windows_intentional_title("Configure IIS on Azure VM") is True
+
+    def test_detects_dotnet_framework(self):
+        """Should detect .NET Framework in title."""
+        assert is_windows_intentional_title("Deploy .NET Framework app") is True
+
+    def test_detects_wcf_wpf_winforms(self):
+        """Should detect WCF, WPF, WinForms in title."""
+        assert is_windows_intentional_title("Migrate WCF to Azure") is True
+        assert is_windows_intentional_title("WPF application deployment") is True
+        assert is_windows_intentional_title("WinForms modernization") is True
+        assert is_windows_intentional_title("Windows Forms migration") is True
+
+    def test_detects_active_directory(self):
+        """Should detect Active Directory and AD DS in title."""
+        assert is_windows_intentional_title("Active Directory integration") is True
+        assert is_windows_intentional_title("Configure AD DS on Azure") is True
+
+    def test_detects_hyper_v(self):
+        """Should detect Hyper-V in title."""
+        assert is_windows_intentional_title("Hyper-V nested virtualization") is True
+
+    def test_detects_package_managers(self):
+        """Should detect winget and Chocolatey in title."""
+        assert is_windows_intentional_title("Install tools with winget") is True
+        assert is_windows_intentional_title("Using Chocolatey on Azure VMs") is True
+
+    def test_case_insensitive(self):
+        """Pattern matching should be case-insensitive."""
+        assert is_windows_intentional_title("WINDOWS SERVER SETUP") is True
+        assert is_windows_intentional_title("powershell quickstart") is True
+        assert is_windows_intentional_title("iis configuration") is True
+
+    def test_cross_platform_titles_return_false(self):
+        """Cross-platform titles should return False."""
+        assert is_windows_intentional_title("Install Azure CLI") is False
+        assert is_windows_intentional_title("Deploy container to AKS") is False
+        assert is_windows_intentional_title("Python quickstart") is False
+        assert is_windows_intentional_title("Docker on Azure") is False
+        assert is_windows_intentional_title(".NET 6 deployment") is False  # Not .NET Framework

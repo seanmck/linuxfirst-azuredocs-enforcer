@@ -1,12 +1,17 @@
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 import os
+import sys
 import time
 import random
 import threading
 from collections import deque
 import openai
 from azure.identity import ManagedIdentityCredential
+
+# Add the project root to Python path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from shared.utils.markdown_utils import extract_title_from_markdown
 
 app = FastAPI()
 
@@ -108,38 +113,9 @@ class ScoreSnippetsRequest(BaseModel):
 # Batch size for snippet scoring (configurable via environment)
 LLM_BATCH_SIZE = int(os.getenv("LLM_BATCH_SIZE", "5"))
 
-def extract_page_title(content: str) -> str:
-    """Extract the page title from markdown content.
-
-    Looks for:
-    1. YAML frontmatter 'title:' field
-    2. First # heading
-    3. First ## heading as fallback
-    """
-    import re
-
-    if not content:
-        return ""
-
-    # Try YAML frontmatter first (between --- markers)
-    frontmatter_match = re.match(r'^---\s*\n(.*?)\n---', content, re.DOTALL)
-    if frontmatter_match:
-        frontmatter = frontmatter_match.group(1)
-        title_match = re.search(r'^title:\s*["\']?(.+?)["\']?\s*$', frontmatter, re.MULTILINE)
-        if title_match:
-            return title_match.group(1).strip()
-
-    # Try first # heading
-    h1_match = re.search(r'^#\s+(.+?)(?:\s*#*)?\s*$', content, re.MULTILINE)
-    if h1_match:
-        return h1_match.group(1).strip()
-
-    # Try first ## heading as fallback
-    h2_match = re.search(r'^##\s+(.+?)(?:\s*#*)?\s*$', content, re.MULTILINE)
-    if h2_match:
-        return h2_match.group(1).strip()
-
-    return ""
+# Use the shared utility function for title extraction
+# This eliminates duplication with shared/infrastructure/github_service.py
+extract_page_title = extract_title_from_markdown
 
 
 @app.post("/score_page")
@@ -148,11 +124,14 @@ async def score_page(req: ScorePageRequest):
     import re
 
     # Extract page title from content
-    page_title = extract_page_title(req.page_content)
+    page_title = extract_title_from_markdown(req.page_content)
+
+    # Get URL from metadata if available
+    page_url = req.metadata.get('url', 'Unknown URL') if req.metadata else 'Unknown URL'
 
     prompt = f"""
 You are an expert in cross-platform documentation analysis.
-Analyze the following documentation page for evidence of Windows bias, such as only Windows/Powershell examples being given, Windows tools/patterns being mentioned exclusively or at least before their Linux equivalents. Return a JSON summary with:
+Analyze the following documentation page for evidence of Windows bias, such as only Windows/PowerShell examples being given, Windows tools/patterns being mentioned exclusively or at least before their Linux equivalents. Return a JSON summary with:
 - bias_types: list of bias types found (e.g., 'powershell_heavy', 'windows_first', 'missing_linux_example', 'windows_tools')
 - summary: a short summary of the bias
 - recommendations: suggestions to improve Linux parity
@@ -161,6 +140,22 @@ Analyze the following documentation page for evidence of Windows bias, such as o
   - "medium": Notable bias creating friction, but workarounds exist
   - "low": Minor bias like Windows examples shown first
   - "none": No meaningful bias detected
+
+IMPORTANT CONTEXT:
+- Page title: {page_title}
+- Page URL: {page_url}
+
+CRITICAL: Some Azure features and topics are Windows-only by nature. Do NOT flag documentation about these as biased:
+- Azure Hybrid Benefit for Windows Server licenses
+- Windows node pools or Windows containers on AKS (Azure Kubernetes Service)
+- Windows Server configurations or Windows VM images
+- .NET Framework workloads (not .NET Core/.NET 5+)
+- Active Directory Domain Services (AD DS) integration
+- Hyper-V specific features
+- IIS (Internet Information Services) configuration
+- Windows-specific Azure services or features
+
+If the page title or content clearly indicates this is documentation about a Windows-only feature or Windows-specific topic, return severity: "none" with an explanation that this is intentionally Windows-focused documentation.
 
 Page content:
 {req.page_content}

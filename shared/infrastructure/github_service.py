@@ -13,6 +13,7 @@ from github.Repository import Repository
 from github.GithubException import UnknownObjectException
 from shared.config import config
 from shared.utils.logging import get_logger
+from shared.utils.markdown_utils import extract_yaml_frontmatter, extract_title_from_frontmatter
 
 
 
@@ -113,10 +114,34 @@ class GitHubService:
         )
 
     def is_windows_focused_content(self, content: str) -> bool:
-        """Check if markdown content appears to be Windows-focused"""
-        h1_match = re.search(r'^# (.+)$', content, re.MULTILINE)
-        if h1_match and 'powershell' in h1_match.group(1).lower():
+        """
+        Check if markdown content is intentionally Windows-focused.
+
+        Checks both YAML frontmatter title and H1 heading against
+        Windows-focused title patterns to identify pages that should
+        not be flagged for Windows bias.
+
+        Args:
+            content: Full markdown content of the page
+
+        Returns:
+            True if the page is intentionally Windows-focused
+        """
+        from packages.scorer.heuristics import is_windows_intentional_title
+
+        if not content:
+            return False
+
+        # Check YAML frontmatter title
+        frontmatter_title = extract_frontmatter_title(content)
+        if frontmatter_title and is_windows_intentional_title(frontmatter_title):
             return True
+
+        # Check H1 heading
+        h1_heading = extract_h1_heading(content)
+        if h1_heading and is_windows_intentional_title(h1_heading):
+            return True
+
         return False
 
     def list_markdown_files(
