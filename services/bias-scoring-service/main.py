@@ -150,9 +150,12 @@ async def score_page(req: ScorePageRequest):
     # Extract page title from content
     page_title = extract_page_title(req.page_content)
 
+    # Get URL from metadata if available
+    page_url = req.metadata.get('url', 'Unknown URL') if req.metadata else 'Unknown URL'
+
     prompt = f"""
 You are an expert in cross-platform documentation analysis.
-Analyze the following documentation page for evidence of Windows bias, such as only Windows/Powershell examples being given, Windows tools/patterns being mentioned exclusively or at least before their Linux equivalents. Return a JSON summary with:
+Analyze the following documentation page for evidence of Windows bias, such as only Windows/PowerShell examples being given, Windows tools/patterns being mentioned exclusively or at least before their Linux equivalents. Return a JSON summary with:
 - bias_types: list of bias types found (e.g., 'powershell_heavy', 'windows_first', 'missing_linux_example', 'windows_tools')
 - summary: a short summary of the bias
 - recommendations: suggestions to improve Linux parity
@@ -161,6 +164,22 @@ Analyze the following documentation page for evidence of Windows bias, such as o
   - "medium": Notable bias creating friction, but workarounds exist
   - "low": Minor bias like Windows examples shown first
   - "none": No meaningful bias detected
+
+IMPORTANT CONTEXT:
+- Page title: {page_title}
+- Page URL: {page_url}
+
+CRITICAL: Some Azure features and topics are Windows-only by nature. Do NOT flag documentation about these as biased:
+- Azure Hybrid Benefit for Windows Server licenses
+- Windows node pools or Windows containers on AKS (Azure Kubernetes Service)
+- Windows Server configurations or Windows VM images
+- .NET Framework workloads (not .NET Core/.NET 5+)
+- Active Directory Domain Services (AD DS) integration
+- Hyper-V specific features
+- IIS (Internet Information Services) configuration
+- Windows-specific Azure services or features
+
+If the page title or content clearly indicates this is documentation about a Windows-only feature or Windows-specific topic, return severity: "none" with an explanation that this is intentionally Windows-focused documentation.
 
 Page content:
 {req.page_content}
