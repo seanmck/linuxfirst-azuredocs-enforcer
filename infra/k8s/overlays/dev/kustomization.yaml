@@ -16,6 +16,7 @@ patches:
     name: webui-ingress
 - path: openai-deployment-patch.yaml
 - path: webui-tracing-patch.yaml
+- path: webui-oauth-patch.yaml
 
 # Image versions for dev environment (updated by CI)
 images:

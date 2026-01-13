@@ -1,0 +1,16 @@
+# Override OAuth URLs for dev environment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webui
+  namespace: azuredocs-app
+spec:
+  template:
+    spec:
+      containers:
+        - name: webui
+          env:
+            - name: BASE_URL
+              value: "https://dev.linuxdocs.seanmck.dev"
+            - name: GITHUB_OAUTH_REDIRECT_URI
+              value: "https://dev.linuxdocs.seanmck.dev/auth/github/callback"
