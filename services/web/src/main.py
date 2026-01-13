@@ -368,6 +368,10 @@ async def index(request: Request):
     for scan_data in scans_with_counts:
         # Use computed fields if available, otherwise use query results
         scanned_count = scan_data.total_pages
+        # Note: mcp_biased_pages is derived from MCP holistic data. Older scans created
+        # before MCP holistic scoring was introduced will have this field as NULL, and we
+        # intentionally treat those as 0 flagged pages to keep the dashboard consistent
+        # with the scan detail view and avoid reintroducing legacy fallback logic.
         flagged_count = scan_data.mcp_biased_pages or 0
 
         percent_flagged = (flagged_count / scanned_count * 100) if scanned_count else 0
