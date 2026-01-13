@@ -39,7 +39,6 @@ class BaselineInfo:
     scan_ids: Optional[List[int]] = None
     reason: Optional[str] = None
     coverage: float = 0.0
-    age: Optional[timedelta] = None
 
 
 class GitHubDiscoveryService:
