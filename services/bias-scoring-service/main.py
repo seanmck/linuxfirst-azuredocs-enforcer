@@ -8,13 +8,9 @@ import threading
 from collections import deque
 import openai
 from azure.identity import ManagedIdentityCredential
-import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from shared.utils.markdown_utils import extract_title_from_markdown
 
 # Add the project root to Python path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-
 from shared.utils.markdown_utils import extract_title_from_markdown
 
 app = FastAPI()
