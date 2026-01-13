@@ -9,6 +9,7 @@ import random
 import json
 from typing import List, Dict, Optional, Tuple
 from github import Github
+from github.Repository import Repository
 from github.GithubException import UnknownObjectException
 from shared.config import config
 from shared.utils.logging import get_logger
@@ -25,6 +26,7 @@ class GitHubService:
         
         self.github_client = Github(self.github_token)
         self.logger = get_logger(__name__)
+        self._repo_cache: Dict[str, Repository] = {}
 
     def _check_rate_limit(self):
         """
@@ -56,6 +58,19 @@ class GitHubService:
             # Don't let rate limit checking break the actual operation
             self.logger.warning(f"Could not check rate limit: {e}")
 
+    def _get_cached_repo(self, repo_full_name: str) -> Repository:
+        """
+        Get a Repository object, using cache to avoid redundant API calls.
+
+        Args:
+            repo_full_name: GitHub repository in format 'owner/repo'
+
+        Returns:
+            PyGithub Repository object
+        """
+        if repo_full_name not in self._repo_cache:
+            self._repo_cache[repo_full_name] = self.github_client.get_repo(repo_full_name)
+        return self._repo_cache[repo_full_name]
 
     def parse_github_url(self, url: str) -> Optional[Dict[str, str]]:
         """
@@ -127,7 +142,7 @@ class GitHubService:
         Returns:
             List of dictionaries with 'path' and 'sha' keys
         """
-        repo = self.github_client.get_repo(repo_full_name)
+        repo = self._get_cached_repo(repo_full_name)
         
         files = []
         dirs_to_process = [path]
@@ -222,7 +237,7 @@ class GitHubService:
             # Check rate limit before making API call
             self._check_rate_limit()
             
-            repo = self.github_client.get_repo(repo_full_name)
+            repo = self._get_cached_repo(repo_full_name)
             file_content_obj = repo.get_contents(file_path, ref=branch)
             
             # Rate limit info is now updated from the API response headers
@@ -265,7 +280,7 @@ class GitHubService:
             # Check rate limit before making API calls
             self._check_rate_limit()
             
-            repo = self.github_client.get_repo(repo_full_name)
+            repo = self._get_cached_repo(repo_full_name)
             file_obj = repo.get_contents(file_path, ref=branch)
             
             # Get commit info for last modified date
@@ -317,7 +332,7 @@ class GitHubService:
             - (None, False) on other errors
         """
         try:
-            repo = self.github_client.get_repo(repo_full_name)
+            repo = self._get_cached_repo(repo_full_name)
             branch_obj = repo.get_branch(branch)
             return branch_obj.commit.sha, False
         except UnknownObjectException as e:
@@ -340,7 +355,7 @@ class GitHubService:
             GitHub comparison object or None if error
         """
         try:
-            repo = self.github_client.get_repo(repo_full_name)
+            repo = self._get_cached_repo(repo_full_name)
             comparison = repo.compare(base_sha, head_sha)
             return comparison
         except Exception as e:
@@ -361,7 +376,7 @@ class GitHubService:
             GitHub tree object or None if error
         """
         try:
-            repo = self.github_client.get_repo(repo_full_name)
+            repo = self._get_cached_repo(repo_full_name)
             if path:
                 # Get tree for specific path
                 contents = repo.get_contents(path, ref=sha)
