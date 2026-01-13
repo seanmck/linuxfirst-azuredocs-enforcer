@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Form, HTTPException, Cookie, Query
 from fastapi.responses import RedirectResponse, JSONResponse
 from jinja_env import templates
 from shared.utils.database import SessionLocal
-from shared.models import Scan, Page, Snippet, UserFeedback, User, RewrittenDocument
+from shared.models import Scan, UserFeedback
 from sqlalchemy import text, func, case, or_
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
