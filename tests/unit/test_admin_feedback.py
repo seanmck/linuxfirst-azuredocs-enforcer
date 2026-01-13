@@ -4,6 +4,14 @@ Unit tests for admin feedback endpoint (services/web/src/routes/admin.py).
 Tests cover:
 - get_admin_feedback helper function with pagination, filtering, and sorting
 - /admin/feedback endpoint with session authentication
+
+Note: The get_admin_feedback function is duplicated here rather than imported
+because importing from services.web.src.routes.admin requires FastAPI and
+jinja2 template dependencies that create circular import issues in the test
+environment. This is a pragmatic solution to enable isolated unit testing.
+If the function signature or logic changes in admin.py, this copy must be
+updated as well. Consider extracting the function to a separate utility module
+if this becomes a maintenance burden.
 """
 import pytest
 import sys
@@ -20,7 +28,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../services/web/s
 from shared.models import Base, UserFeedback, User, Snippet, Page, Scan, RewrittenDocument
 
 
-# Import the function to test - we need to inline it to avoid import issues
+# Function under test - copied from services/web/src/routes/admin.py
+# NOTE: This is duplicated to avoid import issues with FastAPI/Jinja2 dependencies.
+# Keep this synchronized with the original if changes are made.
 def get_admin_feedback(
     db,
     page: int = 1,
@@ -34,8 +44,7 @@ def get_admin_feedback(
     """
     Query feedback with server-side pagination, filtering, and sorting.
     
-    This is a copy of the function from services/web/src/routes/admin.py
-    to allow testing without importing the entire module.
+    This is a copy of the function from services/web/src/routes/admin.py:get_admin_feedback
     """
     # Validate and cap per_page
     per_page = min(max(1, per_page), 100)
