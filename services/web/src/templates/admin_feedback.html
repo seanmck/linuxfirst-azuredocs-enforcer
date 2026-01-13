@@ -28,6 +28,12 @@
             margin-bottom: 0.3em;
             font-family: var(--font-mono);
         }
+        .stat-value-positive {
+            color: var(--accent-green);
+        }
+        .stat-value-negative {
+            color: var(--accent-red);
+        }
         .stat-label {
             color: var(--text-muted);
             font-size: 0.9em;
@@ -340,11 +346,11 @@
                 <div class="stat-label">Total Feedback</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" style="color: var(--accent-green);">{{ stats.thumbs_up }}</div>
+                <div class="stat-value stat-value-positive">{{ stats.thumbs_up }}</div>
                 <div class="stat-label">Thumbs Up</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" style="color: var(--accent-red);">{{ stats.thumbs_down }}</div>
+                <div class="stat-value stat-value-negative">{{ stats.thumbs_down }}</div>
                 <div class="stat-label">Thumbs Down</div>
             </div>
             <div class="stat-card">
