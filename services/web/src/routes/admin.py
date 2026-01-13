@@ -461,17 +461,36 @@ def get_admin_feedback(
     Query feedback with server-side pagination, filtering, and sorting.
 
     Args:
-        db: Database session
-        page: Page number (1-indexed)
-        per_page: Items per page (max 100)
-        target_type: Filter by target type (snippet, page, rewritten)
-        rating: Filter by rating (up, down)
-        has_comment: Filter by comment presence (yes, no)
-        sort_by: Sort field (date, rating)
-        sort_order: Sort direction (asc, desc)
+        db: Database session.
+        page: Page number (1-indexed).
+        per_page: Items per page (max 100).
+        target_type: Filter by target type (``"snippet"``, ``"page"``, ``"rewritten"``).
+        rating: Filter by rating (``"up"``, ``"down"``).
+        has_comment: Filter by comment presence (``"yes"``, ``"no"``).
+        sort_by: Sort field (e.g. ``"date"``, ``"rating"``).
+        sort_order: Sort direction (``"asc"``, ``"desc"``).
 
     Returns:
-        Dict with feedback items, pagination info, and stats
+        dict: A dictionary containing the feedback data and metadata with at least
+            the following keys:
+
+            - ``"items"``: A list of feedback records for the current page.
+            - ``"pagination"``: A dictionary with pagination metadata, including:
+
+                - ``"page"``: The current page number (1-indexed).
+                - ``"per_page"``: The number of items per page.
+                - ``"total_items"``: The total number of feedback records matching
+                  the current filters.
+                - ``"total_pages"``: The total number of pages available for the
+                  current filters and ``per_page``.
+
+            - ``"stats"``: A dictionary with aggregate statistics, including:
+
+                - ``"total"``: Total number of feedback records matching the filters.
+                - ``"up"``: Number of positive (up) ratings.
+                - ``"down"``: Number of negative (down) ratings.
+                - ``"with_comment"``: Number of feedback records that include a
+                  non-empty comment.
     """
     # Validate and cap per_page
     per_page = min(max(1, per_page), 100)
