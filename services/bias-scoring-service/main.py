@@ -8,6 +8,9 @@ import threading
 from collections import deque
 import openai
 from azure.identity import ManagedIdentityCredential
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from shared.utils.markdown_utils import extract_title_from_markdown
 
 # Add the project root to Python path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -125,7 +128,7 @@ async def score_page(req: ScorePageRequest):
     import re
 
     # Extract page title from content
-    page_title = extract_page_title(req.page_content)
+    page_title = extract_title_from_markdown(req.page_content)
 
     # Get URL from metadata if available
     page_url = req.metadata.get('url', 'Unknown URL') if req.metadata else 'Unknown URL'

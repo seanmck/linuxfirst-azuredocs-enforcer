@@ -13,7 +13,7 @@ from github.Repository import Repository
 from github.GithubException import UnknownObjectException
 from shared.config import config
 from shared.utils.logging import get_logger
-from shared.utils.markdown_utils import extract_frontmatter_title, extract_h1_heading
+from shared.utils.markdown_utils import extract_yaml_frontmatter, extract_title_from_frontmatter
 
 
 
