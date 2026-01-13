@@ -369,11 +369,7 @@ async def index(request: Request):
         # Use computed fields if available, otherwise use query results
         scanned_count = scan_data.total_pages
         flagged_count = scan_data.mcp_biased_pages or 0
-        
-        # Fallback to stored computed fields if query didn't find flagged pages
-        if flagged_count == 0 and scan_data.biased_pages_count:
-            flagged_count = scan_data.biased_pages_count
-        
+
         percent_flagged = (flagged_count / scanned_count * 100) if scanned_count else 0
         
         # Update bias detection rate metrics for completed scans
