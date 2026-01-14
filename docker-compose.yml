@@ -44,8 +44,8 @@ services:
     restart: always
   bias_scoring_service:
     build:
-      context: ./services/bias-scoring-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/bias-scoring-service/Dockerfile
     depends_on:
       - db
       - rabbitmq
