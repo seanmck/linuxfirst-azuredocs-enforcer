@@ -9,9 +9,28 @@
 set -e
 set -x
 
-# Activate venv if it exists
-if [ -d ".venv" ]; then
-  source .venv/bin/activate
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
+
+# =============================================================================
+# Virtual Environment Setup
+# =============================================================================
+
+# Create venv if it doesn't exist
+if [ ! -d ".venv" ]; then
+  echo "=== Creating virtual environment ==="
+  python3 -m venv .venv
+fi
+
+# Activate venv
+source .venv/bin/activate
+
+# Install dependencies if pytest is not available
+if ! python -c "import pytest" 2>/dev/null; then
+  echo "=== Installing test dependencies ==="
+  pip install --upgrade pip -q
+  pip install -r requirements-test.txt -q
 fi
 
 export PYTHONPATH=$(pwd):$PYTHONPATH
