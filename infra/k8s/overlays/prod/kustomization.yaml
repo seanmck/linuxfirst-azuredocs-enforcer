@@ -14,10 +14,10 @@ patches:
 # Image versions for prod environment (updated via promotion PR)
 images:
 - name: seanmckdemo.azurecr.io/bias-scoring-service
-  newTag: main-2fb7d0f
+  newTag: main-ef9d985
 - name: seanmckdemo.azurecr.io/linuxfirst-azuredocs-db-migrations
-  newTag: main-0cced15
+  newTag: main-ef9d985
 - name: seanmckdemo.azurecr.io/queue-worker
-  newTag: main-18f0751
+  newTag: main-ef9d985
 - name: seanmckdemo.azurecr.io/webui
-  newTag: main-18f0751
+  newTag: main-c5b7cf1
