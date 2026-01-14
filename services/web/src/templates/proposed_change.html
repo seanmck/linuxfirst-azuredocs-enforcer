@@ -714,7 +714,7 @@
                 <span class="additions">+<span id="additions-count">0</span></span>
                 <span class="deletions">-<span id="deletions-count">0</span></span>
             </div>
-            <div id="diff-container">
+            <div id="diff-container" class="d2h-dark-color-scheme">
                 <div style="padding: 1em; color: var(--text-muted); text-align: center;">
                     <button id="compute-inline-diff-btn" style="background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%); color: var(--bg-primary); border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">
                         Compute Inline Diff
@@ -733,7 +733,7 @@
                 <span class="additions">+<span id="split-additions-count">0</span></span>
                 <span class="deletions">-<span id="split-deletions-count">0</span></span>
             </div>
-            <div id="split-diff-container">
+            <div id="split-diff-container" class="d2h-dark-color-scheme">
                 <div style="padding: 1em; color: var(--text-muted); text-align: center;">
                     <button id="compute-split-diff-btn" style="background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%); color: var(--bg-primary); border: none; padding: 0.5em 1.5em; border-radius: 6px; cursor: pointer; font-weight: 600;">
                         Compute Split Diff
@@ -971,7 +971,10 @@
                             
                             // Draw the diff
                             ui.draw();
-                            
+
+                            // Ensure dark theme class is applied after rendering
+                            targetElement.classList.add('d2h-dark-color-scheme');
+
                             // Hide loading state
                             if (loadingEl) loadingEl.style.display = 'none';
                             return;
