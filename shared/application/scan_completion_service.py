@@ -1,6 +1,5 @@
 """Service for checking and finalizing scan completion"""
 import datetime
-from sqlalchemy import cast, String
 from sqlalchemy.orm import Session
 from shared.models import Page, Scan, Snippet
 from shared.utils.logging import get_logger
@@ -44,7 +43,7 @@ class ScanCompletionService:
             # Check if any pages are still pending LLM scoring
             pending_llm = self.db.query(Page).filter(
                 Page.scan_id == scan_id,
-                cast(Page.mcp_holistic['review_method'], String) == 'llm_pending'
+                Page.mcp_holistic['review_method'].astext == 'llm_pending'
             ).count()
 
             if pending_llm > 0:
