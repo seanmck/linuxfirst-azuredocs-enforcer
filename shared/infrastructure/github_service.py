@@ -13,7 +13,10 @@ from github.Repository import Repository
 from github.GithubException import UnknownObjectException
 from shared.config import config
 from shared.utils.logging import get_logger
-from shared.utils.markdown_utils import extract_title_from_markdown
+from shared.utils.markdown_utils import (
+    extract_yaml_frontmatter,
+    extract_title_from_frontmatter,
+)
 
 
 
@@ -132,10 +135,19 @@ class GitHubService:
         if not content:
             return False
 
-        # Extract title from frontmatter or H1 heading
-        title = extract_title_from_markdown(content)
-        if title and is_windows_intentional_title(title):
-            return True
+        # Check frontmatter title
+        frontmatter = extract_yaml_frontmatter(content)
+        if frontmatter:
+            frontmatter_title = extract_title_from_frontmatter(frontmatter)
+            if frontmatter_title and is_windows_intentional_title(frontmatter_title):
+                return True
+
+        # Also check H1 heading (may differ from frontmatter title)
+        h1_match = re.search(r'^#\s+(.+?)(?:\s*#*)?\s*$', content, re.MULTILINE)
+        if h1_match:
+            h1_title = h1_match.group(1).strip()
+            if is_windows_intentional_title(h1_title):
+                return True
 
         return False
 
