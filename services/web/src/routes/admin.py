@@ -510,9 +510,9 @@ def get_admin_feedback(
 
     if rating:
         if rating == "up":
-            base_query = base_query.filter(UserFeedback.rating == 'thumbs_up')
+            base_query = base_query.filter(UserFeedback.rating == True)
         elif rating == "down":
-            base_query = base_query.filter(UserFeedback.rating == 'thumbs_down')
+            base_query = base_query.filter(UserFeedback.rating == False)
 
     if has_comment:
         if has_comment == "yes":
@@ -560,8 +560,8 @@ def get_admin_feedback(
     # not all feedback items in the database
     stats_query = base_query.with_entities(
         func.count(UserFeedback.id).label('total'),
-        func.sum(case((UserFeedback.rating == 'thumbs_up', 1), else_=0)).label('thumbs_up'),
-        func.sum(case((UserFeedback.rating == 'thumbs_down', 1), else_=0)).label('thumbs_down'),
+        func.sum(case((UserFeedback.rating == True, 1), else_=0)).label('thumbs_up'),
+        func.sum(case((UserFeedback.rating == False, 1), else_=0)).label('thumbs_down'),
         func.sum(case((func.coalesce(func.length(func.trim(UserFeedback.comment)), 0) > 0, 1), else_=0)).label('has_comments')
     ).first()
 
