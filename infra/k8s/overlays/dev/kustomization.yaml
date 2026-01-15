@@ -22,7 +22,7 @@ images:
 - name: seanmckdemo.azurecr.io/bias-scoring-service
   newTag: main-099e541
 - name: seanmckdemo.azurecr.io/linuxfirst-azuredocs-db-migrations
-  newTag: main-ef9d985
+  newTag: main-099e541
 - name: seanmckdemo.azurecr.io/queue-worker
   newTag: main-099e541
 - name: seanmckdemo.azurecr.io/webui
