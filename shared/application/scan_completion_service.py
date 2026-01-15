@@ -43,7 +43,7 @@ class ScanCompletionService:
             # Check if any pages are still pending LLM scoring
             pending_llm = self.db.query(Page).filter(
                 Page.scan_id == scan_id,
-                Page.mcp_holistic['review_method'].astext == 'llm_pending'
+                Page.mcp_holistic.op('->>')('review_method') == 'llm_pending'
             ).count()
 
             if pending_llm > 0:
