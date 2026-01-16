@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Form, HTTPException, Cookie, Query
 from fastapi.responses import RedirectResponse, JSONResponse
 from jinja_env import templates
 from shared.utils.database import SessionLocal
-from shared.models import Scan, UserFeedback
+from shared.models import Scan, UserFeedback, Snippet, RewrittenDocument
 from sqlalchemy import text, func, case, or_, cast, Boolean
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
@@ -529,11 +529,12 @@ def get_admin_feedback(
             )
 
     # Create main query from base query with eager loading
+    # Use nested joinedload to access page relationships for snippets and rewritten documents
     query = base_query.options(
         joinedload(UserFeedback.user),
-        joinedload(UserFeedback.snippet),
+        joinedload(UserFeedback.snippet).joinedload(Snippet.page),
         joinedload(UserFeedback.page),
-        joinedload(UserFeedback.rewritten_document)
+        joinedload(UserFeedback.rewritten_document).joinedload(RewrittenDocument.page)
     )
 
     # Apply sorting

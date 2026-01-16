@@ -221,6 +221,15 @@
             text-decoration: underline;
         }
 
+        /* Page name in target cell */
+        .target-page-name {
+            color: var(--text-primary);
+            font-size: 0.9em;
+            margin: 0.3em 0;
+            word-break: break-word;
+            max-width: 250px;
+        }
+
         /* Comment cell */
         .comment-cell {
             max-width: 300px;
@@ -467,12 +476,21 @@
                         <td>
                             {% if feedback.snippet_id %}
                                 <span class="target-type">Snippet</span>
+                                {% if feedback.snippet and feedback.snippet.page %}
+                                    <div class="target-page-name">{{ feedback.snippet.page.url.split('/')[-1].replace('.md', '').replace('-', ' ').title() }}</div>
+                                {% endif %}
                                 <a href="/snippet/{{ feedback.snippet_id }}" class="target-link">View Snippet</a>
                             {% elif feedback.page_id %}
                                 <span class="target-type">Page</span>
+                                {% if feedback.page %}
+                                    <div class="target-page-name">{{ feedback.page.url.split('/')[-1].replace('.md', '').replace('-', ' ').title() }}</div>
+                                {% endif %}
                                 <a href="/docpage/{{ feedback.page_id }}" class="target-link">View Page</a>
                             {% elif feedback.rewritten_document_id %}
                                 <span class="target-type">Rewritten</span>
+                                {% if feedback.rewritten_document and feedback.rewritten_document.page %}
+                                    <div class="target-page-name">{{ feedback.rewritten_document.page.url.split('/')[-1].replace('.md', '').replace('-', ' ').title() }}</div>
+                                {% endif %}
                                 <a href="/rewritten/{{ feedback.rewritten_document_id }}" class="target-link">View Rewrite</a>
                             {% endif %}
                         </td>
