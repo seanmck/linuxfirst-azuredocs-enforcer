@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ page_title }} - Rewritten Document</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <style>
+        body {
+            font-family: var(--font-body);
+            margin: 0;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2em;
+        }
+
+        /* Page header */
+        .page-header {
+            margin-bottom: 1.5em;
+        }
+        .page-header h1 {
+            font-family: var(--font-mono);
+            font-size: 1.75em;
+            font-weight: 600;
+            margin: 0;
+            color: var(--accent-yellow);
+            letter-spacing: -0.5px;
+        }
+        .page-header .subtitle {
+            color: var(--text-secondary);
+            font-size: 1em;
+            margin-top: 0.5em;
+            font-weight: 400;
+        }
+
+        /* Breadcrumb */
+        .breadcrumb {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.75em 1.25em;
+            margin-bottom: 2em;
+            font-size: 0.875em;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+        }
+        .breadcrumb a {
+            color: var(--accent-yellow);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .breadcrumb a:hover {
+            color: #fde047;
+            text-decoration: underline;
+        }
+
+        /* Card styles */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.75em;
+            margin-bottom: 1.5em;
+            transition: border-color 0.2s;
+        }
+        .card:hover {
+            border-color: #475569;
+        }
+        .card h2 {
+            font-family: var(--font-mono);
+            font-size: 1.1em;
+            font-weight: 600;
+            margin: 0 0 1.25em 0;
+            color: var(--accent-yellow);
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+        }
+
+        /* Info grid */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1em;
+        }
+        .info-item {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1em;
+        }
+        .info-label {
+            font-size: 0.75em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 0.25em;
+        }
+        .info-value {
+            font-family: var(--font-mono);
+            font-size: 0.9em;
+            color: var(--text-primary);
+            word-break: break-word;
+        }
+        .info-value a {
+            color: var(--accent-yellow);
+            text-decoration: none;
+        }
+        .info-value a:hover {
+            text-decoration: underline;
+        }
+
+        /* Markdown content */
+        .markdown-content {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1.5em;
+            font-family: var(--font-mono);
+            font-size: 0.85em;
+            line-height: 1.7;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        /* Feedback section */
+        .feedback-section {
+            display: flex;
+            align-items: center;
+            gap: 1.5em;
+            flex-wrap: wrap;
+        }
+        .feedback-stats {
+            display: flex;
+            gap: 1em;
+        }
+        .feedback-stat {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            padding: 0.5em 1em;
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+        .feedback-stat.positive {
+            color: var(--accent-green);
+        }
+        .feedback-stat.negative {
+            color: var(--accent-red);
+        }
+        .feedback-buttons {
+            display: flex;
+            gap: 0.5em;
+        }
+        .feedback-btn {
+            padding: 0.5em 1em;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+        .feedback-btn:hover {
+            border-color: var(--accent-yellow);
+            color: var(--accent-yellow);
+        }
+        .feedback-btn.active-up {
+            background: rgba(34, 197, 94, 0.15);
+            border-color: var(--accent-green);
+            color: var(--accent-green);
+        }
+        .feedback-btn.active-down {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+        }
+        .login-prompt {
+            font-size: 0.85em;
+            color: var(--text-muted);
+        }
+        .login-prompt a {
+            color: var(--accent-yellow);
+            text-decoration: none;
+        }
+
+        /* Action buttons */
+        .action-buttons {
+            display: flex;
+            gap: 1em;
+            flex-wrap: wrap;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5em;
+            padding: 0.75em 1.25em;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: var(--accent-yellow);
+            color: var(--bg-primary);
+        }
+        .btn-primary:hover {
+            background: #fde047;
+        }
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+        .btn-secondary:hover {
+            border-color: var(--accent-yellow);
+            color: var(--accent-yellow);
+        }
+
+        /* User info in header */
+        .header-user {
+            display: flex;
+            align-items: center;
+            gap: 0.75em;
+            margin-left: auto;
+        }
+        .header-user img {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid var(--border-color);
+        }
+        .header-user span {
+            font-size: 0.9em;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Breadcrumb -->
+        <div class="breadcrumb">
+            <a href="/">Home</a> &raquo;
+            <a href="/admin/feedback">Admin Feedback</a> &raquo;
+            Rewritten Document #{{ document.id }}
+        </div>
+
+        <!-- Header -->
+        <div class="page-header" style="display: flex; align-items: flex-start;">
+            <div>
+                <h1>{{ page_title }}</h1>
+                <p class="subtitle">Rewritten Document #{{ document.id }}</p>
+            </div>
+            {% if user %}
+            <div class="header-user">
+                {% if user.avatar_url %}
+                <img src="{{ user.avatar_url }}" alt="Avatar">
+                {% endif %}
+                <span>{{ user.github_username }}</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Document Info -->
+        <div class="card">
+            <h2>Document Information</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Created</div>
+                    <div class="info-value">{{ document.created_at.strftime('%Y-%m-%d %H:%M UTC') if document.created_at else 'Unknown' }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Original Page</div>
+                    <div class="info-value">
+                        {% if page %}
+                        <a href="/docpage/{{ page.id }}">View Page Details</a>
+                        {% else %}
+                        Page not found
+                        {% endif %}
+                    </div>
+                </div>
+                {% if github_url %}
+                <div class="info-item">
+                    <div class="info-label">GitHub Source</div>
+                    <div class="info-value"><a href="{{ github_url }}" target="_blank">View on GitHub</a></div>
+                </div>
+                {% endif %}
+                {% if mslearn_url %}
+                <div class="info-item">
+                    <div class="info-label">MS Learn</div>
+                    <div class="info-value"><a href="{{ mslearn_url }}" target="_blank">View on MS Learn</a></div>
+                </div>
+                {% endif %}
+                {% if generation_params.generated_at %}
+                <div class="info-item">
+                    <div class="info-label">Generated At</div>
+                    <div class="info-value">{{ generation_params.generated_at }}</div>
+                </div>
+                {% endif %}
+                {% if generation_params.recommendations_count is defined %}
+                <div class="info-item">
+                    <div class="info-label">Recommendations Applied</div>
+                    <div class="info-value">{{ generation_params.recommendations_count }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Feedback Section -->
+        <div class="card">
+            <h2>Feedback</h2>
+            <div class="feedback-section">
+                <div class="feedback-stats">
+                    <div class="feedback-stat positive">
+                        <span>+</span>
+                        <span>{{ feedback_stats.thumbs_up }}</span>
+                    </div>
+                    <div class="feedback-stat negative">
+                        <span>-</span>
+                        <span>{{ feedback_stats.thumbs_down }}</span>
+                    </div>
+                </div>
+                {% if user %}
+                <div class="feedback-buttons">
+                    <button class="feedback-btn {% if user_feedback and user_feedback.rating == true %}active-up{% endif %}"
+                            onclick="submitFeedback(true)"
+                            id="btn-thumbs-up">
+                        Thumbs Up
+                    </button>
+                    <button class="feedback-btn {% if user_feedback and user_feedback.rating == false %}active-down{% endif %}"
+                            onclick="submitFeedback(false)"
+                            id="btn-thumbs-down">
+                        Thumbs Down
+                    </button>
+                </div>
+                {% else %}
+                <div class="login-prompt">
+                    <a href="/auth/login">Sign in with GitHub</a> to provide feedback
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Rewritten Content -->
+        <div class="card">
+            <h2>Rewritten Markdown Content</h2>
+            <pre class="markdown-content">{{ document.content }}</pre>
+        </div>
+
+        <!-- Actions -->
+        <div class="card">
+            <h2>Actions</h2>
+            <div class="action-buttons">
+                {% if page %}
+                <a href="/proposed_change?page_id={{ page.id }}" class="btn btn-primary">View Proposed Change</a>
+                <a href="/docpage/{{ page.id }}" class="btn btn-secondary">View Page Details</a>
+                {% endif %}
+                <a href="/admin/feedback" class="btn btn-secondary">Back to Feedback</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function submitFeedback(isThumbsUp) {
+            try {
+                const response = await fetch('/api/feedback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        rewritten_document_id: {{ document.id }},
+                        rating: isThumbsUp ? 'thumbs_up' : 'thumbs_down'
+                    })
+                });
+
+                if (response.ok) {
+                    // Update button states
+                    const btnUp = document.getElementById('btn-thumbs-up');
+                    const btnDown = document.getElementById('btn-thumbs-down');
+
+                    btnUp.classList.remove('active-up');
+                    btnDown.classList.remove('active-down');
+
+                    if (isThumbsUp) {
+                        btnUp.classList.add('active-up');
+                    } else {
+                        btnDown.classList.add('active-down');
+                    }
+
+                    // Reload to update stats
+                    location.reload();
+                } else {
+                    const data = await response.json();
+                    alert('Error submitting feedback: ' + (data.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error submitting feedback: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

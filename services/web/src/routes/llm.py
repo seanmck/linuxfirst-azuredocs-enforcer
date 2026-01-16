@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from shared.utils.database import SessionLocal, get_db
 from shared.models import Page, User, UserFeedback, Snippet, RewrittenDocument
 from shared.config import config, get_repo_from_url, AZURE_DOCS_REPOS
-from sqlalchemy import func
+from sqlalchemy import func, case
 from packages.scorer.llm_client import LLMClient
 from jinja_env import templates
 import os
@@ -175,13 +175,105 @@ def store_rewritten_document(page_id: int, content: str, yaml_header: dict = Non
         
         logger.info(f"Created new rewritten document {new_doc.id} for page {page_id} (content hash: {content_hash[:12]}...)")
         return new_doc.id
-        
+
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to store rewritten document for page {page_id}: {e}")
         raise
     finally:
         db.close()
+
+
+@router.get("/rewritten/{rewritten_id}", response_class=HTMLResponse)
+async def view_rewritten_document(
+    rewritten_id: int,
+    request: Request
+):
+    """Display a stored rewritten document with context and feedback options."""
+    # Import here to avoid circular imports at module level
+    from routes.auth import get_current_user
+
+    db = SessionLocal()
+    try:
+        # Get the rewritten document
+        document = db.query(RewrittenDocument).filter(
+            RewrittenDocument.id == rewritten_id
+        ).first()
+
+        if not document:
+            return HTMLResponse("<h2>Rewritten document not found</h2>", status_code=404)
+
+        # Get associated page for context
+        page = db.query(Page).filter(Page.id == document.page_id).first()
+
+        # Get current user (if authenticated)
+        current_user = None
+        try:
+            current_user = await get_current_user(request, db)
+        except Exception:
+            pass  # User not authenticated
+
+        # Get user's feedback on this document if authenticated
+        user_feedback = None
+        if current_user:
+            user_feedback = db.query(UserFeedback).filter(
+                UserFeedback.user_id == current_user.id,
+                UserFeedback.rewritten_document_id == rewritten_id
+            ).first()
+
+        # Get aggregated feedback stats
+        feedback_stats = db.query(
+            func.count(UserFeedback.id).label('total'),
+            func.sum(case((UserFeedback.rating == True, 1), else_=0)).label('thumbs_up'),
+            func.sum(case((UserFeedback.rating == False, 1), else_=0)).label('thumbs_down')
+        ).filter(
+            UserFeedback.rewritten_document_id == rewritten_id
+        ).first()
+
+        # Extract page title from URL
+        page_title = "Unknown Page"
+        if page and page.url:
+            page_title = page.url.split('/')[-1].replace('.md', '').replace('-', ' ').title()
+
+        # Build GitHub and MS Learn URLs from page if available
+        github_url = None
+        mslearn_url = None
+        if page:
+            github_raw_url, repo_path, repo_full_name = get_github_raw_url_for_page(page.url)
+            if repo_path and repo_full_name:
+                from shared.config import get_repo_from_url
+                repo = get_repo_from_url(page.url)
+                branch = repo.branch if repo else "main"
+                github_url = f"https://github.com/{repo_full_name}/blob/{branch}/{repo_path}"
+
+                if repo_path.startswith('articles/'):
+                    article_path = repo_path[9:]
+                    if article_path.endswith('.md'):
+                        article_path = article_path[:-3]
+                    mslearn_url = f"https://learn.microsoft.com/en-us/azure/{article_path}"
+
+            if 'learn.microsoft.com' in page.url:
+                mslearn_url = page.url
+
+        return templates.TemplateResponse("rewritten_document.html", {
+            "request": request,
+            "document": document,
+            "page": page,
+            "page_title": page_title,
+            "user": current_user,
+            "user_feedback": user_feedback,
+            "feedback_stats": {
+                "thumbs_up": feedback_stats.thumbs_up or 0 if feedback_stats else 0,
+                "thumbs_down": feedback_stats.thumbs_down or 0 if feedback_stats else 0,
+                "total": feedback_stats.total or 0 if feedback_stats else 0
+            },
+            "generation_params": document.generation_params or {},
+            "github_url": github_url,
+            "mslearn_url": mslearn_url
+        })
+    finally:
+        db.close()
+
 
 @router.get("/proposed_change", response_class=HTMLResponse)
 async def proposed_change(request: Request, page_id: int = Query(...)):
