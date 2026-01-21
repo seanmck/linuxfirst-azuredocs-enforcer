@@ -20,7 +20,7 @@ from packages.scorer.llm_client import LLMClient
 import requests
 import httpx
 from functools import lru_cache
-from routes import admin, scan, llm, websocket, docset, auth, feedback, docpage
+from routes import admin, scan, llm, websocket, docset, auth, feedback, docpage, pull_requests
 from routes.scan import enqueue_scan_task
 from shared.utils.url_utils import extract_doc_set_from_url, format_doc_set_name
 from shared.config import AZURE_DOCS_REPOS
@@ -670,15 +670,6 @@ async def flagged_docs(request: Request, docset: str = Query(None)):
     finally:
         db.close()
 
-@app.get("/pull-requests")
-async def pull_requests(request: Request):
-    """Placeholder route for pull requests page"""
-    return templates.TemplateResponse("placeholder.html", {
-        "request": request,
-        "page_title": "Pull Requests",
-        "message": "This page will show pull requests created to fix Windows bias in documentation.",
-        "coming_soon": True
-    })
 
 @app.get("/stats")
 async def stats(request: Request):
@@ -801,6 +792,7 @@ app.include_router(docset.router)
 app.include_router(auth.router)
 app.include_router(feedback.router)
 app.include_router(docpage.router)
+app.include_router(pull_requests.router)
 
 # Add metrics endpoint
 app.get("/metrics")(create_metrics_endpoint())

@@ -14,7 +14,7 @@ from github.Branch import Branch
 from github.ContentFile import ContentFile
 import logging
 
-from shared.config import config
+from shared.config import config, AZURE_DOCS_REPOS
 from shared.utils.logging import get_logger
 from shared.infrastructure.github_app_service import github_app_service
 from shared.utils.date_utils import update_ms_date_in_content
@@ -421,9 +421,22 @@ class GitHubPRService:
             
             self.logger.info(f"User: {username}, Auth: {self.auth_method}, Source: {source_repo}, File: {file_path}")
             
-            # Extract repository name from full path (e.g., "microsoftdocs/azure-docs-pr" -> "azure-docs-pr")
-            repo_name = "azure-docs-pr"
-            
+            # Ensure we target the private (-pr) version of the repo
+            # Scans run against public repos, but PRs must go to private repos
+            # e.g., "azure-docs" -> "azure-docs-pr"
+            source_parts = source_repo.split('/')
+            source_owner = source_parts[0] if len(source_parts) > 1 else "MicrosoftDocs"
+            source_repo_name = source_parts[1] if len(source_parts) > 1 else source_repo
+
+            # Add -pr suffix if not already present
+            if not source_repo_name.endswith('-pr'):
+                repo_name = f"{source_repo_name}-pr"
+                source_repo = f"{source_owner}/{repo_name}"
+                self.logger.info(f"Mapped to private repo: {source_repo}")
+            else:
+                repo_name = source_repo_name
+                self.logger.info(f"Using private repo: {source_repo}")
+
             user_fork_name = f"{username}/{repo_name}"
             
             self.logger.info(f"Step 1: Assuming user fork exists at {user_fork_name}")

@@ -348,6 +348,7 @@ async def proposed_change(request: Request, page_id: int = Query(...)):
         "file_path": file_path_for_template,
         "github_url": github_url,
         "mslearn_url": mslearn_url,
+        "source_repo": repo_full_name,
     })
 
 @router.get("/generate_updated_markdown")
@@ -680,6 +681,8 @@ from routes.auth import get_current_user
 from shared.infrastructure.github_pr_service import GitHubPRService
 from shared.infrastructure.github_app_service import github_app_service
 from utils.session import get_session_storage
+from utils.pr_queries import create_pull_request_record
+from shared.utils.url_utils import extract_doc_set_from_url
 
 
 class CreatePRRequest(BaseModel):
@@ -723,20 +726,28 @@ async def create_github_pr(
 
         # Determine which repo to target
         # Use provided source_repo, or default to first configured repo
+        # Always map to the private (-pr) version since PRs should target the private repo
         if pr_request.source_repo:
-            source_repo = pr_request.source_repo
-            # Find matching repo config for public fallback
-            matching_repo = None
-            for repo in AZURE_DOCS_REPOS:
-                if repo.full_name.lower() == source_repo.lower() or repo.public_full_name.lower() == source_repo.lower():
-                    matching_repo = repo
-                    break
-            public_fallback = matching_repo.public_full_name if matching_repo else source_repo.replace("-pr", "")
+            input_repo = pr_request.source_repo
         else:
-            # Default to first repo (azure-docs-pr)
+            # Default to first configured repo
             default_repo = AZURE_DOCS_REPOS[0] if AZURE_DOCS_REPOS and len(AZURE_DOCS_REPOS) > 0 else None
-            source_repo = default_repo.full_name if default_repo else "microsoftdocs/azure-docs-pr"
-            public_fallback = default_repo.public_full_name if default_repo else "microsoftdocs/azure-docs"
+            input_repo = default_repo.full_name if default_repo else "MicrosoftDocs/azure-docs"
+
+        # Parse the repo and ensure we use the private (-pr) version
+        repo_parts = input_repo.split('/')
+        repo_owner = repo_parts[0] if len(repo_parts) > 1 else "MicrosoftDocs"
+        repo_name = repo_parts[1] if len(repo_parts) > 1 else input_repo
+
+        # Add -pr suffix if not already present for private repo
+        if not repo_name.endswith('-pr'):
+            private_repo_name = f"{repo_name}-pr"
+            source_repo = f"{repo_owner}/{private_repo_name}"
+            public_fallback = f"{repo_owner}/{repo_name}"
+        else:
+            private_repo_name = repo_name
+            source_repo = input_repo
+            public_fallback = f"{repo_owner}/{repo_name.replace('-pr', '')}"
 
         logger.info(f"Using source repo: {source_repo}")
 
@@ -765,7 +776,49 @@ async def create_github_pr(
                 )
             else:
                 raise  # Re-raise if it's not an access restriction error
-        
+
+        # Create PR record in database for tracking
+        try:
+            db = SessionLocal()
+            # Extract doc_set from file_path
+            doc_set = None
+            if pr_request.file_path.startswith('articles/'):
+                parts = pr_request.file_path.split('/')
+                if len(parts) >= 2:
+                    doc_set = parts[1]
+
+            # Extract head branch from PR URL (format: ...compare/main...user:repo:branch?...)
+            head_branch = "unknown"
+            if "..." in pr_url:
+                # Extract the branch name from the compare URL
+                branch_part = pr_url.split("...")[-1].split("?")[0]
+                if ":" in branch_part:
+                    head_branch = branch_part.split(":")[-1]
+
+            # Get user's fork repo name (use private repo name with -pr suffix)
+            fork_repo = f"{current_user.github_username}/{private_repo_name}"
+
+            # Store only the base compare URL (without title/body query params) to keep it short
+            compare_url_for_storage = pr_url.split("?")[0] + "?expand=1"
+
+            create_pull_request_record(
+                db=db,
+                compare_url=compare_url_for_storage,
+                source_repo=source_repo,
+                head_branch=head_branch,
+                file_path=pr_request.file_path,
+                user_id=current_user.id,
+                target_branch=pr_request.base_branch,
+                fork_repo=fork_repo,
+                doc_set=doc_set,
+                pr_title=pr_request.title
+            )
+            db.close()
+            logger.info(f"Created PR record for {pr_request.file_path}")
+        except Exception as e:
+            logger.error(f"Failed to create PR record: {e}")
+            # Don't fail the request if record creation fails
+
         return JSONResponse({
             "success": True,
             "pr_url": pr_url,

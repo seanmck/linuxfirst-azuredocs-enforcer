@@ -57,4 +57,9 @@ echo ""
 echo "Press Ctrl+C to stop all services."
 echo ""
 
+# Run database migrations first (db-migrate depends on db being healthy)
+echo "Running database migrations..."
+docker-compose up --build db-migrate
+
+# Start all services (excluding db-migrate which already ran)
 docker-compose up --build

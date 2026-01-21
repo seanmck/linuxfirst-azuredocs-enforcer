@@ -200,13 +200,13 @@ class UserFeedback(Base):
     rating = Column(Boolean, nullable=False)  # True = thumbs_up, False = thumbs_down
     comment = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    
+
     # Relationships
     user = relationship("User", back_populates="feedback")
     snippet = relationship("Snippet", back_populates="feedback")
     page = relationship("Page", back_populates="feedback")
     rewritten_document = relationship("RewrittenDocument", back_populates="feedback")
-    
+
     # Constraints - now supports three types of feedback targets
     __table_args__ = (
         sa.CheckConstraint(
@@ -214,7 +214,67 @@ class UserFeedback(Base):
             (snippet_id IS NOT NULL AND page_id IS NULL AND rewritten_document_id IS NULL) OR
             (snippet_id IS NULL AND page_id IS NOT NULL AND rewritten_document_id IS NULL) OR
             (snippet_id IS NULL AND page_id IS NULL AND rewritten_document_id IS NOT NULL)
-            """, 
+            """,
             name='check_feedback_target'
         ),
+    )
+
+
+class PullRequest(Base):
+    """Track pull requests created to fix bias issues in documentation"""
+    __tablename__ = 'pull_requests'
+
+    id = Column(Integer, primary_key=True)
+
+    # PR identification
+    compare_url = Column(String(500), nullable=False)  # GitHub compare/PR creation URL
+    pr_url = Column(String(500), nullable=True)  # Actual PR URL once created
+    pr_number = Column(Integer, nullable=True)  # PR number once created
+
+    # Repository information
+    source_repo = Column(String(255), nullable=False)  # e.g., "MicrosoftDocs/azure-docs-pr"
+    target_branch = Column(String(100), nullable=False, default="main")  # Base branch
+    head_branch = Column(String(255), nullable=False)  # Branch with changes
+    fork_repo = Column(String(255), nullable=True)  # User's fork, e.g., "username/azure-docs-pr"
+
+    # Document information
+    file_path = Column(String(500), nullable=False)  # e.g., "articles/storage/storage-account-create.md"
+    doc_set = Column(String(255), nullable=True)  # e.g., "storage"
+    page_id = Column(Integer, ForeignKey('pages.id', ondelete='SET NULL'), nullable=True)
+    rewritten_document_id = Column(Integer, ForeignKey('rewritten_documents.id', ondelete='SET NULL'), nullable=True)
+
+    # User information
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+
+    # Status tracking
+    # pending: Branch created, waiting for user to submit PR
+    # open: PR submitted and open
+    # closed: PR closed without merging
+    # merged: PR merged
+    status = Column(String(20), nullable=False, default='pending')
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)  # When record was created
+    submitted_at = Column(DateTime, nullable=True)  # When PR was submitted to GitHub
+    closed_at = Column(DateTime, nullable=True)  # When PR was closed/merged
+    merged_at = Column(DateTime, nullable=True)  # When PR was merged (null if closed without merge)
+    last_synced_at = Column(DateTime, nullable=True)  # Last time status was synced from GitHub
+
+    # PR metadata (from GitHub)
+    pr_title = Column(String(500), nullable=True)
+    pr_state = Column(String(20), nullable=True)  # GitHub's state: open, closed
+
+    # Relationships
+    user = relationship("User", backref="pull_requests")
+    page = relationship("Page", backref="pull_requests")
+    rewritten_document = relationship("RewrittenDocument", backref="pull_requests")
+
+    # Indexes for common queries
+    __table_args__ = (
+        sa.Index('ix_pull_requests_user_id', 'user_id'),
+        sa.Index('ix_pull_requests_status', 'status'),
+        sa.Index('ix_pull_requests_doc_set', 'doc_set'),
+        sa.Index('ix_pull_requests_created_at', 'created_at'),
+        sa.Index('ix_pull_requests_source_repo', 'source_repo'),
+        sa.UniqueConstraint('compare_url', name='uq_pull_requests_compare_url'),
     )
