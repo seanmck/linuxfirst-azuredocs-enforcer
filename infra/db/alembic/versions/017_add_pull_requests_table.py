@@ -87,27 +87,27 @@ def downgrade():
         # Drop indexes first
         try:
             op.drop_index('ix_pull_requests_source_repo', 'pull_requests')
-        except:
+        except Exception:
             pass
         try:
             op.drop_index('ix_pull_requests_created_at', 'pull_requests')
-        except:
+        except Exception:
             pass
         try:
             op.drop_index('ix_pull_requests_doc_set', 'pull_requests')
-        except:
+        except Exception:
             pass
         try:
             op.drop_index('ix_pull_requests_status', 'pull_requests')
-        except:
+        except Exception:
             pass
         try:
             op.drop_index('ix_pull_requests_user_id', 'pull_requests')
-        except:
+        except Exception:
             pass
         try:
             op.drop_constraint('uq_pull_requests_compare_url', 'pull_requests', type_='unique')
-        except:
+        except Exception:
             pass
 
         # Drop the table
