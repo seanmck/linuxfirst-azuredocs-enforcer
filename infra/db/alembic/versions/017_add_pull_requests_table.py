@@ -84,31 +84,31 @@ def downgrade():
     if table_exists:
         print("Dropping pull_requests table...")
 
-        # Drop indexes first
+        # Drop indexes first; ignore failures but log them for visibility
         try:
             op.drop_index('ix_pull_requests_source_repo', 'pull_requests')
-        except Exception:
-            pass
+        except Exception as exc:
+            print("Warning: failed to drop index ix_pull_requests_source_repo on pull_requests:", exc)
         try:
             op.drop_index('ix_pull_requests_created_at', 'pull_requests')
-        except Exception:
-            pass
+        except Exception as exc:
+            print("Warning: failed to drop index ix_pull_requests_created_at on pull_requests:", exc)
         try:
             op.drop_index('ix_pull_requests_doc_set', 'pull_requests')
-        except Exception:
-            pass
+        except Exception as exc:
+            print("Warning: failed to drop index ix_pull_requests_doc_set on pull_requests:", exc)
         try:
             op.drop_index('ix_pull_requests_status', 'pull_requests')
-        except Exception:
-            pass
+        except Exception as exc:
+            print("Warning: failed to drop index ix_pull_requests_status on pull_requests:", exc)
         try:
             op.drop_index('ix_pull_requests_user_id', 'pull_requests')
-        except Exception:
-            pass
+        except Exception as exc:
+            print("Warning: failed to drop index ix_pull_requests_user_id on pull_requests:", exc)
         try:
             op.drop_constraint('uq_pull_requests_compare_url', 'pull_requests', type_='unique')
-        except Exception:
-            pass
+        except Exception as exc:
+            print("Warning: failed to drop unique constraint uq_pull_requests_compare_url on pull_requests:", exc)
 
         # Drop the table
         op.drop_table('pull_requests')
