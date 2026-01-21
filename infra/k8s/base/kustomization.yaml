@@ -34,6 +34,7 @@ resources:
   - db-migrate.yaml
   - doc-collector-cronjob.yaml
   - bias-snapshot-cronjob.yaml
+  - pr-sync-cronjob.yaml
 
   # Networking
   - webui-ingress.yaml

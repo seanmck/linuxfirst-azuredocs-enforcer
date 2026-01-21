@@ -163,14 +163,27 @@ class GitHubAppService:
                 if installation:
                     logger.info(f"App has access to {installation.get('repository_selection', 'unknown')} repositories")
                     
-                # Try to access the user's repositories
+                # List repos the installation actually has access to via REST API
                 try:
-                    user_repos = list(client.get_user(username).get_repos())[:5]  # Get first 5 repos
-                    logger.info(f"Can access {len(user_repos)} repositories for {username}")
-                    for repo in user_repos:
-                        logger.info(f"  - {repo.full_name}")
+                    headers = {
+                        'Authorization': f'token {installation_token}',
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                    repos_response = requests.get(
+                        'https://api.github.com/installation/repositories',
+                        headers=headers
+                    )
+                    if repos_response.status_code == 200:
+                        repos_data = repos_response.json()
+                        total = repos_data.get('total_count', 0)
+                        repos = repos_data.get('repositories', [])
+                        logger.info(f"Installation has access to {total} repositories:")
+                        for repo in repos[:20]:  # Show up to 20
+                            logger.info(f"  - {repo['full_name']}")
+                    else:
+                        logger.warning(f"Failed to list installation repos: {repos_response.status_code}")
                 except Exception as repo_error:
-                    logger.warning(f"Cannot access repositories for {username}: {repo_error}")
+                    logger.warning(f"Cannot list installation repositories: {repo_error}")
                     
             except Exception as test_error:
                 logger.warning(f"Error testing GitHub App client: {test_error}")
