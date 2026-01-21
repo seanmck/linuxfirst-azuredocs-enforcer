@@ -56,7 +56,7 @@ class PRSyncService:
             logger.warning("No GitHub token configured for PR sync. Set GITHUB_SYNC_TOKEN with access to target repos.")
         else:
             token_source = 'GITHUB_SYNC_TOKEN' if os.getenv('GITHUB_SYNC_TOKEN') else 'GITHUB_TOKEN'
-            logger.info(f"PR sync using token from {token_source}")
+            logger.debug(f"PR sync using token from {token_source}")
 
         self.session = requests.Session()
         if self.github_token:
