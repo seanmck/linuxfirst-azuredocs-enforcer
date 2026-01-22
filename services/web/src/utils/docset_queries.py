@@ -209,7 +209,6 @@ def get_available_docsets(db: Session, limit: int = 100) -> List[str]:
             db.query(Page.doc_set)
             .filter(Page.doc_set.isnot(None))
             .distinct()
-            .limit(limit)
             .all()
         )
         
