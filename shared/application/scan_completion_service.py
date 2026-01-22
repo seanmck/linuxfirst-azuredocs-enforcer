@@ -1,5 +1,6 @@
 """Service for checking and finalizing scan completion"""
 import datetime
+from sqlalchemy import and_, or_, func
 from sqlalchemy.orm import Session
 from shared.models import Page, Scan, Snippet
 from shared.utils.logging import get_logger
@@ -81,10 +82,23 @@ class ScanCompletionService:
                 Page.status == 'error'
             ).count()
 
-            # Count biased pages (pages with mcp_holistic data)
+            # Count biased pages using severity field as authoritative indicator
+            # Fallback to bias_types for legacy pages without severity
             biased_pages_count = self.db.query(Page).filter(
                 Page.scan_id == scan_id,
-                Page.mcp_holistic.isnot(None)
+                Page.mcp_holistic.isnot(None),
+                or_(
+                    # Primary: severity exists and is not 'none'
+                    and_(
+                        Page.mcp_holistic['severity'].astext.isnot(None),
+                        func.lower(Page.mcp_holistic['severity'].astext) != 'none'
+                    ),
+                    # Fallback: severity missing but bias_types array is non-empty
+                    and_(
+                        Page.mcp_holistic['severity'].astext.is_(None),
+                        func.jsonb_array_length(func.coalesce(Page.mcp_holistic['bias_types'], '[]')) > 0
+                    )
+                )
             ).count()
 
             # Count flagged snippets

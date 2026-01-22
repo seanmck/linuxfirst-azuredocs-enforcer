@@ -43,22 +43,27 @@ def get_parsed_mcp_holistic(page) -> Optional[Dict[str, Any]]:
 def is_page_biased(page):
     """
     Determine if a page needs attention based on holistic bias analysis.
-    
+
     Args:
         page: Page model instance with mcp_holistic field
-        
+
     Returns:
-        bool: True if page has bias_types (needs attention), False otherwise
+        bool: True if page has bias (severity != 'none'), False otherwise
     """
     mcp_data = get_parsed_mcp_holistic(page)
     if not mcp_data:
         return False
-    
-    # A page needs attention if it has any bias_types
+
+    # Primary check: severity field (authoritative indicator)
+    severity = mcp_data.get('severity')
+    if severity is not None and isinstance(severity, str) and severity.strip():
+        return severity.strip().lower() != 'none'
+
+    # Fallback for legacy pages without severity field: check bias_types
     bias_types = mcp_data.get('bias_types', [])
     if isinstance(bias_types, str):
         bias_types = [bias_types]
-    
+
     return bool(bias_types and len(bias_types) > 0)
 
 
