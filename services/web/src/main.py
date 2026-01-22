@@ -228,70 +228,52 @@ def build_flagged_tree(flagged):
 def get_doc_set_leaderboard(db):
     """
     Get bias metrics aggregated by documentation set (e.g., virtual-machines, app-service).
-    Returns a list of doc sets with their bias statistics from all scans (including in-progress).
-    Uses efficient aggregation queries for better performance.
+    Returns a list of doc sets with their current bias statistics based on the latest
+    scan result for each unique URL. This shows the current state of bias across doc sets,
+    so if a page was fixed in a later scan, it shows as clean.
     """
-    from sqlalchemy import func, case, text
-    
+    from sqlalchemy import text
+
     # Check cache first
     cache_key = "doc_set_leaderboard_all_scans"
     cached_result = cache.get(cache_key)
     if cached_result is not None:
         print(f"[DEBUG] Using cached leaderboard data")
         return cached_result
-    
-    # Single optimized query to get doc set statistics
-    # This replaces the O(scans × pages × snippets) nested loop approach
+
+    # Optimized query using the indexed doc_set column and DISTINCT ON for latest state per URL
+    # This avoids expensive string parsing and COUNT(DISTINCT) operations
     query = text("""
-        WITH doc_set_pages AS (
-            SELECT 
-                p.url,
-                p.id as page_id,
-                CASE 
-                    WHEN position('/articles/' in p.url) > 0 THEN
-                        split_part(
-                            substring(p.url from position('/articles/' in p.url) + 10),
-                            '/', 
-                            1
-                        )
-                    ELSE NULL
-                END as doc_set,
-                -- Check if page needs attention based on bias_types in mcp_holistic
-                CASE 
-                    WHEN p.mcp_holistic IS NOT NULL 
-                    AND jsonb_array_length(COALESCE(p.mcp_holistic->'bias_types', '[]'::jsonb)) > 0 
-                    THEN true
-                    ELSE false
-                END as is_biased
-            FROM pages p
-            JOIN scans sc ON p.scan_id = sc.id
-            WHERE p.url LIKE '%/articles/%'
-        ),
-        doc_set_aggregates AS (
-            SELECT 
-                doc_set,
-                COUNT(DISTINCT url) as total_pages,
-                COUNT(DISTINCT CASE WHEN is_biased THEN url END) as biased_pages
-            FROM doc_set_pages
+        WITH latest_pages AS (
+            SELECT DISTINCT ON (url)
+                url, doc_set, mcp_holistic
+            FROM pages
             WHERE doc_set IS NOT NULL AND doc_set != ''
-            GROUP BY doc_set
+            ORDER BY url, scan_id DESC
         )
-        SELECT 
+        SELECT
             doc_set,
-            total_pages,
-            biased_pages,
+            COUNT(*) as total_pages,
+            COUNT(*) FILTER (WHERE
+                mcp_holistic IS NOT NULL
+                AND jsonb_array_length(COALESCE(mcp_holistic->'bias_types', '[]'::jsonb)) > 0
+            ) as biased_pages,
             CAST(
                 ROUND(
-                    CASE 
-                        WHEN total_pages > 0 THEN (biased_pages::numeric / total_pages::numeric * 100)
+                    CASE
+                        WHEN COUNT(*) > 0 THEN (COUNT(*) FILTER (WHERE
+                            mcp_holistic IS NOT NULL
+                            AND jsonb_array_length(COALESCE(mcp_holistic->'bias_types', '[]'::jsonb)) > 0
+                        )::numeric / COUNT(*)::numeric * 100)
                         ELSE 0
                     END,
                     1
                 ) AS FLOAT
             ) as bias_percentage
-        FROM doc_set_aggregates
-        WHERE total_pages > 0
-        ORDER BY bias_percentage DESC, total_pages DESC
+        FROM latest_pages
+        GROUP BY doc_set
+        HAVING COUNT(*) > 0
+        ORDER BY bias_percentage DESC, COUNT(*) DESC
     """)
     
     try:
