@@ -316,57 +316,29 @@ async def index(request: Request):
     # Record database connection
     metrics.update_db_connections(1)
     
-    # Optimized query to get all scans with their computed metrics
+    # Simple query using precomputed values - no JOIN needed
     with metrics.time_operation(metrics.db_query_duration, 'select'):
-        from sqlalchemy import func, case
-        
-        # Get scans with page counts and flagged counts in a single query
-        scan_query = (
-            db.query(
-                Scan.id,
-                Scan.url,
-                Scan.started_at,
-                Scan.status,
-                Scan.biased_pages_count,
-                Scan.flagged_snippets_count,
-                func.count(Page.id).label('total_pages'),
-                func.count(
-                    case(
-                        (func.jsonb_array_length(func.coalesce(Page.mcp_holistic['bias_types'], '[]')) > 0, Page.id),
-                        else_=None
-                    )
-                ).label('mcp_biased_pages')
-            )
-            .outerjoin(Page, Scan.id == Page.scan_id)
-            .group_by(Scan.id, Scan.url, Scan.started_at, Scan.status, Scan.biased_pages_count, Scan.flagged_snippets_count)
-            .order_by(Scan.started_at.desc())
-        )
-        
-        scans_with_counts = scan_query.all()
-    
+        scans = db.query(Scan).order_by(Scan.started_at.desc()).all()
+
     metrics.record_db_query('select', 0.1)  # Will be overwritten by context manager
-    
+
     scan_summaries = []
-    for scan_data in scans_with_counts:
-        # Use computed fields if available, otherwise use query results
-        scanned_count = scan_data.total_pages
-        # Note: mcp_biased_pages is derived from MCP holistic data. Older scans created
-        # before MCP holistic scoring was introduced will have this field as NULL, and we
-        # intentionally treat those as 0 flagged pages to keep the dashboard consistent
-        # with the scan detail view and avoid reintroducing legacy fallback logic.
-        flagged_count = scan_data.mcp_biased_pages or 0
+    for scan in scans:
+        # Use precomputed fields from Scan table
+        scanned_count = scan.total_pages_found or 0
+        flagged_count = scan.biased_pages_count or 0
 
         percent_flagged = (flagged_count / scanned_count * 100) if scanned_count else 0
-        
+
         # Update bias detection rate metrics for completed scans
-        if scan_data.status == "completed" and scanned_count > 0:
+        if scan.status == "completed" and scanned_count > 0:
             metrics.update_bias_detection_rate(percent_flagged, 'last_scan')
-        
+
         scan_summaries.append({
-            "id": scan_data.id,
-            "url": scan_data.url,
-            "started_at": scan_data.started_at,
-            "status": scan_data.status,
+            "id": scan.id,
+            "url": scan.url,
+            "started_at": scan.started_at,
+            "status": scan.status,
             "percent_flagged": round(percent_flagged, 1),
             "scanned_count": scanned_count,
             "flagged_count": flagged_count

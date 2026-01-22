@@ -82,14 +82,14 @@ class TestIsPageBiased:
         assert is_page_biased(page) is False
 
     def test_empty_bias_types_returns_false(self):
-        """Page with empty bias_types should return False."""
+        """Page with empty bias_types (no severity) should return False."""
         page = MagicMock()
         page.mcp_holistic = {"bias_types": []}
         del page._parsed_mcp_holistic
         assert is_page_biased(page) is False
 
     def test_with_bias_types_returns_true(self):
-        """Page with bias_types should return True."""
+        """Page with bias_types (no severity) should return True via fallback."""
         page = MagicMock()
         page.mcp_holistic = {"bias_types": ["powershell_only"]}
         del page._parsed_mcp_holistic
@@ -108,6 +108,78 @@ class TestIsPageBiased:
         page.mcp_holistic = {"bias_types": "powershell_only"}
         del page._parsed_mcp_holistic
         assert is_page_biased(page) is True
+
+    # Severity-based tests (primary indicator)
+    def test_severity_high_returns_true(self):
+        """Page with severity 'high' should return True."""
+        page = MagicMock()
+        page.mcp_holistic = {"severity": "high", "bias_types": []}
+        del page._parsed_mcp_holistic
+        assert is_page_biased(page) is True
+
+    def test_severity_medium_returns_true(self):
+        """Page with severity 'medium' should return True."""
+        page = MagicMock()
+        page.mcp_holistic = {"severity": "medium", "bias_types": []}
+        del page._parsed_mcp_holistic
+        assert is_page_biased(page) is True
+
+    def test_severity_low_returns_true(self):
+        """Page with severity 'low' should return True."""
+        page = MagicMock()
+        page.mcp_holistic = {"severity": "low", "bias_types": []}
+        del page._parsed_mcp_holistic
+        assert is_page_biased(page) is True
+
+    def test_severity_none_returns_false(self):
+        """Page with severity 'none' should return False."""
+        page = MagicMock()
+        page.mcp_holistic = {"severity": "none", "bias_types": []}
+        del page._parsed_mcp_holistic
+        assert is_page_biased(page) is False
+
+    def test_severity_none_overrides_bias_types(self):
+        """Severity 'none' should take precedence over non-empty bias_types."""
+        page = MagicMock()
+        page.mcp_holistic = {"severity": "none", "bias_types": ["powershell_only"]}
+        del page._parsed_mcp_holistic
+        assert is_page_biased(page) is False
+
+    def test_severity_high_with_bias_types(self):
+        """Page with severity 'high' and bias_types should return True."""
+        page = MagicMock()
+        page.mcp_holistic = {"severity": "high", "bias_types": ["powershell_only"]}
+        del page._parsed_mcp_holistic
+        assert is_page_biased(page) is True
+
+    def test_severity_case_insensitive(self):
+        """Severity comparison should be case-insensitive."""
+        page = MagicMock()
+        page.mcp_holistic = {"severity": "HIGH", "bias_types": []}
+        del page._parsed_mcp_holistic
+        assert is_page_biased(page) is True
+
+        page.mcp_holistic = {"severity": "None", "bias_types": []}
+        del page._parsed_mcp_holistic
+        assert is_page_biased(page) is False
+
+    def test_severity_with_whitespace(self):
+        """Severity with whitespace should be handled."""
+        page = MagicMock()
+        page.mcp_holistic = {"severity": "  high  ", "bias_types": []}
+        del page._parsed_mcp_holistic
+        assert is_page_biased(page) is True
+
+    def test_empty_string_severity_falls_back_to_bias_types(self):
+        """Empty string severity should fall back to bias_types."""
+        page = MagicMock()
+        page.mcp_holistic = {"severity": "", "bias_types": ["powershell_only"]}
+        del page._parsed_mcp_holistic
+        assert is_page_biased(page) is True
+
+        page.mcp_holistic = {"severity": "", "bias_types": []}
+        del page._parsed_mcp_holistic
+        assert is_page_biased(page) is False
 
 
 class TestGetPagePriority:
