@@ -62,5 +62,6 @@ def get_instrumentation_key() -> Optional[str]:
         # Connection string format: InstrumentationKey=xxx;IngestionEndpoint=xxx;...
         parts = dict(p.split("=", 1) for p in connection_string.split(";") if "=" in p)
         return parts.get("InstrumentationKey")
-    except Exception:
+    except ValueError as e:
+        logger.error(f"Failed to parse APPLICATIONINSIGHTS_CONNECTION_STRING: {e}")
         return None
