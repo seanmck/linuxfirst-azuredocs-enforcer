@@ -1067,22 +1067,6 @@
               "dependsOn": [
                 "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]"
               ]
-            },
-            {
-              "copy": {
-                "name": "postgresqlConfig",
-                "count": "[length(createArray(createObject('name', 'shared_preload_libraries', 'value', 'pg_stat_statements'), createObject('name', 'pg_stat_statements.track', 'value', 'all'), createObject('name', 'log_statement', 'value', 'all'), createObject('name', 'log_min_duration_statement', 'value', '1000')))]"
-              },
-              "type": "Microsoft.DBforPostgreSQL/flexibleServers/configurations",
-              "apiVersion": "2023-06-01-preview",
-              "name": "[format('{0}/{1}', parameters('serverName'), createArray(createObject('name', 'shared_preload_libraries', 'value', 'pg_stat_statements'), createObject('name', 'pg_stat_statements.track', 'value', 'all'), createObject('name', 'log_statement', 'value', 'all'), createObject('name', 'log_min_duration_statement', 'value', '1000'))[copyIndex()].name)]",
-              "properties": {
-                "value": "[createArray(createObject('name', 'shared_preload_libraries', 'value', 'pg_stat_statements'), createObject('name', 'pg_stat_statements.track', 'value', 'all'), createObject('name', 'log_statement', 'value', 'all'), createObject('name', 'log_min_duration_statement', 'value', '1000'))[copyIndex()].value]",
-                "source": "user-override"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]"
-              ]
             }
           ],
           "outputs": {
