@@ -2190,7 +2190,7 @@
                     "config": "[if(not(equals(parameters('keyVaultId'), '')), createObject('enableSecretRotation', 'true', 'rotationPollInterval', '2m'), null())]"
                   },
                   "httpApplicationRouting": {
-                    "enabled": true
+                    "enabled": false
                   },
                   "azurepolicy": {
                     "enabled": true
