@@ -29,16 +29,11 @@ pyyaml
 # Monitoring
 prometheus-client>=0.19.0
 
-# Distributed Tracing (optional - set OTEL_EXPORTER_OTLP_ENDPOINT to enable)
-opentelemetry-api>=1.20.0
-opentelemetry-sdk>=1.20.0
-opentelemetry-exporter-otlp>=1.20.0
-opentelemetry-instrumentation-fastapi>=0.41b0
-opentelemetry-instrumentation-sqlalchemy>=0.41b0
-opentelemetry-instrumentation-requests>=0.41b0
-
-# Azure Application Insights (OpenTelemetry-based)
+# Azure Application Insights & Distributed Tracing
+# azure-monitor-opentelemetry brings compatible OpenTelemetry dependencies
+# For Jaeger fallback, set OTEL_EXPORTER_OTLP_ENDPOINT when App Insights is not configured
 azure-monitor-opentelemetry>=1.0.0
+opentelemetry-exporter-otlp  # For Jaeger/OTLP export fallback
 
 # Authentication & Security
 cryptography>=2.5
