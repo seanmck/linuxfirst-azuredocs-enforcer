@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "westus3"
+    },
+    "environment": {
+      "value": "production"
+    },
+    "resourcePrefix": {
+      "value": "linuxfirstdocs"
+    },
+    "aksClusterName": {
+      "value": "linuxfirstdocs-aks"
+    },
+    "postgresqlServerName": {
+      "value": "linuxfirstdocs-pgsql"
+    },
+    "openaiServiceName": {
+      "value": "linuxfirstdocs-aoai"
+    },
+    "postgresqlAdminLogin": {
+      "value": "pgadmin"
+    },
+    "postgresqlAdminPassword": {
+      "value": "xCUbR!2pG!dH6nJi"
+    },
+    "createKeyVault": {
+      "value": true
+    },
+    "createContainerRegistry": {
+      "value": true
+    },
+    "keyVaultName": {
+      "value": "linuxfirstdocs-akv"
+    },
+    "containerRegistryName": {
+      "value": "linuxfirstdocsacr"
+    }
+  }
+}
