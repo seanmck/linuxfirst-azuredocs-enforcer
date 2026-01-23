@@ -37,6 +37,9 @@ opentelemetry-instrumentation-fastapi>=0.41b0
 opentelemetry-instrumentation-sqlalchemy>=0.41b0
 opentelemetry-instrumentation-requests>=0.41b0
 
+# Azure Application Insights (OpenTelemetry-based)
+azure-monitor-opentelemetry>=1.0.0
+
 # Authentication & Security
 cryptography>=2.5
 PyGithub>=2.0.0

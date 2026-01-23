@@ -121,6 +121,14 @@ module keyVault 'modules/keyvault.bicep' = if (createKeyVault) {
   }
 }
 
+// Store App Insights connection string in Key Vault
+resource appInsightsConnectionStringSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (createKeyVault) {
+  name: '${keyVault.outputs.keyVaultName}/appinsights-connection-string-${environment}'
+  properties: {
+    value: monitoring.outputs.applicationInsightsConnectionString
+  }
+}
+
 // Container Registry Module (Optional)
 module containerRegistry 'modules/acr.bicep' = if (createContainerRegistry) {
   name: 'acr-deployment'

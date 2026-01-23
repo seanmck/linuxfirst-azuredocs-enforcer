@@ -6,6 +6,18 @@
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="stylesheet" href="/static/dashboard.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    {% if appinsights_connection_string %}
+    <script type="text/javascript">
+    !function(T,l,y){var S=T.location,k="script",D="instrumentationKey",C="ingestionendpoint",I="disableExceptionTracking",E="ai.device.",b="toLowerCase",w=(D)[b](),N="crossOrigin",M="POST",F="appInsightsSDK",z=y.name||"appInsights",q=((y.name||T[F])&&(T[F]=z),T[z]||function(l){var u=!1,d=!1,g={initialize:!0,queue:[],sv:"8",version:2,config:l};function e(e,t){var n={},a="Browser";return n[E+"id"]=a[b](),n[E+"type"]=a,n["ai.operation.name"]=S&&S.pathname||"_unknown_",n["ai.internal.sdkVersion"]="javascript:snippet_"+(g.sv||g.version),{time:function(){var e=new Date;function t(e){var t=""+e;return 1===t.length?"0"+t:t}return e.getUTCFullYear()+"-"+t(1+e.getUTCMonth())+"-"+t(e.getUTCDate())+"T"+t(e.getUTCHours())+":"+t(e.getUTCMinutes())+":"+t(e.getUTCSeconds())+"."+(e.getUTCMilliseconds()/1e3).toFixed(3).slice(2,5)+"Z"}(),iKey:e,name:"Microsoft.ApplicationInsights."+e.replace(/-/g,"")+"."+t,sampleRate:100,tags:n,data:{baseData:{ver:2}}}}var n,i,t,a,r,o=l.url||y.src;function c(e){var t,n,a,i,r,o,c,s,p,u;return(u=(e||{}).error)!==null&&u!==void 0&&typeof u=="object"||(t={message:e,url:location.href},n=y.cfg.extensionConfig,a=n===null||n===void 0?void 0:n.ApplicationInsightsAnalytics,i=a===null||a===void 0?void 0:a.trackExceptionOnError,r={exception:t,severityLevel:3},(o=T[z])?(c=o.appInsights,s=c===null||c===void 0?void 0:c.trackException,p=!i&&c&&typeof s=="function",p?c.trackException(r):typeof i=="function"&&i(r)):typeof i=="function"&&i(r)),u}if(o){if(function(e,t){(null!==T&&void 0!==T&&T.fetch?fetch(t,{method:M,body:JSON.stringify(e),mode:"cors"}):1)&&function(e){var t=l.createElement(k);t.src=e,l.getElementsByTagName(k)[0].parentNode.appendChild(t)}(t)}(e(l.connectionString||l.instrumentationKey,"RemoteDependency").data.baseData.data=o,o),l.onInit)try{l.onInit(g)}catch(f){c(f)}if(!l[I])try{T.onerror=function(e,t,n,a,i){var r=c({error:i||new Error(e)});return r&&(r.url=t||"",r.lineNumber=n||0,r.columnNumber=a||0),typeof g.queue[0]=="function"?g.queue[0](r):g.queue.push(r),u},T.onunhandledrejection=function(e){c({error:e})}}catch(f){}}return g}(y.cfg));(T[z]=q).queue&&0===q.queue.length&&q.queue.push(function(e){if(e){var t=q.queue.shift();t&&t(e)}})}(window,document,{
+        src: "https://js.monitor.azure.com/scripts/b/ai.2.min.js",
+        crossOrigin: "anonymous",
+        cfg: {
+            connectionString: "{{ appinsights_connection_string }}",
+            enableAutoRouteTracking: true
+        }
+    });
+    </script>
+    {% endif %}
     <script>
         let pollTimeout = null;
         let pollCount = 0;
