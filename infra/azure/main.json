@@ -1103,7 +1103,7 @@
               "metadata": {
                 "description": "Connection string template (without password)"
               },
-              "value": "[format('Server={0};Database={1};Port=5432;User Id={2};Ssl Mode=Require;', reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName')), '2023-06-01-preview').fullyQualifiedDomainName, variables('databaseName'), parameters('adminLogin'))]"
+              "value": "[format('Server={0};Database={1};Port=5432;User Id=<USERNAME>;Ssl Mode=Require;', reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName')), '2023-06-01-preview').fullyQualifiedDomainName, variables('databaseName'))]"
             }
           }
         }
