@@ -9,7 +9,7 @@ The Linux Bias Docs Enforcer app will run as a scalable, resilient, and secure c
 - All infrastructure should be configured using Bicep templates.
 - An interactive script should be provided that can allow for selection of the Azure subscription, resource group, and region for deployment. Each of these parameters should be passable as a command line argument but if not provided should be prompted by the script, with defaults set to allow for the user to simply hit enter to confirm. The defaults can be:
   - The active subscription in the Azure CLI
-  - A resource group named "linuxdocsrg-<date>" where <date> is the current date in YYYYMMDD format.
+  - A resource group named "linuxfirstdocsrg-<date>" where <date> is the current date in YYYYMMDD format.
   - WestUS3 for the region.
 - All components should be deployed into an Azure virtual network named 'linuxfirstdocs-vnet'.
 
