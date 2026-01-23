@@ -14,3 +14,4 @@ spec:
                 secretKeyRef:
                   name: azuredocs-secrets
                   key: APPLICATIONINSIGHTS_CONNECTION_STRING
+                  optional: true
