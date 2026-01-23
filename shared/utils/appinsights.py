@@ -1,4 +1,29 @@
-"""Azure Application Insights integration using OpenTelemetry."""
+"""
+Azure Application Insights integration using OpenTelemetry.
+
+Environment variables:
+    APPLICATIONINSIGHTS_CONNECTION_STRING:
+        Azure Monitor / Application Insights connection string used to
+        configure OpenTelemetry exporters. If this variable is not set,
+        Application Insights instrumentation is skipped and `setup_appinsights`
+        returns False.
+
+Usage:
+    Basic setup in a FastAPI service (e.g. in your application startup code):
+
+        from shared.utils.appinsights import setup_appinsights
+
+        def init_observability(app, db_engine):
+            # Returns True if Application Insights was successfully configured.
+            setup_appinsights(app=app, db_engine=db_engine)
+
+    Exposing the instrumentation key for client-side JavaScript:
+
+        from shared.utils.appinsights import get_instrumentation_key
+
+        ikey = get_instrumentation_key()
+        # Use `ikey` in your frontend configuration if not None.
+"""
 import os
 import logging
 from typing import Optional
