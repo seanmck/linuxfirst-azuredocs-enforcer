@@ -199,8 +199,9 @@ validate_parameters() {
         print_warning "Default password found in parameters.json. Please update before deployment."
     fi
     
-    if grep -q "security@example.com" modules/security.bicep; then
-        print_warning "Default email found in security.bicep. Please update security contact email."
+    # Warn if the default security contact email placeholder is still present
+    if grep -q "security@example.com" parameters.json; then
+        print_warning "Default security contact email found in parameters.json. Please update or parameterize this value before deployment."
     fi
     
     return 0
