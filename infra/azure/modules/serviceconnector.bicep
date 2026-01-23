@@ -24,7 +24,7 @@ resource postgresqlRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-
   name: guid(postgresqlServerId, aksClusterId, 'PostgreSQL Flexible Server Contributor')
   scope: resourceGroup()
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'f4d97b98b-1d4f-4787-a291-c67834d212e7') // PostgreSQL Flexible Server Contributor
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '9b7fa17d-e63e-47b0-bb0a-1f3a24f1e82e') // Azure Database for PostgreSQL Flexible Server Contributor
     principalId: aksCluster.properties.identityProfile.kubeletidentity.objectId
     principalType: 'ServicePrincipal'
   }
