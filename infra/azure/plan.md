@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Linux Bias Docs Enforcer app will run as a scalable, resilient, and secure cloud deployment in Azure using Azure Kubernetes Service (AKS), Azure PostreSQL Flexible Server, Azure OpenAI, and Azure Key Vault. This document outlines the requirements for deploying that infrastructure in a fully automated fashion.
+The Linux Bias Docs Enforcer app will run as a scalable, resilient, and secure cloud deployment in Azure using Azure Kubernetes Service (AKS), Azure PostgreSQL Flexible Server, Azure OpenAI, and Azure Key Vault. This document outlines the requirements for deploying that infrastructure in a fully automated fashion.
 
 ## General requirements
 
