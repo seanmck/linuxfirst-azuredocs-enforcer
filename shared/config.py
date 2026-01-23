@@ -260,6 +260,22 @@ class GitHubAppConfig:
 
 
 @dataclass
+class ApplicationInsightsConfig:
+    """Azure Application Insights configuration"""
+    connection_string: Optional[str] = None
+
+    @classmethod
+    def from_env(cls) -> 'ApplicationInsightsConfig':
+        return cls(
+            connection_string=os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
+        )
+
+    @property
+    def is_available(self) -> bool:
+        return bool(self.connection_string)
+
+
+@dataclass
 class Config:
     """Main configuration class that combines all configuration sections"""
     database: DatabaseConfig
@@ -268,7 +284,8 @@ class Config:
     application: ApplicationConfig
     github_oauth: GitHubOAuthConfig
     github_app: GitHubAppConfig
-    
+    application_insights: ApplicationInsightsConfig
+
     @classmethod
     def from_env(cls) -> 'Config':
         """Create configuration from environment variables"""
@@ -278,7 +295,8 @@ class Config:
             rabbitmq=RabbitMQConfig.from_env(),
             application=ApplicationConfig.from_env(),
             github_oauth=GitHubOAuthConfig.from_env(),
-            github_app=GitHubAppConfig.from_env()
+            github_app=GitHubAppConfig.from_env(),
+            application_insights=ApplicationInsightsConfig.from_env()
         )
 
 

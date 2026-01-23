@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webui
+  namespace: azuredocs-app
+spec:
+  template:
+    spec:
+      containers:
+        - name: webui
+          env:
+            - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: azuredocs-secrets
+                  key: APPLICATIONINSIGHTS_CONNECTION_STRING

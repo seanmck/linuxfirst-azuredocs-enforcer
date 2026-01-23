@@ -31,6 +31,7 @@ from middleware.correlation import CorrelationMiddleware
 from shared.utils.metrics import get_metrics
 from shared.utils.tracing import setup_tracing
 from shared.utils.database import engine
+from shared.utils.appinsights import setup_appinsights
 import logging
 
 # Configure logging
@@ -60,8 +61,11 @@ app.add_middleware(CorrelationMiddleware)
 metrics = get_metrics()
 metrics.set_service_health("webui", True)
 
-# Initialize distributed tracing (only if OTEL_EXPORTER_OTLP_ENDPOINT is set)
-setup_tracing(app=app, db_engine=engine)
+# Initialize Azure Application Insights (takes precedence over Jaeger tracing)
+appinsights_enabled = setup_appinsights(app=app, db_engine=engine)
+if not appinsights_enabled:
+    # Fall back to Jaeger tracing if App Insights is not configured
+    setup_tracing(app=app, db_engine=engine)
 
 # Ensure the static directory path is absolute
 # In Docker: static files are at /app/web/static (working dir is /app/web)
@@ -582,7 +586,8 @@ async def index(request: Request):
         "bias_chart_data": bias_chart_data,
         "azure_dirs": azure_dirs,
         "doc_set_leaderboard": doc_set_leaderboard,
-        "satisfaction_metrics": satisfaction_metrics
+        "satisfaction_metrics": satisfaction_metrics,
+        "appinsights_connection_string": os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING", "")
     })
 
 @app.get("/status")

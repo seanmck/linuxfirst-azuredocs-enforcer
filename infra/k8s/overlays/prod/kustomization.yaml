@@ -10,6 +10,7 @@ patches:
 - path: secret-provider-class-patch.yaml
 - path: sc-azuredocsdbconnection-secret-patch.yaml
 - path: rabbitmq-patch.yaml
+- path: webui-appinsights-patch.yaml
 
 # Image versions for prod environment (updated via promotion PR)
 images:
