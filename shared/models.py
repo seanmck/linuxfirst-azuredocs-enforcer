@@ -76,6 +76,7 @@ class Page(Base):
     scan = relationship("Scan", back_populates="pages")
     snippets = relationship("Snippet", back_populates="page")
     feedback = relationship("UserFeedback", back_populates="page", cascade="all, delete-orphan")
+    rewritten_documents = relationship("RewrittenDocument", back_populates="page", cascade="all, delete-orphan")
 
 class ProcessingUrl(Base):
     __tablename__ = 'processing_urls'
@@ -168,22 +169,112 @@ class UserSession(Base):
     user = relationship("User", back_populates="sessions")
 
 
+class RewrittenDocument(Base):
+    __tablename__ = 'rewritten_documents'
+    id = Column(Integer, primary_key=True)
+    page_id = Column(Integer, ForeignKey('pages.id', ondelete='CASCADE'), nullable=False)
+    content = Column(Text, nullable=False)  # Full rewritten markdown content
+    content_hash = Column(String(64), nullable=False)  # SHA256 hash for deduplication
+    yaml_header = Column(JSON, nullable=True)  # Parsed YAML front matter
+    generation_params = Column(JSON, nullable=True)  # Parameters used for generation
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # Relationships
+    page = relationship("Page", back_populates="rewritten_documents")
+    feedback = relationship("UserFeedback", back_populates="rewritten_document", cascade="all, delete-orphan")
+    
+    # Index on content hash for deduplication
+    __table_args__ = (
+        sa.Index('ix_rewritten_documents_content_hash', 'content_hash'),
+        sa.Index('ix_rewritten_documents_page_id', 'page_id'),
+    )
+
+
 class UserFeedback(Base):
     __tablename__ = 'user_feedback'
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     snippet_id = Column(Integer, ForeignKey('snippets.id', ondelete='CASCADE'), nullable=True)
     page_id = Column(Integer, ForeignKey('pages.id', ondelete='CASCADE'), nullable=True)
+    rewritten_document_id = Column(Integer, ForeignKey('rewritten_documents.id', ondelete='CASCADE'), nullable=True)
     rating = Column(Boolean, nullable=False)  # True = thumbs_up, False = thumbs_down
     comment = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    
+
     # Relationships
     user = relationship("User", back_populates="feedback")
     snippet = relationship("Snippet", back_populates="feedback")
     page = relationship("Page", back_populates="feedback")
-    
-    # Constraints
+    rewritten_document = relationship("RewrittenDocument", back_populates="feedback")
+
+    # Constraints - now supports three types of feedback targets
     __table_args__ = (
-        sa.CheckConstraint("(snippet_id IS NOT NULL AND page_id IS NULL) OR (snippet_id IS NULL AND page_id IS NOT NULL)", name='check_feedback_target'),
+        sa.CheckConstraint(
+            """
+            (snippet_id IS NOT NULL AND page_id IS NULL AND rewritten_document_id IS NULL) OR
+            (snippet_id IS NULL AND page_id IS NOT NULL AND rewritten_document_id IS NULL) OR
+            (snippet_id IS NULL AND page_id IS NULL AND rewritten_document_id IS NOT NULL)
+            """,
+            name='check_feedback_target'
+        ),
+    )
+
+
+class PullRequest(Base):
+    """Track pull requests created to fix bias issues in documentation"""
+    __tablename__ = 'pull_requests'
+
+    id = Column(Integer, primary_key=True)
+
+    # PR identification
+    compare_url = Column(String(500), nullable=False)  # GitHub compare/PR creation URL
+    pr_url = Column(String(500), nullable=True)  # Actual PR URL once created
+    pr_number = Column(Integer, nullable=True)  # PR number once created
+
+    # Repository information
+    source_repo = Column(String(255), nullable=False)  # e.g., "MicrosoftDocs/azure-docs-pr"
+    target_branch = Column(String(100), nullable=False, default="main")  # Base branch
+    head_branch = Column(String(255), nullable=False)  # Branch with changes
+    fork_repo = Column(String(255), nullable=True)  # User's fork, e.g., "username/azure-docs-pr"
+
+    # Document information
+    file_path = Column(String(500), nullable=False)  # e.g., "articles/storage/storage-account-create.md"
+    doc_set = Column(String(255), nullable=True)  # e.g., "storage"
+    page_id = Column(Integer, ForeignKey('pages.id', ondelete='SET NULL'), nullable=True)
+    rewritten_document_id = Column(Integer, ForeignKey('rewritten_documents.id', ondelete='SET NULL'), nullable=True)
+
+    # User information
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True)
+
+    # Status tracking
+    # pending: Branch created, waiting for user to submit PR
+    # open: PR submitted and open
+    # closed: PR closed without merging
+    # merged: PR merged
+    status = Column(String(20), nullable=False, default='pending')
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)  # When record was created
+    submitted_at = Column(DateTime, nullable=True)  # When PR was submitted to GitHub
+    closed_at = Column(DateTime, nullable=True)  # When PR was closed/merged
+    merged_at = Column(DateTime, nullable=True)  # When PR was merged (null if closed without merge)
+    last_synced_at = Column(DateTime, nullable=True)  # Last time status was synced from GitHub
+
+    # PR metadata (from GitHub)
+    pr_title = Column(String(500), nullable=True)
+    pr_state = Column(String(20), nullable=True)  # GitHub's state: open, closed
+
+    # Relationships
+    user = relationship("User", backref="pull_requests")
+    page = relationship("Page", backref="pull_requests")
+    rewritten_document = relationship("RewrittenDocument", backref="pull_requests")
+
+    # Indexes for common queries
+    __table_args__ = (
+        sa.Index('ix_pull_requests_user_id', 'user_id'),
+        sa.Index('ix_pull_requests_status', 'status'),
+        sa.Index('ix_pull_requests_doc_set', 'doc_set'),
+        sa.Index('ix_pull_requests_created_at', 'created_at'),
+        sa.Index('ix_pull_requests_source_repo', 'source_repo'),
+        sa.UniqueConstraint('compare_url', name='uq_pull_requests_compare_url'),
     )

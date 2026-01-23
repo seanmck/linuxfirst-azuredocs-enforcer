@@ -7,21 +7,17 @@
     <link rel="stylesheet" href="/static/dashboard.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            margin: 0;
-            background: #f7fafd;
-            color: #222;
-        }
+        /* Dark theme styles for docset details page */
         .container {
             max-width: 1200px;
             margin: 2em auto;
             padding: 0 2em;
         }
         .header {
-            background: #fff;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
-            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            box-shadow: 0 2px 16px rgba(0,0,0,0.2);
             padding: 2em 2.5em;
             margin-bottom: 2em;
             display: flex;
@@ -36,24 +32,26 @@
             font-size: 2.2em;
             font-weight: 700;
             margin: 0;
-            color: #2563eb;
+            color: var(--accent-yellow);
             letter-spacing: -1px;
+            font-family: var(--font-mono);
         }
         .subtitle {
-            color: #666;
+            color: var(--text-secondary);
             font-size: 1.1em;
             margin: 0.5em 0 0 0;
         }
         .breadcrumb {
-            background: #fff;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 1em 1.5em;
             margin-bottom: 2em;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
             font-size: 0.9em;
         }
         .breadcrumb a {
-            color: #2563eb;
+            color: var(--accent-yellow);
             text-decoration: none;
         }
         .breadcrumb a:hover {
@@ -66,180 +64,130 @@
             margin-bottom: 2em;
         }
         .summary-card {
-            background: rgba(255, 255, 255, 0.95);
+            background: var(--bg-card);
             backdrop-filter: blur(10px);
             border-radius: 16px;
             padding: 1.5em;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
             text-align: center;
         }
         .summary-value {
             font-size: 2em;
             font-weight: 800;
-            color: #1e293b;
+            color: var(--accent-yellow);
             margin-bottom: 0.3em;
+            font-family: var(--font-mono);
         }
         .summary-label {
-            color: #64748b;
+            color: var(--text-muted);
             font-size: 0.9em;
             font-weight: 500;
         }
         .section {
-            background: #fff;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 2em;
-            box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+            box-shadow: 0 2px 16px rgba(0,0,0,0.2);
             margin-bottom: 2em;
         }
         .section h2 {
             margin-top: 0;
-            color: #1f2937;
+            color: var(--accent-yellow);
             font-size: 1.5em;
             margin-bottom: 1em;
+            font-family: var(--font-mono);
         }
         .chart-container {
             position: relative;
             height: 400px;
             margin: 1em 0;
         }
-        .flagged-page {
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            margin-bottom: 1em;
-            overflow: hidden;
-            transition: all 0.2s ease;
-        }
-        .flagged-page:hover {
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        .page-header {
-            padding: 1.5em;
-            background: #f8fafc;
-            border-bottom: 1px solid #e5e7eb;
-            cursor: pointer;
+
+        /* Dark theme pagination controls */
+        .pagination-controls {
             display: flex;
-            justify-content: between;
+            justify-content: center;
             align-items: center;
+            gap: 1.5em;
+            margin-top: 2em;
+            padding: 1.25em;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
         }
-        .page-header:hover {
-            background: #f1f5f9;
-        }
-        .page-url {
-            color: #2563eb;
-            font-weight: 500;
-            font-size: 0.95em;
-            flex: 1;
-            word-break: break-all;
-        }
-        .page-summary {
-            color: #64748b;
-            font-size: 0.85em;
-            margin-top: 0.5em;
-        }
-        .expand-icon {
-            color: #6b7280;
-            font-size: 1.2em;
-            transition: transform 0.2s ease;
-            margin-left: 1em;
-        }
-        .flagged-page.expanded .expand-icon {
-            transform: rotate(180deg);
-        }
-        .page-details {
-            display: none;
-            padding: 1.5em;
-        }
-        .flagged-page.expanded .page-details {
-            display: block;
-        }
-        .bias-type-badge {
-            display: inline-block;
-            padding: 0.25em 0.75em;
-            border-radius: 1em;
-            font-size: 0.8em;
-            font-weight: 500;
-            margin: 0.25em 0.25em 0.25em 0;
-        }
-        .bias-type-powershell { background: #fef3c7; color: #92400e; }
-        .bias-type-windows-paths { background: #dbeafe; color: #1e40af; }
-        .bias-type-windows-commands { background: #fee2e2; color: #dc2626; }
-        .bias-type-windows-tools { background: #f3e8ff; color: #7c3aed; }
-        .bias-type-windows-syntax { background: #ecfdf5; color: #059669; }
-        .bias-type-missing-linux { background: #fdf2f8; color: #be185d; }
-        
-        .snippet-label {
-            font-weight: 600;
-            color: #475569;
-            margin-bottom: 0.5em;
-            font-size: 0.95em;
-        }
-        
-        .explanation-text {
-            color: #374151;
-            line-height: 1.6;
-            font-size: 0.95em;
-            background: rgba(59, 130, 246, 0.05);
-            padding: 1em;
-            border-radius: 8px;
-            border-left: 4px solid #3b82f6;
-            margin-bottom: 1em;
-        }
-        
-        .github-pr-btn {
+
+        .pagination-btn {
             display: inline-flex;
             align-items: center;
             gap: 0.5em;
-            padding: 0.5em 1em;
-            background: #24292f;
-            color: #fff;
-            border-radius: 5px;
+            padding: 0.6em 1.2em;
+            background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%);
+            color: var(--bg-primary);
             text-decoration: none;
-            font-weight: 500;
-            transition: background-color 0.2s;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9em;
+            transition: all 0.2s ease;
         }
-        
-        .github-pr-btn:hover {
-            background: #32383e;
-            color: #fff;
-            text-decoration: none;
+
+        .pagination-btn:hover:not(.disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
         }
-        
-        .empty-state {
-            text-align: center;
-            padding: 3em 2em;
-            color: #6b7280;
+
+        .pagination-btn.disabled {
+            background: var(--bg-card);
+            color: var(--text-muted);
+            cursor: not-allowed;
+            border: 1px solid var(--border-color);
         }
-        .empty-state-icon {
-            font-size: 3em;
-            margin-bottom: 0.5em;
-            opacity: 0.5;
+
+        .pagination-info {
+            color: var(--text-secondary);
+            font-size: 0.95em;
         }
+
+        .pagination-info strong {
+            color: var(--accent-yellow);
+            font-family: var(--font-mono);
+        }
+
+        .pagination-arrow {
+            font-size: 1.1em;
+        }
+
+        /* Summary card color classes */
         .success {
-            color: #166534;
+            color: var(--accent-green) !important;
         }
         .warning {
-            color: #92400e;
+            color: var(--accent-yellow) !important;
         }
         .danger {
-            color: #dc2626;
+            color: var(--accent-red) !important;
+        }
+
+        /* Page header */
+        .page-header {
+            margin-bottom: 2em;
+            padding: 0;
+        }
+        .page-header h1 {
+            margin: 0;
+            padding: 0;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Breadcrumb Navigation -->
-        <div class="breadcrumb">
-            <a href="/">Dashboard</a> &gt; {{ display_name }} Bias Analysis
-        </div>
-
-        <!-- Header -->
-        <div class="header">
-            <img class="tux-logo" src="/static/tux_reading.png" alt="Tux the Linux penguin reading a book with glasses">
-            <div>
-                <h1>{{ display_name }}</h1>
-                <p class="subtitle">Comprehensive bias analysis and Linux-first recommendations</p>
-            </div>
+    <!-- Include Top Navigation -->
+    {% include 'components/top_nav.html' %}
+    
+    <div class="container">        
+        <!-- Page Header -->
+        <div class="page-header">
+            <h1>{{ display_name }}</h1>
         </div>
 
         <!-- Summary Statistics -->
@@ -340,106 +288,166 @@
         </div>
         {% endif %}
 
-        <!-- Flagged Pages -->
+        <!-- Flagged Pages - Redesigned with page-card component -->
         <div class="section">
-            <h2>Pages with Bias Issues ({{ flagged_pages|length }})</h2>
-            
+            <div class="problematic-pages-header">
+                <h2>Pages with Bias Issues</h2>
+                {% if pagination and pagination.total > 0 %}
+                <span class="problematic-pages-count">{{ pagination.total }} issue{{ 's' if pagination.total != 1 else '' }} found</span>
+                {% endif %}
+            </div>
+
+            <!-- Pagination info -->
+            {% if pagination and pagination.total > 0 %}
+            <div style="margin-bottom: 1em; color: var(--text-muted); font-size: 0.9em;">
+                Showing {{ pagination.start_idx }}-{{ pagination.end_idx }} of {{ pagination.total }} flagged pages
+            </div>
+            {% endif %}
+
             {% if flagged_pages and flagged_pages|length > 0 %}
                 {% for page in flagged_pages %}
-                <div class="flagged-page" data-page-index="{{ loop.index0 }}">
-                    <div class="page-header" onclick="togglePageDetails({{ loop.index0 }})">
-                        <div>
-                            <div class="page-url">
-                                {{ page.url }}
-                                <a href="/docpage/{{ page.id }}" style="margin-left: 0.5em; color: #2563eb; text-decoration: none; font-size: 0.9em;" onclick="event.stopPropagation();">[View Details]</a>
-                            </div>
-                            <div class="page-summary">
-                                Scanned: {{ page.scan_date.strftime('%Y-%m-%d %H:%M') }}
-                                {% if page.bias_details.mcp_holistic %}
-                                     • Page-level bias detected
-                                {% endif %}
+                {% if page.bias_details.mcp_holistic and page.bias_details.mcp_holistic.get('bias_types') %}
+                <div class="page-card" data-priority="{{ page.priority_label|lower|default('medium') }}">
+                    <!-- Card Header -->
+                    <div class="page-card-header">
+                        <div class="page-card-title-group">
+                            <span class="page-card-docset">{{ display_name }}</span>
+                            <span class="page-card-title">{{ page.bias_details.mcp_holistic.get('page_title') or page.url|url_to_title }}</span>
+                            <a href="{{ page.url }}" target="_blank" rel="noopener noreferrer" class="page-card-url">
+                                <svg class="page-card-url-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                    <polyline points="15,3 21,3 21,9"></polyline>
+                                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                                </svg>
+                                {{ page.url|truncate_url }}
+                            </a>
+                        </div>
+                        <div class="page-card-priority">
+                            <span class="priority-indicator priority-indicator-{{ page.priority_label|lower|default('medium') }}">
+                                {{ page.priority_label|default('Medium') }} Priority
+                            </span>
+                            <a href="/docpage/{{ page.id }}" class="page-detail-link">View Details &rarr;</a>
+                        </div>
+                    </div>
+
+                    <!-- Metadata Row -->
+                    <div class="page-card-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Scanned:</span>
+                            <span class="meta-value">{{ page.scan_date.strftime('%Y-%m-%d %H:%M') }}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Reviewed by:</span>
+                            {% if page.bias_details.mcp_holistic.get('review_method') == 'llm' %}
+                                <span class="meta-value meta-value-llm">LLM Analysis</span>
+                            {% elif page.bias_details.mcp_holistic.get('review_method') == 'llm_pending' %}
+                                <span class="meta-value meta-value-pending">Pending LLM Review</span>
+                            {% elif page.bias_details.mcp_holistic.get('review_method') == 'heuristic_skip' %}
+                                <span class="meta-value meta-value-heuristic">Heuristic Rules</span>
+                            {% else %}
+                                <span class="meta-value">Unknown</span>
+                            {% endif %}
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Issues:</span>
+                            <span class="meta-value">{{ page.bias_details.mcp_holistic.get('bias_types', [])|length }} bias type{{ 's' if page.bias_details.mcp_holistic.get('bias_types', [])|length != 1 else '' }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Card Body - Analysis Content -->
+                    <div class="page-card-body">
+                        <!-- Bias Types -->
+                        <div class="analysis-section">
+                            <span class="analysis-label">Detected Bias Types</span>
+                            <div class="bias-chips">
+                                {% for bias_type in page.bias_details.mcp_holistic.get('bias_types', []) %}
+                                <span class="bias-chip">
+                                    <span class="bias-chip-icon">{{ bias_icon_map.get(bias_type, '') }}</span>
+                                    {{ bias_type.replace('_', ' ').title() }}
+                                </span>
+                                {% endfor %}
                             </div>
                         </div>
-                        <div class="expand-icon">▼</div>
-                    </div>
-                    
-                    <div class="page-details">
-                        {% if page.bias_details.mcp_holistic %}
-                        <div>
-                            <h4>Page-Level Analysis</h4>
-                            {% if page.bias_details.mcp_holistic.bias_types %}
-                                <div style="margin-bottom: 1em;">
-                                    {% for bias_type in page.bias_details.mcp_holistic.bias_types %}
-                                        <span class="bias-type-badge bias-type-{{ bias_type.replace('_', '-') }}">
-                                            {{ bias_type.replace('_', ' ').title() }}
-                                        </span>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                            {% if page.bias_details.mcp_holistic.summary %}
-                                <div class="snippet-label">Summary:</div>
-                                <div class="explanation-text">{{ page.bias_details.mcp_holistic.summary }}</div>
-                            {% endif %}
-                            
-                            {% if page.bias_details.mcp_holistic.recommendations %}
-                                <div class="snippet-label">Recommendations:</div>
-                                {% if page.bias_details.mcp_holistic.get('recommendations') is string %}
-                                <div class="explanation-text">{{ page.bias_details.mcp_holistic.recommendations }}</div>
-                                {% else %}
-                                <ul class="explanation-text">
-                                {% for rec in page.bias_details.mcp_holistic.get('recommendations', []) %}
-                                    <li>{{ rec }}</li>
-                                {% endfor %}
-                                </ul>
-                                {% endif %}
-                            {% endif %}
-                            
-                            {% if page.bias_details.mcp_holistic.explanation %}
-                                <div class="snippet-label">Detailed Analysis:</div>
-                                <div class="explanation-text">{{ page.bias_details.mcp_holistic.explanation }}</div>
-                            {% endif %}
-                            
-                            <!-- Create Pull Request Button -->
-                            <div style="margin-top: 1em; text-align: right;">
-                                <a href="/proposed_change?page_id={{ page.id }}" class="github-pr-btn">
-                                    <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 20px; height: 20px; vertical-align: middle;">
-                                    Create pull request
-                                </a>
-                            </div>
-                            
-                            <!-- Feedback Widget -->
-                            {% include 'feedback_widget.html' %}
+
+                        <!-- Summary -->
+                        {% if page.bias_details.mcp_holistic.summary %}
+                        <div class="analysis-section">
+                            <span class="analysis-label">Summary</span>
+                            <div class="analysis-text">{{ page.bias_details.mcp_holistic.summary }}</div>
                         </div>
                         {% endif %}
+
+                        <!-- Recommendations -->
+                        {% if page.bias_details.mcp_holistic.recommendations %}
+                        <div class="analysis-section">
+                            <span class="analysis-label">Recommendations</span>
+                            <div class="analysis-text">
+                                {% if page.bias_details.mcp_holistic.get('recommendations') is string %}
+                                    {{ page.bias_details.mcp_holistic.recommendations }}
+                                {% else %}
+                                    <ul>
+                                    {% for rec in page.bias_details.mcp_holistic.get('recommendations', []) %}
+                                        <li>{{ rec }}</li>
+                                    {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Feedback Widget -->
+                        {% include 'feedback_widget.html' %}
+                    </div>
+
+                    <!-- Card Footer -->
+                    <div class="page-card-footer">
+                        <a href="/proposed_change?page_id={{ page.id }}" class="btn-github-pr">
+                            <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub">
+                            Create Pull Request
+                        </a>
                     </div>
                 </div>
+                {% endif %}
                 {% endfor %}
+
+                <!-- Pagination Controls - Dark Theme -->
+                {% if pagination and pagination.total_pages > 1 %}
+                <div class="pagination-controls">
+                    {% if pagination.has_prev %}
+                    <a href="?page={{ pagination.page - 1 }}&per_page={{ pagination.per_page }}" class="pagination-btn">
+                        <span class="pagination-arrow">&larr;</span> Previous
+                    </a>
+                    {% else %}
+                    <span class="pagination-btn disabled">
+                        <span class="pagination-arrow">&larr;</span> Previous
+                    </span>
+                    {% endif %}
+
+                    <span class="pagination-info">
+                        Page <strong>{{ pagination.page }}</strong> of <strong>{{ pagination.total_pages }}</strong>
+                    </span>
+
+                    {% if pagination.has_next %}
+                    <a href="?page={{ pagination.page + 1 }}&per_page={{ pagination.per_page }}" class="pagination-btn">
+                        Next <span class="pagination-arrow">&rarr;</span>
+                    </a>
+                    {% else %}
+                    <span class="pagination-btn disabled">
+                        Next <span class="pagination-arrow">&rarr;</span>
+                    </span>
+                    {% endif %}
+                </div>
+                {% endif %}
+
             {% else %}
-                <div class="empty-state">
-                    <div class="empty-state-icon">🎉</div>
-                    <h3>No Bias Issues Found!</h3>
-                    <p>All pages in this documentation set are Linux-friendly or haven't been scanned yet.</p>
+                <div class="no-issues-found">
+                    <div class="no-issues-found-icon">🐧</div>
+                    <p class="no-issues-found-text">No problematic pages found! All pages in this documentation set are Linux-friendly.</p>
                 </div>
             {% endif %}
         </div>
         {% endif %}
     </div>
 
-    <script>
-        function togglePageDetails(index) {
-            const page = document.querySelector(`[data-page-index="${index}"]`);
-            if (page) {
-                page.classList.toggle('expanded');
-            }
-        }
-        
-        // Initialize all pages as collapsed
-        document.addEventListener('DOMContentLoaded', function() {
-            const pages = document.querySelectorAll('.flagged-page');
-            pages.forEach(page => {
-                page.classList.remove('expanded');
-            });
-        });
-    </script>
 </body>
 </html>

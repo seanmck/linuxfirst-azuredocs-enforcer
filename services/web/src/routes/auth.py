@@ -280,7 +280,9 @@ async def github_callback(
             key="session_token",
             value=session_token,
             httponly=True,
-            secure=config.application.environment == "production",
+            secure=config.application.environment == "production",  # Enable secure cookies in production
+            path="/",
+            samesite="lax",
             max_age=86400  # 24 hours
         )
         

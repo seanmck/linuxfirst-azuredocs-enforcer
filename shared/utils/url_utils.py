@@ -4,6 +4,8 @@ from urllib.parse import urlparse
 from typing import Optional
 import re
 
+from shared.config import AZURE_DOCS_REPOS, get_repo_from_url
+
 
 def detect_url_source(url: Optional[str]) -> str:
     """
@@ -39,36 +41,39 @@ def detect_url_source(url: Optional[str]) -> str:
 def extract_doc_set_from_url(url: str) -> Optional[str]:
     """
     Extract the documentation set name from a URL.
-    
+
     Args:
         url: The URL to extract from
-        
+
     Returns:
         The doc set name or None if not found
     """
 
     if not url:
         return None
-    
+
     try:
         # For GitHub URLs, extract more granular info
         if 'github.com' in url:
-            # Check if it's azure-docs with a specific service
-            if 'MicrosoftDocs/azure-docs' in url:
-                # Pattern: github.com/MicrosoftDocs/azure-docs/blob/main/articles/{service}/...
-                match = re.search(r'azure-docs/blob/[^/]+/articles/([^/]+)', url)
+            # Check if it's one of our tracked repos
+            repo = get_repo_from_url(url)
+            if repo:
+                # Pattern: github.com/{owner}/{repo}/blob/{branch}/articles/{service}/...
+                # Match against both private and public repo names
+                pattern = rf'(?:{re.escape(repo.name)}|{re.escape(repo.public_name)})/blob/[^/]+/{re.escape(repo.articles_path)}/([^/]+)'
+                match = re.search(pattern, url, re.IGNORECASE)
                 if match:
                     service = match.group(1)
                     # Return the specific Azure service as the docset
                     return service
                 # Fallback to repo name if no service found
-                return 'azure-docs'
-            
+                return repo.public_name
+
             # For other GitHub repos, extract repo name
             match = re.search(r'github\.com/[^/]+/([^/]+)', url)
             if match:
                 return match.group(1)
-        
+
         # For learn.microsoft.com URLs, extract the product/service
         elif 'learn.microsoft.com' in url:
             # Pattern: learn.microsoft.com/{locale}/azure/{service}/...
@@ -79,7 +84,7 @@ def extract_doc_set_from_url(url: str) -> Optional[str]:
             match = re.search(r'learn\.microsoft\.com/[^/]+/([^/]+)', url)
             if match:
                 return match.group(1)
-        
+
         return None
     except Exception:
         return None

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="stylesheet" href="/static/dashboard.css">
-    <!-- Removed inline <style> block, now using external CSS -->
+    <!-- Dark theme styles for admin dashboard -->
     <style>
         .feedback-stats {
             display: grid;
@@ -14,38 +14,62 @@
             margin-bottom: 1.5em;
         }
         .stat-card {
-            background: white;
+            background: var(--bg-card);
             border-radius: 8px;
             padding: 1.5em;
             text-align: center;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
         }
         .stat-value {
             font-size: 2.5em;
             font-weight: bold;
-            color: #2563eb;
+            color: var(--accent-yellow);
             margin-bottom: 0.5em;
+            font-family: var(--font-mono);
         }
         .stat-label {
-            color: #6b7280;
+            color: var(--text-muted);
             font-size: 0.9em;
             font-weight: 500;
         }
         .feedback-details {
-            background: white;
+            background: var(--bg-card);
             border-radius: 8px;
             padding: 1.5em;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+        .feedback-details h3 {
+            color: var(--accent-yellow);
+            font-family: var(--font-mono);
         }
         .admin-section {
-            background: #f8fafc;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
             padding: 2em;
             margin-bottom: 2em;
         }
         .admin-section h2 {
             margin-top: 0;
-            color: #1f2937;
+            color: var(--accent-yellow);
+            font-family: var(--font-mono);
+        }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1em;
+        }
+        .section-header h2 {
+            margin: 0;
+            color: var(--accent-yellow);
+            font-family: var(--font-mono);
+        }
+        .section-header .btn {
+            font-size: 0.9em;
         }
     </style>
 </head>
@@ -77,7 +101,7 @@
                         <div class="form-group">
                             <label for="url">Target URL (optional)</label>
                             <input type="text" id="url" name="url" placeholder="https://learn.microsoft.com/en-us/azure/...">
-                            <small style="color: #6b7280; font-size: 0.85em;">
+                            <small style="color: var(--text-muted); font-size: 0.85em;">
                                 Leave empty to use default paths based on scan type
                             </small>
                         </div>
@@ -91,7 +115,7 @@
                         </div>
                         <div class="form-group">
                             <label>Detected Source</label>
-                            <div id="detected-source" style="color: #6b7280; font-size: 0.9em;">
+                            <div id="detected-source" style="color: var(--text-muted); font-size: 0.9em;">
                                 Source will be automatically detected from URL
                             </div>
                         </div>
@@ -100,7 +124,7 @@
                                 <input type="checkbox" id="force_rescan" name="force_rescan" value="true">
                                 Force rescan all documents (ignore change detection)
                             </label>
-                            <small style="color: #6b7280; font-size: 0.85em; display: block; margin-top: 0.25em;">
+                            <small style="color: var(--text-muted); font-size: 0.85em; display: block; margin-top: 0.25em;">
                                 Check this to rescan all documents regardless of whether they've changed since the last scan. Use when assessment logic has been updated.
                             </small>
                         </div>
@@ -113,7 +137,7 @@
                 <div class="control-card">
                     <h3>System Status</h3>
                     <div style="margin-bottom: 1em;">
-                        <strong>Database:</strong> <span style="color: #10b981;">Connected</span>
+                        <strong>Database:</strong> <span style="color: var(--accent-green);">Connected</span>
                     </div>
                     <div style="margin-bottom: 1em;">
                         <strong>Last Scan:</strong> 
@@ -129,7 +153,10 @@
 
         <!-- Feedback Analytics -->
         <div class="admin-section">
-            <h2>User Feedback Analytics</h2>
+            <div class="section-header">
+                <h2>User Feedback Analytics</h2>
+                <a href="/admin/feedback" class="btn btn-secondary">View All Feedback</a>
+            </div>
             <div class="feedback-stats">
                 <div class="stat-card">
                     <div class="stat-value" id="total-feedback">0</div>
@@ -180,7 +207,7 @@
                     <thead>
                         <tr>
                             <th>Started</th>
-                            <th>Target URL</th>
+                            <th>Repo</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -189,8 +216,8 @@
                     {% for scan in scans[:20] %}
                         <tr>
                             <td>{{ scan.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">
-                                {{ scan.url or 'Default path' }}
+                            <td>
+                                {{ scan.url|url_to_repo_display }}
                             </td>
                             <td>
                                 <span class="status-badge 
@@ -208,7 +235,7 @@
                     </tbody>
                 </table>
             {% else %}
-                <p style="color: #6b7280; text-align: center; padding: 2em;">
+                <p style="color: var(--text-muted); text-align: center; padding: 2em;">
                     No scans completed yet. Start your first scan to see history here.
                 </p>
             {% endif %}

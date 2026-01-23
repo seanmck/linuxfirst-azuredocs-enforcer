@@ -1,0 +1,59 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: linuxfirst-docs
+  namespace: argocd
+spec:
+  description: Linux First Azure Docs Enforcer
+  sourceRepos:
+    - 'https://github.com/seanmck/linuxfirst-azuredocs-enforcer.git'
+  destinations:
+    - namespace: azuredocs-app
+      server: https://kubernetes.default.svc
+  # Cluster-scoped resources (keep tight)
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: scheduling.k8s.io
+      kind: PriorityClass
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: cert-manager.io
+      kind: ClusterIssuer
+    - group: karpenter.sh
+      kind: NodePool
+  # Namespace-scoped resources (only what we deploy)
+  namespaceResourceWhitelist:
+    # Core resources
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: Secret
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ServiceAccount
+    - group: ''
+      kind: PersistentVolumeClaim
+    # Workloads
+    - group: apps
+      kind: Deployment
+    - group: apps
+      kind: StatefulSet
+    - group: batch
+      kind: Job
+    - group: batch
+      kind: CronJob
+    # Networking
+    - group: networking.k8s.io
+      kind: Ingress
+    # KEDA autoscaling
+    - group: keda.sh
+      kind: ScaledObject
+    - group: keda.sh
+      kind: TriggerAuthentication
+    # Azure Key Vault CSI
+    - group: secrets-store.csi.x-k8s.io
+      kind: SecretProviderClass

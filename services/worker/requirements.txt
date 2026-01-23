@@ -30,7 +30,11 @@ prometheus-client>=0.19.0
 
 # Configuration
 python-dotenv>=0.19.0
+PyYAML>=6.0
 
 # Utilities
 schedule>=1.1.0
 redis>=4.0.0
+
+# Development - hot-reloading
+watchdog[watchmedo]>=3.0.0

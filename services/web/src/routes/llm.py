@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Request, Body, Query, HTTPException, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
 from shared.utils.database import SessionLocal, get_db
-from shared.models import Page, User, UserFeedback, Snippet
-from shared.config import config
-from sqlalchemy import func
+from shared.models import Page, User, UserFeedback, Snippet, RewrittenDocument
+from shared.config import config, get_repo_from_url, AZURE_DOCS_REPOS
+from sqlalchemy import func, case
 from packages.scorer.llm_client import LLMClient
 from jinja_env import templates
 import os
@@ -13,6 +13,7 @@ import httpx
 import urllib.parse
 import json as pyjson
 import logging
+import hashlib
 from typing import Optional
 from pydantic import BaseModel
 from datetime import datetime
@@ -41,6 +42,239 @@ def extract_yaml_header(md: str):
             return yaml_dict, yaml_str, md_body
     return None, None, md
 
+
+def create_content_hash(content: str) -> str:
+    """Create SHA256 hash of content for deduplication"""
+    return hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+
+def detect_truncation(original_markdown: str, updated_markdown: str) -> dict:
+    """
+    Detect if the LLM output appears to be truncated.
+
+    Returns a dict with:
+      - is_truncated: bool
+      - warning_message: str | None (None if not truncated, otherwise a descriptive message)
+      - line_ratio: float (updated lines / original lines)
+      - missing_next_steps: bool
+    """
+    original_lines = original_markdown.strip().split('\n')
+    updated_lines = updated_markdown.strip().split('\n')
+
+    original_count = len(original_lines)
+    updated_count = len(updated_lines)
+
+    # Calculate line ratio
+    line_ratio = updated_count / original_count if original_count > 0 else 1.0
+
+    # Check for "Next steps" section (common in Azure docs)
+    original_has_next_steps = any(
+        'next steps' in line.lower() or '## next' in line.lower()
+        for line in original_lines
+    )
+    updated_has_next_steps = any(
+        'next steps' in line.lower() or '## next' in line.lower()
+        for line in updated_lines
+    )
+    missing_next_steps = original_has_next_steps and not updated_has_next_steps
+
+    # Determine if truncated (< 80% of original lines or missing Next steps)
+    is_truncated = line_ratio < 0.8 or missing_next_steps
+
+    warning_message = None
+    if is_truncated:
+        warnings = []
+        if line_ratio < 0.8:
+            percentage = int((1 - line_ratio) * 100)
+            warnings.append(f"Output is ~{percentage}% shorter than original ({updated_count} vs {original_count} lines)")
+        if missing_next_steps:
+            warnings.append("Missing 'Next steps' section from original document")
+        warning_message = ". ".join(warnings) + ". Try clicking 'Regenerate PR' for a complete rewrite."
+
+    return {
+        'is_truncated': is_truncated,
+        'warning_message': warning_message,
+        'line_ratio': round(line_ratio, 2),
+        'missing_next_steps': missing_next_steps,
+        'original_lines': original_count,
+        'updated_lines': updated_count
+    }
+
+
+def get_github_raw_url_for_page(page_url: str) -> tuple[str | None, str | None, str | None]:
+    """
+    Get the raw GitHub URL and repo path for a page.
+
+    Args:
+        page_url: The page URL (GitHub or MS Learn)
+
+    Returns:
+        Tuple of (github_raw_url, repo_path, repo_full_name) or (None, None, None) if not found
+    """
+    parsed = urllib.parse.urlparse(page_url)
+    path = parsed.path
+
+    if 'github.com' in parsed.netloc and '/blob/' in path:
+        # GitHub URL - extract repo path after /blob/{branch}/
+        repo_path = re.split(r'/blob/[^/]+/', path, maxsplit=1)[-1]
+        repo = get_repo_from_url(page_url)
+        if repo:
+            github_raw_url = repo.get_raw_url(repo_path)
+            return github_raw_url, repo_path, repo.full_name
+        # Fallback for unknown repos
+        return None, repo_path, None
+
+    elif 'learn.microsoft.com' in parsed.netloc:
+        # MS Learn URL - convert to GitHub path
+        # For MS Learn, we need to determine which repo to use
+        # Default to first repo since all repos publish to the same MS Learn namespace
+        path = re.sub(r'^/(en-us/)?azure/', '', path).rstrip('/')
+        if not path.endswith('.md'):
+            path += '.md'
+        repo_path = f"articles/{path}"
+
+        # Default to first repo (azure-docs-pr) for MS Learn URLs
+        # since we can't determine which repo from the MS Learn URL alone
+        default_repo = AZURE_DOCS_REPOS[0] if AZURE_DOCS_REPOS and len(AZURE_DOCS_REPOS) > 0 else None
+        if default_repo:
+            github_raw_url = default_repo.get_raw_url(repo_path)
+            return github_raw_url, repo_path, default_repo.full_name
+
+    return None, None, None
+
+
+def store_rewritten_document(page_id: int, content: str, yaml_header: dict = None, 
+                           generation_params: dict = None) -> int:
+    """Store rewritten document in database, return document ID. Handle deduplication via content hash."""
+    content_hash = create_content_hash(content)
+    
+    db = SessionLocal()
+    try:
+        # Check if identical content already exists for this page
+        existing_doc = db.query(RewrittenDocument).filter(
+            RewrittenDocument.page_id == page_id,
+            RewrittenDocument.content_hash == content_hash
+        ).first()
+        
+        if existing_doc:
+            logger.info(f"Reusing existing rewritten document {existing_doc.id} for page {page_id} (content hash: {content_hash[:12]}...)")
+            return existing_doc.id
+        
+        # Create new document version
+        new_doc = RewrittenDocument(
+            page_id=page_id,
+            content=content,
+            content_hash=content_hash,
+            yaml_header=yaml_header,
+            generation_params=generation_params or {}
+        )
+        
+        db.add(new_doc)
+        db.commit()
+        db.refresh(new_doc)
+        
+        logger.info(f"Created new rewritten document {new_doc.id} for page {page_id} (content hash: {content_hash[:12]}...)")
+        return new_doc.id
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to store rewritten document for page {page_id}: {e}")
+        raise
+    finally:
+        db.close()
+
+
+@router.get("/rewritten/{rewritten_id}", response_class=HTMLResponse)
+async def view_rewritten_document(
+    rewritten_id: int,
+    request: Request
+):
+    """Display a stored rewritten document with context and feedback options."""
+    # Import here to avoid circular imports at module level
+    from routes.auth import get_current_user
+
+    db = SessionLocal()
+    try:
+        # Get the rewritten document
+        document = db.query(RewrittenDocument).filter(
+            RewrittenDocument.id == rewritten_id
+        ).first()
+
+        if not document:
+            return HTMLResponse("<h2>Rewritten document not found</h2>", status_code=404)
+
+        # Get associated page for context
+        page = db.query(Page).filter(Page.id == document.page_id).first()
+
+        # Get current user (if authenticated)
+        current_user = None
+        try:
+            current_user = await get_current_user(request, db)
+        except Exception:
+            pass  # User not authenticated
+
+        # Get user's feedback on this document if authenticated
+        user_feedback = None
+        if current_user:
+            user_feedback = db.query(UserFeedback).filter(
+                UserFeedback.user_id == current_user.id,
+                UserFeedback.rewritten_document_id == rewritten_id
+            ).first()
+
+        # Get aggregated feedback stats
+        feedback_stats = db.query(
+            func.count(UserFeedback.id).label('total'),
+            func.sum(case((UserFeedback.rating == True, 1), else_=0)).label('thumbs_up'),
+            func.sum(case((UserFeedback.rating == False, 1), else_=0)).label('thumbs_down')
+        ).filter(
+            UserFeedback.rewritten_document_id == rewritten_id
+        ).first()
+
+        # Extract page title from URL
+        page_title = "Unknown Page"
+        if page and page.url:
+            page_title = page.url.split('/')[-1].replace('.md', '').replace('-', ' ').title()
+
+        # Build GitHub and MS Learn URLs from page if available
+        github_url = None
+        mslearn_url = None
+        if page:
+            github_raw_url, repo_path, repo_full_name = get_github_raw_url_for_page(page.url)
+            if repo_path and repo_full_name:
+                from shared.config import get_repo_from_url
+                repo = get_repo_from_url(page.url)
+                branch = repo.branch if repo else "main"
+                github_url = f"https://github.com/{repo_full_name}/blob/{branch}/{repo_path}"
+
+                if repo_path.startswith('articles/'):
+                    article_path = repo_path[9:]
+                    if article_path.endswith('.md'):
+                        article_path = article_path[:-3]
+                    mslearn_url = f"https://learn.microsoft.com/en-us/azure/{article_path}"
+
+            if 'learn.microsoft.com' in page.url:
+                mslearn_url = page.url
+
+        return templates.TemplateResponse("rewritten_document.html", {
+            "request": request,
+            "document": document,
+            "page": page,
+            "page_title": page_title,
+            "user": current_user,
+            "user_feedback": user_feedback,
+            "feedback_stats": {
+                "thumbs_up": feedback_stats.thumbs_up or 0 if feedback_stats else 0,
+                "thumbs_down": feedback_stats.thumbs_down or 0 if feedback_stats else 0,
+                "total": feedback_stats.total or 0 if feedback_stats else 0
+            },
+            "generation_params": document.generation_params or {},
+            "github_url": github_url,
+            "mslearn_url": mslearn_url
+        })
+    finally:
+        db.close()
+
+
 @router.get("/proposed_change", response_class=HTMLResponse)
 async def proposed_change(request: Request, page_id: int = Query(...)):
     db = SessionLocal()
@@ -55,19 +289,10 @@ async def proposed_change(request: Request, page_id: int = Query(...)):
         except Exception:
             mcp_holistic = {}
     recommendations = mcp_holistic.get('recommendations', [])
-    parsed = urllib.parse.urlparse(page.url)
-    path = parsed.path
-    github_raw_url = None
-    repo_path = None
-    if 'github.com' in parsed.netloc and '/blob/main/' in path:
-        repo_path = path.split('/blob/main/', 1)[-1]
-        github_raw_url = f"https://raw.githubusercontent.com/microsoftdocs/azure-docs/main/{repo_path}"
-    elif 'learn.microsoft.com' in parsed.netloc:
-        path = re.sub(r'^/(en-us/)?azure/', '', path).rstrip('/')
-        if not path.endswith('.md'):
-            path += '.md'
-        repo_path = f"articles/{path}"
-        github_raw_url = f"https://raw.githubusercontent.com/microsoftdocs/azure-docs/main/{repo_path}"
+
+    # Get raw GitHub URL using config-based helper
+    github_raw_url, repo_path, repo_full_name = get_github_raw_url_for_page(page.url)
+
     if github_raw_url:
         logger.info(f"Fetching markdown from GitHub: {github_raw_url}")
         try:
@@ -93,21 +318,26 @@ async def proposed_change(request: Request, page_id: int = Query(...)):
     # Construct GitHub blob URL and MS Learn URL for template
     github_url = None
     mslearn_url = None
-    
-    if repo_path:
-        # Construct GitHub blob URL
-        github_url = f"https://github.com/microsoftdocs/azure-docs/blob/main/{repo_path}"
-        
-        # Construct MS Learn URL from repo path
+
+    if repo_path and repo_full_name:
+        # Construct GitHub blob URL using the detected repo
+        repo = get_repo_from_url(page.url)
+        branch = repo.branch if repo else "main"
+        github_url = f"https://github.com/{repo_full_name}/blob/{branch}/{repo_path}"
+
+        # Construct MS Learn URL from repo path (same for all repos)
         if repo_path.startswith('articles/'):
             article_path = repo_path[9:]  # Remove 'articles/' prefix
             if article_path.endswith('.md'):
                 article_path = article_path[:-3]  # Remove .md extension
             mslearn_url = f"https://learn.microsoft.com/en-us/azure/{article_path}"
-    
+
     # If original page URL is already MS Learn, use that
     if 'learn.microsoft.com' in page.url:
         mslearn_url = page.url
+    
+    file_path_for_template = repo_path or "unknown-file.md"
+    logger.info(f"Proposed change page for page_id={page_id}: file_path='{file_path_for_template}', original_url='{page.url}'")
     
     return templates.TemplateResponse("proposed_change.html", {
         "request": request,
@@ -115,9 +345,10 @@ async def proposed_change(request: Request, page_id: int = Query(...)):
         "yaml_header_orig": yaml_dict_orig,
         "yaml_header_str_orig": yaml_str_orig,
         "debug_info": {},
-        "file_path": repo_path or "unknown-file.md",
+        "file_path": file_path_for_template,
         "github_url": github_url,
         "mslearn_url": mslearn_url,
+        "source_repo": repo_full_name,
     })
 
 @router.get("/generate_updated_markdown")
@@ -137,7 +368,8 @@ async def generate_updated_markdown(page_id: int = Query(...), force: bool = Que
                 "updated_markdown": updated_markdown,
                 "updated_markdown_body": cached_md_body,
                 "debug_info": debug_info,
-                "cached": True
+                "cached": True,
+                "rewritten_document_id": debug_info.get('rewritten_document_id')
             })
         else:
             debug_log.append(f"Cache expired for page_id={page_id}, age={now-ts:.1f}s")
@@ -158,19 +390,10 @@ async def generate_updated_markdown(page_id: int = Query(...), force: bool = Que
         except Exception:
             mcp_holistic = {}
     recommendations = mcp_holistic.get('recommendations', [])
-    parsed = urllib.parse.urlparse(page.url)
-    path = parsed.path
-    github_raw_url = None
-    repo_path = None
-    if 'github.com' in parsed.netloc and '/blob/main/' in path:
-        repo_path = path.split('/blob/main/', 1)[-1]
-        github_raw_url = f"https://raw.githubusercontent.com/microsoftdocs/azure-docs/main/{repo_path}"
-    elif 'learn.microsoft.com' in parsed.netloc:
-        path = re.sub(r'^/(en-us/)?azure/', '', path).rstrip('/')
-        if not path.endswith('.md'):
-            path += '.md'
-        repo_path = f"articles/{path}"
-        github_raw_url = f"https://raw.githubusercontent.com/microsoftdocs/azure-docs/main/{repo_path}"
+
+    # Get raw GitHub URL using config-based helper
+    github_raw_url, repo_path, repo_full_name = get_github_raw_url_for_page(page.url)
+
     if github_raw_url:
         logger.info(f"Fetching markdown from GitHub for update: {github_raw_url}")
         try:
@@ -200,6 +423,7 @@ async def generate_updated_markdown(page_id: int = Query(...), force: bool = Que
     debug_info['recommendations'] = recommendations
     debug_info['llm_prompt'] = None
     debug_info['llm_response'] = None
+    debug_info['truncation_info'] = None
     mcp_holistic = mcp_holistic or {}
     if not isinstance(mcp_holistic, dict):
         mcp_holistic = {}
@@ -213,39 +437,97 @@ async def generate_updated_markdown(page_id: int = Query(...), force: bool = Que
         debug_log.append('No recommendations provided, using original markdown.')
         debug_info['llm_status'] = 'No recommendations provided, using original markdown.'
     else:
-        prompt = f"""
-You are an expert technical writer. Given the following original markdown and a set of recommendations, rewrite the markdown to address the recommendations. Output the complete Markdown file contents, ready for direct replacement. All unchanged content must be included in full. Maintain correct Markdown syntax and Azure style guide consistency. \n\nOriginal Markdown:\n{original_markdown}\n\nRecommendations:\n{recommendations}\n\nUpdated Markdown:"""
+        prompt = f"""You are an expert technical writer specializing in Azure documentation.
+
+CRITICAL REQUIREMENTS:
+1. OUTPUT THE ENTIRE DOCUMENT - Do not truncate or omit ANY sections. Include everything from start to end.
+2. PRESERVE ALL CONTENT - Include every heading, paragraph, code block, list, table, and the "Next steps" section.
+3. DO NOT MODIFY CODE SYNTAX - Keep all commands, variables, flags, and arguments EXACTLY as written.
+4. DO NOT add or remove quotes, backticks, escape characters, or variable formatting in code blocks.
+5. When adding cross-platform examples (CLI alongside PowerShell), use Azure docs zone/pivot syntax:
+   :::zone pivot="platform-cli"
+   [Azure CLI example]
+   :::zone-end
+   :::zone pivot="platform-powershell"
+   [PowerShell example]
+   :::zone-end
+6. Maintain correct Markdown syntax and Azure style guide consistency.
+
+Given the original markdown and recommendations below, rewrite the markdown to address the recommendations while following ALL requirements above.
+
+Original Markdown:
+{original_markdown}
+
+Recommendations:
+{recommendations}
+
+Output the COMPLETE updated Markdown document below (do not truncate):"""
         logger.info(f"Calling LLM with {len(prompt)} character prompt")
         debug_info['llm_prompt'] = prompt
         try:
             response = llm.client.chat.completions.create(
                 model=llm.deployment,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=2048,
+                max_tokens=16384,  # Increased to handle full Azure docs pages (typically 4-10k tokens)
                 temperature=0.3
             )
             updated_markdown = response.choices[0].message.content.strip()
             debug_info['llm_response'] = updated_markdown
             debug_log.append('LLM call succeeded.')
             debug_info['llm_status'] = 'LLM call succeeded.'
+
+            # Check for truncation
+            truncation_info = detect_truncation(original_markdown, updated_markdown)
+            debug_info['truncation_info'] = truncation_info
+            if truncation_info['is_truncated']:
+                debug_log.append(f"Warning: {truncation_info['warning_message']}")
+                logger.warning(f"Truncation detected for page {page_id}: {truncation_info['warning_message']}")
         except Exception as e:
             updated_markdown = original_markdown
             debug_log.append(f'LLM call failed: {e}')
             debug_info['llm_status'] = f'LLM call failed: {e}'
+            debug_info['truncation_info'] = None
     yaml_dict, yaml_str, md_body = extract_yaml_header(updated_markdown)
     if yaml_str:
         updated_markdown_content = f"---\n{yaml_str}\n---\n{md_body}"
     else:
         updated_markdown_content = md_body
+    
+    # Store the rewritten document in database for versioning and feedback
+    try:
+        generation_params = {
+            'force_refresh': force,
+            'recommendations_count': len(recommendations),
+            'llm_available': llm.api_available,
+            'generated_at': datetime.utcnow().isoformat()
+        }
+        
+        document_id = store_rewritten_document(
+            page_id=page_id,
+            content=updated_markdown_content,
+            yaml_header=yaml_dict,
+            generation_params=generation_params
+        )
+        debug_info['rewritten_document_id'] = document_id
+        
+    except Exception as e:
+        logger.error(f"Failed to store rewritten document: {e}")
+        # Continue without failing the request
+        debug_info['storage_error'] = str(e)
+    
+    # Keep in-memory cache for performance (but database is source of truth)
     UPDATED_MARKDOWN_CACHE[page_id] = (updated_markdown_content, debug_info, now)
     debug_info['debug_log'] = debug_log
+    
     return JSONResponse({
         "updated_markdown": updated_markdown_content,
         "updated_markdown_body": md_body,
         "yaml_header": yaml_dict,
         "yaml_header_str": yaml_str,
         "debug_info": debug_info,
-        "cached": False
+        "cached": False,
+        "rewritten_document_id": debug_info.get('rewritten_document_id'),
+        "truncation_info": debug_info.get('truncation_info')
     })
 
 @router.post("/api/compute_diff")
@@ -393,30 +675,14 @@ async def suggest_linux_pr(request: Request, body: dict = Body(...)):
         proposed = f"Error generating suggestion: {e}"
     return JSONResponse({"original": doc_content, "proposed": proposed})
 
-def get_priority_label_and_score(mcp_holistic):
-    if not mcp_holistic:
-        return ("Low", 1)
-    bias_types = mcp_holistic.get('bias_types')
-    if isinstance(bias_types, str):
-        bias_types = [bias_types]
-    if not bias_types or not isinstance(bias_types, list):
-        return ("Low", 1)
-    n_bias = len(bias_types)
-    if n_bias >= 3:
-        return ("High", 3)
-    elif n_bias == 2:
-        return ("Medium", 2)
-    elif n_bias == 1:
-        return ("Low", 1)
-    else:
-        return ("Low", 1)
-
 
 # Import auth dependencies at the end to avoid circular imports
 from routes.auth import get_current_user
 from shared.infrastructure.github_pr_service import GitHubPRService
 from shared.infrastructure.github_app_service import github_app_service
 from utils.session import get_session_storage
+from utils.pr_queries import create_pull_request_record
+from shared.utils.url_utils import extract_doc_set_from_url
 
 
 class CreatePRRequest(BaseModel):
@@ -426,6 +692,7 @@ class CreatePRRequest(BaseModel):
     title: str
     body: str
     base_branch: str = "main"
+    source_repo: Optional[str] = None  # e.g., "MicrosoftDocs/azure-docs-pr" - if not provided, defaults to first repo
 
 
 @router.post("/api/create_github_pr")
@@ -449,15 +716,41 @@ async def create_github_pr(
     github_token = session_data["github_token"]
     
     try:
+        logger.info(f"Creating GitHub PR for user {current_user.github_username}: file_path='{pr_request.file_path}', title='{pr_request.title}'")
+
         # Try GitHub App first, fallback to OAuth
         pr_service = GitHubPRService(
             access_token=github_token,
             username=current_user.github_username
         )
-        
-        # Use private repository for Microsoft employees
-        source_repo = "microsoftdocs/azure-docs-pr"
-        
+
+        # Determine which repo to target
+        # Use provided source_repo, or default to first configured repo
+        # Always map to the private (-pr) version since PRs should target the private repo
+        if pr_request.source_repo:
+            input_repo = pr_request.source_repo
+        else:
+            # Default to first configured repo
+            default_repo = AZURE_DOCS_REPOS[0] if AZURE_DOCS_REPOS and len(AZURE_DOCS_REPOS) > 0 else None
+            input_repo = default_repo.full_name if default_repo else "MicrosoftDocs/azure-docs"
+
+        # Parse the repo and ensure we use the private (-pr) version
+        repo_parts = input_repo.split('/')
+        repo_owner = repo_parts[0] if len(repo_parts) > 1 else "MicrosoftDocs"
+        repo_name = repo_parts[1] if len(repo_parts) > 1 else input_repo
+
+        # Add -pr suffix if not already present for private repo
+        if not repo_name.endswith('-pr'):
+            private_repo_name = f"{repo_name}-pr"
+            source_repo = f"{repo_owner}/{private_repo_name}"
+            public_fallback = f"{repo_owner}/{repo_name}"
+        else:
+            private_repo_name = repo_name
+            source_repo = input_repo
+            public_fallback = f"{repo_owner}/{repo_name.replace('-pr', '')}"
+
+        logger.info(f"Using source repo: {source_repo}")
+
         try:
             # Create the pull request (will fork source repo, make changes, and create PR back to source)
             pr_url = await pr_service.create_pr_from_user_account(
@@ -472,7 +765,7 @@ async def create_github_pr(
             # If we get organization access restrictions, try public repo
             if "OAuth App access restrictions" in str(e) or "403" in str(e):
                 logger.warning(f"Private repo access restricted, falling back to public repo: {e}")
-                source_repo = "microsoftdocs/azure-docs"
+                source_repo = public_fallback
                 pr_url = await pr_service.create_pr_from_user_account(
                     source_repo=source_repo,
                     file_path=pr_request.file_path,
@@ -483,7 +776,49 @@ async def create_github_pr(
                 )
             else:
                 raise  # Re-raise if it's not an access restriction error
-        
+
+        # Create PR record in database for tracking
+        try:
+            db = SessionLocal()
+            # Extract doc_set from file_path
+            doc_set = None
+            if pr_request.file_path.startswith('articles/'):
+                parts = pr_request.file_path.split('/')
+                if len(parts) >= 2:
+                    doc_set = parts[1]
+
+            # Extract head branch from PR URL (format: ...compare/main...user:repo:branch?...)
+            head_branch = "unknown"
+            if "..." in pr_url:
+                # Extract the branch name from the compare URL
+                branch_part = pr_url.split("...")[-1].split("?")[0]
+                if ":" in branch_part:
+                    head_branch = branch_part.split(":")[-1]
+
+            # Get user's fork repo name (use private repo name with -pr suffix)
+            fork_repo = f"{current_user.github_username}/{private_repo_name}"
+
+            # Store only the base compare URL (without title/body query params) to keep it short
+            compare_url_for_storage = pr_url.split("?")[0] + "?expand=1"
+
+            create_pull_request_record(
+                db=db,
+                compare_url=compare_url_for_storage,
+                source_repo=source_repo,
+                head_branch=head_branch,
+                file_path=pr_request.file_path,
+                user_id=current_user.id,
+                target_branch=pr_request.base_branch,
+                fork_repo=fork_repo,
+                doc_set=doc_set,
+                pr_title=pr_request.title
+            )
+            db.close()
+            logger.info(f"Created PR record for {pr_request.file_path}")
+        except Exception as e:
+            logger.error(f"Failed to create PR record: {e}")
+            # Don't fail the request if record creation fails
+
         return JSONResponse({
             "success": True,
             "pr_url": pr_url,

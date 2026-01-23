@@ -19,7 +19,7 @@ This project crawls Azure documentation websites, extracts code snippets, and sc
 - `services/`: Microservices with clear boundaries
   - `services/web/`: FastAPI web interface and dashboard
   - `services/worker/`: Background processing and crawling service
-  - `services/mcp-server/`: AI scoring service
+  - `services/bias-scoring-service/`: AI-powered bias detection and scoring service
 - `shared/`: Common code shared across services
   - `shared/models.py`: Database models
   - `shared/config.py`: Centralized configuration

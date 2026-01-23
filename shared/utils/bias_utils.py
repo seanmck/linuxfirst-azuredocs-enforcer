@@ -43,47 +43,67 @@ def get_parsed_mcp_holistic(page) -> Optional[Dict[str, Any]]:
 def is_page_biased(page):
     """
     Determine if a page needs attention based on holistic bias analysis.
-    
+
     Args:
         page: Page model instance with mcp_holistic field
-        
+
     Returns:
-        bool: True if page has bias_types (needs attention), False otherwise
+        bool: True if page has bias (severity != 'none'), False otherwise
     """
     mcp_data = get_parsed_mcp_holistic(page)
     if not mcp_data:
         return False
-    
-    # A page needs attention if it has any bias_types
+
+    # Primary check: severity field (authoritative indicator)
+    severity = mcp_data.get('severity')
+    if severity is not None and isinstance(severity, str) and severity.strip():
+        return severity.strip().lower() != 'none'
+
+    # Fallback for legacy pages without severity field: check bias_types
     bias_types = mcp_data.get('bias_types', [])
     if isinstance(bias_types, str):
         bias_types = [bias_types]
-    
+
     return bool(bias_types and len(bias_types) > 0)
 
 
 def get_page_priority(page):
     """
-    Get the priority level for a page based on number of bias types.
-    
+    Get the priority level for a page based on LLM-provided severity.
+    Falls back to count-based logic for pages scanned before severity was added.
+
     Args:
         page: Page model instance with mcp_holistic field
-        
+
     Returns:
-        tuple: (priority_label, priority_score) where label is High/Medium/Low 
+        tuple: (priority_label, priority_score) where label is High/Medium/Low
                and score is 3/2/1 respectively
     """
     mcp_data = get_parsed_mcp_holistic(page)
     if not mcp_data:
         return ("Low", 1)
-    
+
+    # Prefer LLM-provided severity if available
+    severity = mcp_data.get('severity')
+    if isinstance(severity, str) and severity.strip():
+        severity_map = {
+            'high': ('High', 3),
+            'medium': ('Medium', 2),
+            'low': ('Low', 1),
+            'none': ('Low', 1),
+        }
+        severity_key = severity.strip().lower()
+        if severity_key in severity_map:
+            return severity_map[severity_key]
+
+    # Fallback: count-based logic for legacy pages or invalid severity values
     bias_types = mcp_data.get('bias_types', [])
     if isinstance(bias_types, str):
         bias_types = [bias_types]
-    
+
     if not bias_types or not isinstance(bias_types, list):
         return ("Low", 1)
-    
+
     n_bias = len(bias_types)
     if n_bias >= 3:
         return ("High", 3)

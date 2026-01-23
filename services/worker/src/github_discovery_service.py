@@ -18,6 +18,7 @@ from shared.utils.logging import get_logger
 from shared.utils.metrics import get_metrics
 from shared.models import Scan, Page, FileProcessingHistory
 from shared.application.processing_history_service import ProcessingHistoryService
+from shared.config import get_repo_from_url
 from sqlalchemy.orm import Session
 
 
@@ -38,7 +39,6 @@ class BaselineInfo:
     scan_ids: Optional[List[int]] = None
     reason: Optional[str] = None
     coverage: float = 0.0
-    age: Optional[timedelta] = None
 
 
 class GitHubDiscoveryService:
@@ -55,77 +55,156 @@ class GitHubDiscoveryService:
     def discover_changes(self, repo_url: str, scan_id: int, force_full_scan: bool = False) -> int:
         """
         Main entry point for GitHub file discovery
-        
+
         Args:
             repo_url: GitHub repository URL
             scan_id: Database scan ID
             force_full_scan: Force full scan regardless of baseline availability
-            
+
         Returns:
             Number of files queued for processing
         """
         self.logger.info(f"Starting GitHub discovery for {repo_url}, scan_id: {scan_id}")
-        
+
         # Parse GitHub URL
         parsed_url = self.github_service.parse_github_url(repo_url)
         if not parsed_url:
             self.logger.error(f"Could not parse GitHub URL: {repo_url}")
             return 0
-            
+
+        # Try discovery with the original repo
+        files_queued, repo_not_found = self._try_discovery(parsed_url, scan_id, force_full_scan, repo_url)
+
+        # If repo not found (404), try fallback to public repo
+        if repo_not_found:
+            repo_config = get_repo_from_url(repo_url)
+            if repo_config and repo_config.name != repo_config.public_name:
+                self.logger.info(f"Private repo not accessible, trying public fallback: {repo_config.public_full_name}")
+
+                # Create new parsed_url with public repo name
+                public_parsed_url = parsed_url.copy()
+                public_parsed_url['repo_full_name'] = repo_config.public_full_name
+
+                # Reconstruct URL with public repo name for baseline lookup
+                public_url = repo_url.replace(repo_config.full_name, repo_config.public_full_name)
+
+                files_queued, _ = self._try_discovery(public_parsed_url, scan_id, force_full_scan, public_url)
+                if files_queued > 0:
+                    self.logger.info(f"Successfully used public repo fallback: {repo_config.public_full_name}")
+
+        return files_queued
+
+    def _try_discovery(self, parsed_url: Dict, scan_id: int, force_full_scan: bool, original_url: str) -> tuple[int, bool]:
+        """
+        Attempt discovery with the given parsed URL
+
+        Args:
+            parsed_url: Parsed GitHub URL components
+            scan_id: Database scan ID
+            force_full_scan: Force full scan regardless of baseline availability
+            original_url: Original GitHub URL (used for baseline lookup to match stored scan URLs)
+
+        Returns:
+            Tuple of (files_queued, repo_not_found)
+        """
         # Get optimal baseline for incremental scanning
-        baseline = self.baseline_manager.get_optimal_baseline(repo_url) if not force_full_scan else BaselineInfo(type=BaselineType.NONE, reason="Forced full scan")
-        
+        # Use original_url to match against stored scan URLs (which include branch/path)
+        baseline = self.baseline_manager.get_optimal_baseline(original_url) if not force_full_scan else BaselineInfo(type=BaselineType.NONE, reason="Forced full scan")
+
         self.logger.info(f"Using baseline type: {baseline.type.value}, reason: {baseline.reason}")
-        
+
         # Track discovery start time
         discovery_start = time.time()
-        
+
         try:
             if baseline.type == BaselineType.COMPLETE:
-                files_queued = self.incremental_discovery(parsed_url, scan_id, baseline)
+                files_queued, repo_not_found = self._incremental_discovery_with_fallback(parsed_url, scan_id, baseline)
                 discovery_type = "incremental"
             elif baseline.type == BaselineType.PARTIAL:
-                files_queued = self.recovery_discovery(parsed_url, scan_id, baseline)
+                files_queued, repo_not_found = self._recovery_discovery_with_fallback(parsed_url, scan_id, baseline)
                 discovery_type = "recovery"
             else:  # NONE
-                files_queued = self.initial_discovery(parsed_url, scan_id)
+                files_queued, repo_not_found = self._initial_discovery_with_fallback(parsed_url, scan_id)
                 discovery_type = "initial"
-                
+
             # Record discovery metrics
             discovery_duration = time.time() - discovery_start
             self.metrics.record_discovery_completed(discovery_type, files_queued, discovery_duration)
-            
+
             self.logger.info(f"Discovery completed: {files_queued} files queued in {discovery_duration:.2f}s")
-            return files_queued
-            
+            return files_queued, repo_not_found
+
         except Exception as e:
             self.logger.error(f"Error during GitHub discovery: {e}", exc_info=True)
             self.metrics.record_error('github_discovery', type(e).__name__)
-            return 0
+            return 0, False
+
+    def _initial_discovery_with_fallback(self, parsed_url: Dict, scan_id: int) -> tuple[int, bool]:
+        """Wrapper for initial_discovery that returns repo_not_found status"""
+        repo_full_name = parsed_url['repo_full_name']
+        branch = parsed_url['branch']
+
+        # Check if repo is accessible
+        current_commit, repo_not_found = self.github_service.get_head_commit(repo_full_name, branch)
+        if not current_commit:
+            self.logger.error(f"Could not get HEAD commit for {repo_full_name}:{branch}")
+            return 0, repo_not_found
+
+        # Store commit in parsed_url for use by initial_discovery
+        parsed_url['_cached_commit'] = current_commit
+        return self.initial_discovery(parsed_url, scan_id), False
+
+    def _incremental_discovery_with_fallback(self, parsed_url: Dict, scan_id: int, baseline: 'BaselineInfo') -> tuple[int, bool]:
+        """Wrapper for incremental_discovery that returns repo_not_found status"""
+        repo_full_name = parsed_url['repo_full_name']
+        branch = parsed_url['branch']
+
+        current_commit, repo_not_found = self.github_service.get_head_commit(repo_full_name, branch)
+        if not current_commit:
+            self.logger.error(f"Could not get HEAD commit for {repo_full_name}:{branch}")
+            return 0, repo_not_found
+
+        parsed_url['_cached_commit'] = current_commit
+        return self.incremental_discovery(parsed_url, scan_id, baseline), False
+
+    def _recovery_discovery_with_fallback(self, parsed_url: Dict, scan_id: int, baseline: 'BaselineInfo') -> tuple[int, bool]:
+        """Wrapper for recovery_discovery that returns repo_not_found status"""
+        repo_full_name = parsed_url['repo_full_name']
+        branch = parsed_url['branch']
+
+        current_commit, repo_not_found = self.github_service.get_head_commit(repo_full_name, branch)
+        if not current_commit:
+            self.logger.error(f"Could not get HEAD commit for {repo_full_name}:{branch}")
+            return 0, repo_not_found
+
+        parsed_url['_cached_commit'] = current_commit
+        return self.recovery_discovery(parsed_url, scan_id, baseline), False
     
     def incremental_discovery(self, parsed_url: Dict, scan_id: int, baseline: BaselineInfo) -> int:
         """
         Use GitHub Compare API for instant change detection
-        
+
         Args:
             parsed_url: Parsed GitHub URL components
             scan_id: Database scan ID
             baseline: Baseline information for comparison
-            
+
         Returns:
             Number of files queued for processing
         """
         repo_full_name = parsed_url['repo_full_name']
         branch = parsed_url['branch']
-        
+
         self.logger.info(f"Starting incremental discovery for {repo_full_name} from commit {baseline.commit_sha}")
-        
-        # Get current HEAD commit
-        current_commit = self.github_service.get_head_commit(repo_full_name, branch)
+
+        # Use cached commit if available (from fallback wrapper), otherwise fetch
+        current_commit = parsed_url.get('_cached_commit')
         if not current_commit:
-            self.logger.error(f"Could not get HEAD commit for {repo_full_name}:{branch}")
-            return 0
-            
+            current_commit, _ = self.github_service.get_head_commit(repo_full_name, branch)
+            if not current_commit:
+                self.logger.error(f"Could not get HEAD commit for {repo_full_name}:{branch}")
+                return 0
+
         # Update scan with current working commit
         scan = self.db.query(Scan).filter(Scan.id == scan_id).first()
         if scan:
@@ -163,26 +242,28 @@ class GitHubDiscoveryService:
     def initial_discovery(self, parsed_url: Dict, scan_id: int) -> int:
         """
         Use GitHub Trees API for efficient full discovery
-        
+
         Args:
             parsed_url: Parsed GitHub URL components
             scan_id: Database scan ID
-            
+
         Returns:
             Number of files queued for processing
         """
         repo_full_name = parsed_url['repo_full_name']
         branch = parsed_url['branch']
         path = parsed_url.get('path', '')
-        
+
         self.logger.info(f"Starting initial discovery for {repo_full_name}:{branch} at path '{path}'")
-        
-        # Get current HEAD commit
-        current_commit = self.github_service.get_head_commit(repo_full_name, branch)
+
+        # Use cached commit if available (from fallback wrapper), otherwise fetch
+        current_commit = parsed_url.get('_cached_commit')
         if not current_commit:
-            self.logger.error(f"Could not get HEAD commit for {repo_full_name}:{branch}")
-            return 0
-            
+            current_commit, _ = self.github_service.get_head_commit(repo_full_name, branch)
+            if not current_commit:
+                self.logger.error(f"Could not get HEAD commit for {repo_full_name}:{branch}")
+                return 0
+
         # Update scan with current working commit
         scan = self.db.query(Scan).filter(Scan.id == scan_id).first()
         if scan:
@@ -244,27 +325,29 @@ class GitHubDiscoveryService:
     def recovery_discovery(self, parsed_url: Dict, scan_id: int, baseline: BaselineInfo) -> int:
         """
         Recover from partial baselines using file processing history
-        
+
         Args:
             parsed_url: Parsed GitHub URL components
             scan_id: Database scan ID
             baseline: Partial baseline information
-            
+
         Returns:
             Number of files queued for processing
         """
         repo_full_name = parsed_url['repo_full_name']
         branch = parsed_url['branch']
         path = parsed_url.get('path', '')
-        
+
         self.logger.info(f"Starting recovery discovery for {repo_full_name}:{branch} at path '{path}', baseline coverage: {baseline.coverage:.1%}, files in baseline: {len(baseline.file_map) if baseline.file_map else 0}")
-        
-        # Get current HEAD commit
-        current_commit = self.github_service.get_head_commit(repo_full_name, branch)
+
+        # Use cached commit if available (from fallback wrapper), otherwise fetch
+        current_commit = parsed_url.get('_cached_commit')
         if not current_commit:
-            self.logger.error(f"Could not get HEAD commit for {repo_full_name}:{branch}")
-            return 0
-            
+            current_commit, _ = self.github_service.get_head_commit(repo_full_name, branch)
+            if not current_commit:
+                self.logger.error(f"Could not get HEAD commit for {repo_full_name}:{branch}")
+                return 0
+
         # Update scan with current working commit
         scan = self.db.query(Scan).filter(Scan.id == scan_id).first()
         if scan:
@@ -411,25 +494,30 @@ class BaselineManager:
     def get_optimal_baseline(self, repo_url: str) -> BaselineInfo:
         """
         Find the best baseline for incremental scanning
-        
+
         Args:
             repo_url: GitHub repository URL
-            
+
         Returns:
             BaselineInfo with optimal baseline strategy
         """
+        self.logger.info(f"Looking for baseline with URL: {repo_url}")
+
         # Option 1: Last complete scan
         complete_baseline = self._get_last_complete_scan(repo_url)
-        
+
         # Option 2: Partial baselines from incomplete scans
         partial_baselines = self._analyze_partial_scans(repo_url)
-        
+
         # Choose optimal strategy
-        if complete_baseline and complete_baseline.age < timedelta(days=7):
+        if complete_baseline:
+            self.logger.info(f"Found complete baseline: scan_id={complete_baseline.scan_id}, commit={complete_baseline.commit_sha}")
             return complete_baseline
         elif partial_baselines.type == BaselineType.PARTIAL:
+            self.logger.info(f"Using partial baseline: {partial_baselines.reason}")
             return partial_baselines
         else:
+            self.logger.info(f"No baseline found for URL: {repo_url}")
             return BaselineInfo(type=BaselineType.NONE, reason="No suitable baseline found")
     
     def _get_last_complete_scan(self, repo_url: str) -> Optional[BaselineInfo]:
@@ -440,20 +528,29 @@ class BaselineManager:
                 Scan.status == 'completed',
                 Scan.last_commit_sha.isnot(None)
             ).order_by(Scan.finished_at.desc()).first()
-            
+
             if last_scan:
-                age = datetime.now(timezone.utc) - last_scan.finished_at if last_scan.finished_at else timedelta(days=999)
+                self.logger.debug(f"Found complete scan: id={last_scan.id}, url={last_scan.url}, commit={last_scan.last_commit_sha}")
                 return BaselineInfo(
                     type=BaselineType.COMPLETE,
                     commit_sha=last_scan.last_commit_sha,
                     scan_id=last_scan.id,
-                    age=age,
                     reason=f"Last complete scan from {last_scan.finished_at}"
                 )
-                
+
+            # Log recent scan URLs to help debug URL mismatch issues
+            recent_scans = self.db.query(Scan).filter(
+                Scan.status == 'completed',
+                Scan.last_commit_sha.isnot(None)
+            ).order_by(Scan.finished_at.desc()).limit(3).all()
+
+            if recent_scans:
+                recent_urls = [s.url for s in recent_scans]
+                self.logger.debug(f"No match for '{repo_url}'. Recent completed scan URLs: {recent_urls}")
+
         except Exception as e:
             self.logger.error(f"Error getting last complete scan: {e}")
-            
+
         return None
     
     def _analyze_partial_scans(self, repo_url: str) -> BaselineInfo:

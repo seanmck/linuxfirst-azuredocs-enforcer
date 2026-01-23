@@ -12,20 +12,45 @@ echo "AZURE_POSTGRESQL_CONNECTIONSTRING: ${AZURE_POSTGRESQL_CONNECTIONSTRING:-(n
 echo "AZURE_POSTGRESQL_CLIENTID: ${AZURE_POSTGRESQL_CLIENTID:-(not set)}"
 echo "DATABASE_URL before processing: ${DATABASE_URL:-(not set)}"
 
-if [ -n "$AZURE_POSTGRESQL_CONNECTIONSTRING" ]; then  
-  # Acquire an access token using Azure Instance Metadata Service (IMDS)
-  echo "Attempting to acquire Azure managed identity token..."
-  if [ -n "$AZURE_POSTGRESQL_CLIENTID" ]; then
-    # Use user-assigned managed identity
-    echo "Using user-assigned managed identity with client ID: $AZURE_POSTGRESQL_CLIENTID"
-    token=$(timeout 30 curl -s -H "Metadata: true" "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://ossrdbms-aad.database.windows.net&client_id=$AZURE_POSTGRESQL_CLIENTID" | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
-  else
-    # Use system-assigned managed identity
-    echo "Using system-assigned managed identity"
-    token=$(timeout 30 curl -s -H "Metadata: true" "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://ossrdbms-aad.database.windows.net" | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+if [ -n "$AZURE_POSTGRESQL_CONNECTIONSTRING" ]; then
+  # Acquire an access token using Azure Workload Identity
+  echo "Attempting to acquire Azure Workload Identity token..."
+
+  # Verify required Workload Identity environment variables are present
+  if [ -z "$AZURE_FEDERATED_TOKEN_FILE" ] || [ ! -f "$AZURE_FEDERATED_TOKEN_FILE" ]; then
+    echo "ERROR: AZURE_FEDERATED_TOKEN_FILE not set or file not found"
+    echo "This script requires Azure Workload Identity to be configured"
+    exit 1
   fi
+
+  if [ -z "$AZURE_CLIENT_ID" ] || [ -z "$AZURE_TENANT_ID" ] || [ -z "$AZURE_AUTHORITY_HOST" ]; then
+    echo "ERROR: Required Workload Identity environment variables not set"
+    echo "Required: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_AUTHORITY_HOST"
+    exit 1
+  fi
+
+  echo "Using Azure Workload Identity"
+  echo "Client ID: $AZURE_CLIENT_ID"
+  echo "Tenant ID: $AZURE_TENANT_ID"
+
+  # Read the federated token
+  federated_token=$(cat "$AZURE_FEDERATED_TOKEN_FILE")
+
+  # Exchange the federated token for an access token
+  token_response=$(timeout 30 curl -s -X POST \
+    "${AZURE_AUTHORITY_HOST}${AZURE_TENANT_ID}/oauth2/v2.0/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "client_id=$AZURE_CLIENT_ID" \
+    -d "scope=https://ossrdbms-aad.database.windows.net/.default" \
+    -d "client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer" \
+    -d "client_assertion=$federated_token" \
+    -d "grant_type=client_credentials")
+
+  token=$(echo "$token_response" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data.get('access_token', ''))")
+
   if [ -z "$token" ]; then
-    echo "Failed to acquire access token for managed identity."
+    echo "Failed to acquire access token via Workload Identity"
+    echo "Token response: $token_response"
     exit 1
   fi
   # URL-encode the token for use as a password
@@ -69,12 +94,23 @@ echo "Using DATABASE_URL: >$DATABASE_URL<"
 echo "Using PSQL_URL: >$PSQL_URL<"
 echo "DATABASE_URL length: ${#DATABASE_URL}"
 
+# Determine project root before Python testing
+if [ -d "/app/shared" ]; then
+    PROJECT_ROOT="/app"
+    echo "Container environment detected"
+else
+    # Get absolute path to script directory, then go up two levels
+    SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+    PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+    echo "Development environment detected"
+fi
+echo "Using project root: $PROJECT_ROOT"
+
 echo "Testing DATABASE_URL with Python:"
-python3 -c "
+PYTHONPATH="$PROJECT_ROOT" python3 -c "
 import os
 import sys
-# Add project root to Python path - use current working directory since we're in /app/infra/db
-project_root = '/app'
+project_root = '$PROJECT_ROOT'
 sys.path.insert(0, project_root)
 
 try:
@@ -115,150 +151,55 @@ echo "Checking if database tables exist..."
 table_count=$(timeout 30 bash -c "PGPASSWORD=\"$password\" psql \"$PSQL_URL\" -t -c \"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('scans', 'pages', 'snippets');\"" 2>/dev/null | tr -d ' ')
 echo "Found $table_count tables out of 3 expected tables"
 
-if [ "$table_count" = "3" ]; then
-    echo "All tables already exist, checking migration state..."
+# Check if any migrations have been applied
+echo "Checking current Alembic revision..."
+current_revision=$(timeout 60 alembic -c alembic.ini current 2>&1 | grep -v "INFO" | tail -n1 || echo "")
+echo "Current revision: '$current_revision'"
+
+# Check if we have an old migration reference that no longer exists
+if echo "$current_revision" | grep -q "Can't locate revision"; then
+    echo "Detected old migration reference in database. Cleaning up alembic_version table..."
+    PGPASSWORD="$password" psql "$PSQL_URL" -c "DELETE FROM alembic_version;" 2>/dev/null || true
+    current_revision=""
+fi
+
+echo "Running Alembic upgrade to head..."
+echo "Note: This may take several minutes for large tables..."
+
+# First attempt - try normal upgrade
+echo "Attempting normal upgrade..."
+timeout 600 alembic -c alembic.ini upgrade head 2>&1 | tee /tmp/alembic_output.log
+migration_result=${PIPESTATUS[0]}
+
+# Check if there were overlapping revision errors or transaction failures
+if grep -q "overlaps with other requested revisions\|transaction is aborted\|already exists\|DuplicateTable\|DuplicateColumn" /tmp/alembic_output.log; then
+    echo "Detected migration conflict or transaction error. Attempting to resolve..."
     
-    # Check if any migrations have been applied
-    echo "Checking current Alembic revision..."
-    current_revision=$(timeout 60 alembic -c alembic.ini current 2>&1 | grep -v "INFO" | tail -n1 || echo "")
-    echo "Current revision: '$current_revision'"
+    # Clear alembic version table to start fresh
+    echo "Clearing migration state..."
+    PGPASSWORD="$password" psql "$PSQL_URL" -c "DELETE FROM alembic_version;" 2>/dev/null || true
     
-    # Check if we have an old migration reference that no longer exists
-    if echo "$current_revision" | grep -q "Can't locate revision"; then
-        echo "Detected old migration reference in database. Cleaning up alembic_version table..."
-        PGPASSWORD="$password" psql "$PSQL_URL" -c "DELETE FROM alembic_version;" 2>/dev/null || true
-        current_revision=""
-    fi
-    
-    if [ -z "$current_revision" ] || [ "$current_revision" = "None" ]; then
-        echo "No Alembic migrations recorded, but tables exist. Checking for manually applied columns..."
-        
-        # Check if ProcessingUrl table exists
-        processing_urls_exists=$(PGPASSWORD="$password" psql "$PSQL_URL" -t -c "
-            SELECT COUNT(*) FROM information_schema.tables 
-            WHERE table_name='processing_urls'
-        " 2>/dev/null | tr -d ' ')
-        
-        if [ "$processing_urls_exists" = "1" ]; then
-            echo "Full schema including ProcessingUrl table already exists. Stamping all migrations as applied..."
-            alembic -c alembic.ini stamp 002_url_processing
-            echo "All migrations marked as applied."
-        else
-            # Check if manual schema updates were applied
-            manual_columns=$(PGPASSWORD="$password" psql "$PSQL_URL" -t -c "
-                SELECT COUNT(*) FROM information_schema.columns 
-                WHERE (table_name='scans' AND column_name='current_phase') 
-                   OR (table_name='pages' AND column_name='mcp_holistic')
-            " 2>/dev/null | tr -d ' ')
-            
-            if [ "$manual_columns" = "2" ]; then
-                echo "Manual schema detected. Stamping initial migration as applied..."
-                alembic -c alembic.ini stamp 001_initial_schema
-                echo "Now running URL processing migration..."
-            else
-                echo "Clean database detected. Running all migrations from the beginning..."
-            fi
-        fi
-    else
-        echo "Current migration state: $current_revision"
-    fi
-    
-    echo "Running Alembic upgrade to head (existing tables)..."
-    echo "Note: This may take several minutes for large tables..."
-    
-    # First attempt - try normal upgrade
-    echo "Attempting normal upgrade..."
-    timeout 600 alembic -c alembic.ini upgrade head 2>&1 | tee /tmp/alembic_output.log
-    migration_result=${PIPESTATUS[0]}
-    
-    # Check if there were overlapping revision errors or transaction failures
-    if grep -q "overlaps with other requested revisions\|transaction is aborted\|already exists\|DuplicateTable\|DuplicateColumn" /tmp/alembic_output.log; then
-        echo "Detected migration conflict or transaction error. Attempting to resolve..."
-        
-        # Clear alembic version table to start fresh
-        echo "Clearing migration state..."
-        PGPASSWORD="$password" psql "$PSQL_URL" -c "DELETE FROM alembic_version;" 2>/dev/null || true
-        
-        # Try running the migrations again from the beginning
-        echo "Retrying migrations from clean state..."
-        timeout 600 alembic -c alembic.ini upgrade head
-        migration_result=$?
-        
-        if [ $migration_result -ne 0 ]; then
-            echo "Second migration attempt also failed. Checking if critical column exists..."
-            
-            # Check if the proposed_change_id column exists
-            column_exists=$(PGPASSWORD="$password" psql "$PSQL_URL" -t -c "
-                SELECT COUNT(*) FROM information_schema.columns 
-                WHERE table_name='snippets' AND column_name='proposed_change_id'
-            " 2>/dev/null | tr -d ' ')
-            
-            if [ "$column_exists" = "0" ]; then
-                echo "Critical column missing. Adding proposed_change_id column directly..."
-                PGPASSWORD="$password" psql "$PSQL_URL" -c "
-                    ALTER TABLE snippets ADD COLUMN IF NOT EXISTS proposed_change_id VARCHAR(255);
-                    CREATE INDEX IF NOT EXISTS idx_snippets_proposed_change ON snippets(proposed_change_id);
-                " 2>/dev/null || true
-                
-                # Stamp with latest revision since we manually fixed the critical issue
-                timeout 60 alembic -c alembic.ini stamp head
-                migration_result=0
-                echo "Critical column added and migrations marked as complete"
-            else
-                echo "Column exists but migrations still failing"
-            fi
-        fi
-    fi
-    
-    if [ $migration_result -eq 0 ]; then
-        echo "Alembic upgrade completed successfully"
-    elif [ $migration_result -eq 124 ]; then
-        echo "TIMEOUT: Alembic upgrade timed out after 10 minutes"
-        echo "This may indicate:"
-        echo "  1. A large table is being modified"
-        echo "  2. Database locks are preventing the migration"
-        echo "  3. Database performance issues"
-        echo "Check the database for active locks and long-running queries"
-        exit 1
-    else
-        echo "Alembic upgrade failed with exit code $migration_result"
-        echo "Last 20 lines of migration output:"
-        tail -20 /tmp/alembic_output.log
-        exit 1
-    fi
-else
-    echo "Tables missing (found $table_count/3), applying schema.sql first..."
-    # Apply the base schema
-    echo "Applying base schema..."
-    timeout 60 bash -c "PGPASSWORD=\"$password\" psql \"$PSQL_URL\" -f /app/schema.sql"
-    if [ $? -eq 0 ]; then
-        echo "Schema applied successfully"
-    else
-        echo "Schema application failed or timed out"
-        exit 1
-    fi
-    
-    echo "Schema applied, now running Alembic migrations..."
-    echo "Note: This may take several minutes for large tables..."
-    
-    # Use a longer timeout for potentially slow migrations
+    # Try running the migrations again from the beginning
+    echo "Retrying migrations from clean state..."
     timeout 600 alembic -c alembic.ini upgrade head
     migration_result=$?
-    
-    if [ $migration_result -eq 0 ]; then
-        echo "Alembic upgrade completed successfully"
-    elif [ $migration_result -eq 124 ]; then
-        echo "TIMEOUT: Alembic upgrade timed out after 10 minutes"
-        echo "This may indicate:"
-        echo "  1. A large table is being modified"
-        echo "  2. Database locks are preventing the migration"
-        echo "  3. Database performance issues"
-        echo "Check the database for active locks and long-running queries"
-        exit 1
-    else
-        echo "Alembic upgrade failed with exit code $migration_result"
-        exit 1
-    fi
+fi
+
+if [ $migration_result -eq 0 ]; then
+    echo "Alembic upgrade completed successfully"
+elif [ $migration_result -eq 124 ]; then
+    echo "TIMEOUT: Alembic upgrade timed out after 10 minutes"
+    echo "This may indicate:"
+    echo "  1. A large table is being modified"
+    echo "  2. Database locks are preventing the migration"
+    echo "  3. Database performance issues"
+    echo "Check the database for active locks and long-running queries"
+    exit 1
+else
+    echo "Alembic upgrade failed with exit code $migration_result"
+    echo "Last 20 lines of migration output:"
+    tail -20 /tmp/alembic_output.log
+    exit 1
 fi
 
 echo "Database migrations completed successfully."

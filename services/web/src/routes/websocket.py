@@ -81,10 +81,10 @@ async def get_scan_progress(scan_id: int):
         if not scan:
             raise HTTPException(status_code=404, detail="Scan not found")
         
-        # Calculate page-based overall progress
+        # Calculate file-based overall progress (for GitHub scans)
         overall_progress = 0
-        if scan.total_pages_found and scan.total_pages_found > 0:
-            overall_progress = (scan.pages_processed / scan.total_pages_found) * 100
+        if scan.total_files_queued and scan.total_files_queued > 0:
+            overall_progress = (scan.total_files_completed / scan.total_files_queued) * 100
         elif scan.status == 'completed':
             overall_progress = 100
         

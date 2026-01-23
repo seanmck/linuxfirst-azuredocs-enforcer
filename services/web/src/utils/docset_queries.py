@@ -6,12 +6,16 @@ Consolidates multiple database queries into efficient single queries.
 from sqlalchemy import func, and_, or_, text
 from sqlalchemy.orm import Session
 from shared.models import Scan, Page, Snippet, BiasSnapshotByDocset
-from shared.utils.bias_utils import is_page_biased, get_parsed_mcp_holistic
+from shared.utils.bias_utils import is_page_biased, get_parsed_mcp_holistic, get_page_priority
 from shared.utils.url_utils import extract_doc_set_from_url
+from shared.utils.logging import get_logger
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Any, Optional
 import json
 from .docset_cache import get_cached_docset_data, cache_docset_data
+
+# Initialize logger
+logger = get_logger(__name__)
 
 
 def get_docset_complete_data(db: Session, doc_set: str) -> Dict[str, Any]:
@@ -70,25 +74,24 @@ def get_docset_complete_data(db: Session, doc_set: str) -> Dict[str, Any]:
         print(f"[WARN] Failed to load bias snapshots for docset {doc_set}: {e}")
     
     # Get all pages for this docset using optimized query
-    # Use doc_set column if available, fallback to URL extraction
+    # Try doc_set column first, fall back to URL extraction if no results
     pages_query = db.query(Page, Scan.started_at).join(Scan, Page.scan_id == Scan.id)
-    
-    # Try to use the doc_set column first (if migration has been applied)
-    try:
-        pages_query = pages_query.filter(Page.doc_set == doc_set)
-        use_doc_set_column = True
-    except Exception:
-        # Fallback to loading all pages and filtering in Python
+
+    # First try using the doc_set column (faster if populated)
+    pages_query_with_docset = pages_query.filter(Page.doc_set == doc_set)
+    page_scan_results = pages_query_with_docset.all()
+    use_doc_set_column = True
+
+    # If no results from doc_set column, fallback to URL extraction
+    # This handles cases where doc_set wasn't populated for new repos
+    if not page_scan_results:
+        logger.debug(f"No pages found using doc_set column for '{doc_set}', falling back to URL extraction")
         use_doc_set_column = False
-        pages_query = pages_query.filter(Scan.status == 'completed')
-    
-    # Execute the query
-    page_scan_results = pages_query.all()
-    
-    # Filter pages if we couldn't use the doc_set column
-    if not use_doc_set_column:
+        # Load all pages and filter by URL extraction
+        all_pages_query = pages_query
+        all_page_results = all_pages_query.all()
         page_scan_results = [
-            (page, scan_date) for page, scan_date in page_scan_results
+            (page, scan_date) for page, scan_date in all_page_results
             if extract_doc_set_from_url(page.url) == doc_set
         ]
     
@@ -110,20 +113,25 @@ def get_docset_complete_data(db: Session, doc_set: str) -> Dict[str, Any]:
             # Use cached parsed mcp_holistic data
             mcp_holistic = get_parsed_mcp_holistic(page)
             
+            # Get priority for this page
+            priority_label, priority_score = get_page_priority(page)
+
             # Build flagged page data
             flagged_pages.append({
                 'id': page.id,
                 'url': page.url,
                 'scan_id': page.scan_id,
                 'scan_date': scan_date,
+                'priority_label': priority_label,
+                'priority_score': priority_score,
                 'bias_details': {
                     'mcp_holistic': mcp_holistic,
                     'snippets': snippets
                 }
             })
     
-    # Sort flagged pages by most recent scan
-    flagged_pages.sort(key=lambda x: x['scan_date'], reverse=True)
+    # Sort flagged pages by priority (high first) then by most recent scan
+    flagged_pages.sort(key=lambda x: (-x['priority_score'], -x['scan_date'].timestamp()))
     
     # Calculate summary statistics
     total_pages = len(all_pages)
@@ -201,7 +209,6 @@ def get_available_docsets(db: Session, limit: int = 100) -> List[str]:
             db.query(Page.doc_set)
             .filter(Page.doc_set.isnot(None))
             .distinct()
-            .limit(limit)
             .all()
         )
         
@@ -221,3 +228,68 @@ def get_available_docsets(db: Session, limit: int = 100) -> List[str]:
             all_docsets.add(extracted_docset)
     
     return sorted(list(all_docsets))
+
+
+def get_all_flagged_pages(db: Session, limit: int = 1000) -> List[Dict[str, Any]]:
+    """
+    Get all flagged pages across all docsets efficiently.
+
+    Args:
+        db: Database session
+        limit: Maximum number of pages to return
+
+    Returns:
+        List of flagged page dictionaries with docset, URL, bias info
+    """
+    from shared.utils.bias_utils import get_page_priority
+    from shared.utils.url_utils import format_doc_set_name
+
+    # Query pages joined with scans, ordered by most recent scan first
+    pages_query = (
+        db.query(Page, Scan.started_at)
+        .join(Scan, Page.scan_id == Scan.id)
+        .order_by(Scan.started_at.desc())
+    )
+
+    page_scan_results = pages_query.limit(limit * 2).all()  # Get extra to account for non-biased
+
+    flagged_pages = []
+    seen_urls = set()  # Deduplicate by URL (keep most recent scan)
+
+    for page, scan_date in page_scan_results:
+        if page.url in seen_urls:
+            continue
+
+        if not is_page_biased(page):
+            continue
+
+        seen_urls.add(page.url)
+
+        # Get docset from page.doc_set or extract from URL
+        doc_set = page.doc_set
+        if not doc_set:
+            doc_set = extract_doc_set_from_url(page.url)
+
+        # Parse mcp_holistic for bias details
+        mcp_data = get_parsed_mcp_holistic(page)
+        bias_types = mcp_data.get('bias_types', []) if mcp_data else []
+        if isinstance(bias_types, str):
+            bias_types = [bias_types]
+        priority_label, priority_score = get_page_priority(page)
+
+        flagged_pages.append({
+            'id': page.id,
+            'url': page.url,
+            'doc_set': doc_set,
+            'display_name': format_doc_set_name(doc_set) if doc_set else 'Unknown',
+            'scan_date': scan_date,
+            'bias_types': bias_types,
+            'priority': priority_label,
+            'priority_score': priority_score,
+            'summary': mcp_data.get('summary', '') if mcp_data else ''
+        })
+
+        if len(flagged_pages) >= limit:
+            break
+
+    return flagged_pages

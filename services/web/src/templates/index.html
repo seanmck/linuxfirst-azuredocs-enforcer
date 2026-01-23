@@ -7,13 +7,19 @@
     <link rel="stylesheet" href="/static/dashboard.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        let pollInterval = null;
+        let pollTimeout = null;
         let pollCount = 0;
         const MAX_POLL_COUNT = 1000;
-        const POLL_INTERVAL = 3000; // Reduced to 3 seconds for faster updates
+
+        // Exponential backoff configuration
+        const INITIAL_POLL_INTERVAL = 1000;  // Start fast at 1 second
+        const MAX_POLL_INTERVAL = 15000;     // Cap at 15 seconds
+        let currentPollInterval = INITIAL_POLL_INTERVAL;
+        let consecutiveNoChange = 0;
 
         // Store the last progress data
         let lastProgressData = null;
+        let previousProgressJson = null;
 
         function renderProgress(data) {
             let prog = document.getElementById('progress');
@@ -48,7 +54,7 @@
                         <div class="progress-stat-label">Bias Rate</div>
                     </div>
                 </div>
-                <div style="font-size:0.9em;color:#6b7280;">
+                <div style="font-size:0.9em;color:var(--text-muted);">
                     Current: ${data.current_url || 'Processing...'}
                 </div>
             `;
@@ -88,7 +94,7 @@
                             <div class="progress-stat-label">Bias Rate</div>
                         </div>
                     </div>
-                    <div style="font-size:0.9em;color:#6b7280;">
+                    <div style="font-size:0.9em;color:var(--text-muted);">
                         Scan finished.
                     </div>
                 `;
@@ -115,7 +121,7 @@
         function pollProgress() {
             if (pollCount >= MAX_POLL_COUNT) {
                 console.warn('Max poll count reached, stopping polling');
-                clearInterval(pollInterval);
+                clearTimeout(pollTimeout);
                 fetchFinalResults();
                 return;
             }
@@ -131,38 +137,67 @@
                 })
                 .then(data => {
                     lastProgressData = data;
+
+                    // Check if data changed for adaptive polling
+                    const currentJson = JSON.stringify(data);
+                    const dataChanged = currentJson !== previousProgressJson;
+                    previousProgressJson = currentJson;
+
+                    if (dataChanged) {
+                        // Reset backoff when data changes
+                        consecutiveNoChange = 0;
+                        currentPollInterval = INITIAL_POLL_INTERVAL;
+                    } else {
+                        consecutiveNoChange++;
+                        // Exponential backoff when no changes (after 3 consecutive no-change polls)
+                        if (consecutiveNoChange > 2) {
+                            currentPollInterval = Math.min(
+                                currentPollInterval * 1.5,
+                                MAX_POLL_INTERVAL
+                            );
+                        }
+                    }
+
                     if (data.running) {
                         renderProgress(data);
+                        // Schedule next poll with adaptive interval
+                        pollTimeout = setTimeout(pollProgress, currentPollInterval);
                     } else {
-                        clearInterval(pollInterval);
+                        clearTimeout(pollTimeout);
                         renderFinalProgress();
                         fetchFinalResults();
-                        // window.location.reload(); // Removed to preserve styling
                     }
                 })
                 .catch(error => {
                     console.error('Error polling progress:', error);
+                    // On error, back off more aggressively
+                    currentPollInterval = Math.min(currentPollInterval * 2, MAX_POLL_INTERVAL);
                     if (pollCount > 10) {
-                        clearInterval(pollInterval);
+                        clearTimeout(pollTimeout);
                         fetchFinalResults();
+                    } else {
+                        // Retry with backoff
+                        pollTimeout = setTimeout(pollProgress, currentPollInterval);
                     }
                 });
         }
 
         function startPolling() {
-            if (pollInterval) {
-                clearInterval(pollInterval);
+            if (pollTimeout) {
+                clearTimeout(pollTimeout);
             }
             pollCount = 0;
-            pollInterval = setInterval(pollProgress, POLL_INTERVAL);
-            // Initial poll
+            consecutiveNoChange = 0;
+            currentPollInterval = INITIAL_POLL_INTERVAL;
+            previousProgressJson = null;
+            // Initial poll immediately
             pollProgress();
         }
 
         function stopPolling() {
-            if (pollInterval) {
-                clearInterval(pollInterval);
-                pollInterval = null;
+            if (pollTimeout) {
+                clearTimeout(pollTimeout);
+                pollTimeout = null;
             }
         }
 
@@ -366,75 +401,14 @@
             stopPolling();
         };
 
-        // Authentication functions
-        let currentUser = null;
-
-        async function checkAuthStatus() {
-            try {
-                const response = await fetch('/auth/status');
-                const data = await response.json();
-                currentUser = data.authenticated ? data.user : null;
-                updateAuthUI();
-            } catch (error) {
-                console.error('Failed to check auth status:', error);
-                updateAuthUI();
-            }
-        }
-
-        function updateAuthUI() {
-            const authStatus = document.getElementById('auth-status');
-            const authLoading = document.getElementById('auth-loading');
-            const authLoggedOut = document.getElementById('auth-logged-out');
-            const authLoggedIn = document.getElementById('auth-logged-in');
-
-            authStatus.style.display = 'flex';
-            authLoading.style.display = 'none';
-
-            if (currentUser) {
-                authLoggedOut.style.display = 'none';
-                authLoggedIn.style.display = 'flex';
-                document.getElementById('user-avatar').src = currentUser.avatar_url || '';
-                document.getElementById('user-name').textContent = currentUser.username || 'GitHub User';
-            } else {
-                authLoggedOut.style.display = 'flex';
-                authLoggedIn.style.display = 'none';
-            }
-        }
-
-        async function logout() {
-            try {
-                await fetch('/auth/logout', { method: 'POST' });
-                currentUser = null;
-                updateAuthUI();
-            } catch (error) {
-                console.error('Logout failed:', error);
-            }
-        }
-
-        // Initialize auth check when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            checkAuthStatus();
-        });
+        // Authentication is now handled by the top navigation component
     </script>
 </head>
 <body>
-    <!-- Authentication Status -->
-    <div id="auth-status" class="auth-status" style="display: none;">
-        <div id="auth-loading">Checking authentication...</div>
-        <div id="auth-logged-out" style="display: none;">
-            <a href="/auth/github/login" class="auth-btn">
-                <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 16px; height: 16px;">
-                Login with GitHub
-            </a>
-        </div>
-        <div id="auth-logged-in" style="display: none;">
-            <img id="user-avatar" src="" alt="User avatar">
-            <span id="user-name"></span>
-            <button class="logout-btn" onclick="logout()">Logout</button>
-        </div>
-    </div>
+    <!-- Include Top Navigation -->
+    {% include 'components/top_nav.html' %}
 
-<div class="container">
+<div class="container with-left-nav">
     <!-- Mobile Navigation -->
     <div class="mobile-nav-overlay" id="mobileNavOverlay"></div>
     <div class="mobile-nav-toggle" id="mobileNavToggle">
@@ -452,15 +426,15 @@
                     {% if d.doc_set and d.display_name %}
                         <li><a href="/docset/{{ d.doc_set }}" title="View {{ d.display_name }} bias analysis">{{ d.display_name }}</a></li>
                     {% else %}
-                        <li style="color: #666;">Item {{ loop.index }}: missing fields (doc_set: {{ d.doc_set or 'missing' }}, display_name: {{ d.display_name or 'missing' }})</li>
+                        <li style="color: var(--text-muted);">Item {{ loop.index }}: missing fields (doc_set: {{ d.doc_set or 'missing' }}, display_name: {{ d.display_name or 'missing' }})</li>
                     {% endif %}
                 {% endfor %}
             {% else %}
-                <li style="color: #666;">No documentation sections available</li>
+                <li style="color: var(--text-muted);">No documentation sections available</li>
             {% endif %}
         </ul>
         <!-- Debug info -->
-        <div style="font-size: 0.7em; color: #999; margin-top: 1em;">
+        <div style="font-size: 0.7em; color: var(--text-muted); margin-top: 1em;">
             Sections: {{ azure_dirs|length if azure_dirs else 0 }}<br>
             {% if azure_dirs and azure_dirs|length > 0 %}
                 Sample: {{ azure_dirs[0] }}<br>
@@ -468,15 +442,7 @@
             {% endif %}
         </div>
     </div>
-    <!-- Header -->
-    <div class="header" style="margin-left:220px">
-        <img class="tux-logo" src="/static/tux_reading.png" alt="Tux the Linux penguin reading a book with glasses">
-        <div>
-            <h1>Linux-first Docs for Azure</h1>
-            <p class="subtitle">Dashboard for monitoring Azure documentation bias detection</p>
-        </div>
-    </div>
-
+    
     <!-- Progress Bar (shown during scans) -->
     <div id="progress" style="margin-left:220px"></div>
 
@@ -490,16 +456,16 @@
             {% set total_flagged = all_scans|sum(attribute='flagged_count') %}
             {% set avg_bias = (total_flagged / total_pages * 100) if total_pages > 0 else 0 %}
             
-            <div class="metric-card">
-                <div class="metric-title">Total Scans</div>
-                <div class="metric-value">{{ total_scans }}</div>
-                <div class="metric-subtitle">{{ completed_scans }} completed, {{ running_scans }} in progress</div>
+            <div class="metric-card {% if satisfaction_metrics.llm_analysis >= 70 %}success{% elif satisfaction_metrics.llm_analysis >= 40 %}warning{% else %}danger{% endif %}">
+                <div class="metric-title">LLM Analysis Satisfaction</div>
+                <div class="metric-value">{{ satisfaction_metrics.llm_analysis }}%</div>
+                <div class="metric-subtitle">User rating of bias detection</div>
             </div>
             
-            <div class="metric-card">
-                <div class="metric-title">Pages Analyzed</div>
-                <div class="metric-value">{{ total_pages }}</div>
-                <div class="metric-subtitle">Across all scans</div>
+            <div class="metric-card {% if satisfaction_metrics.page_rewrites >= 70 %}success{% elif satisfaction_metrics.page_rewrites >= 40 %}warning{% else %}danger{% endif %}">
+                <div class="metric-title">Page Rewrite Satisfaction</div>
+                <div class="metric-value">{{ satisfaction_metrics.page_rewrites }}%</div>
+                <div class="metric-subtitle">User rating of rewritten docs</div>
             </div>
             
             <div class="metric-card {% if avg_bias < 5 %}success{% elif avg_bias < 15 %}warning{% else %}danger{% endif %}">
@@ -515,15 +481,15 @@
             </div>
         {% else %}
             <div class="metric-card">
-                <div class="metric-title">Total Scans</div>
-                <div class="metric-value">0</div>
-                <div class="metric-subtitle">No scans completed yet</div>
+                <div class="metric-title">LLM Analysis Satisfaction</div>
+                <div class="metric-value">{{ satisfaction_metrics.llm_analysis }}%</div>
+                <div class="metric-subtitle">User rating of bias detection</div>
             </div>
             
             <div class="metric-card">
-                <div class="metric-title">Pages Analyzed</div>
-                <div class="metric-value">0</div>
-                <div class="metric-subtitle">No data available</div>
+                <div class="metric-title">Page Rewrite Satisfaction</div>
+                <div class="metric-value">{{ satisfaction_metrics.page_rewrites }}%</div>
+                <div class="metric-subtitle">User rating of rewritten docs</div>
             </div>
             
             <div class="metric-card">
@@ -629,7 +595,7 @@
     <div class="leaderboard-section" style="margin:2em 0 2em 220px;">
         <div class="leaderboard-header">
             <h2>Bias by product</h2>
-            <p style="color: #64748b; margin-bottom: 1.5em;">
+            <p style="color: var(--text-muted); margin-bottom: 1.5em;">
                 Bias metrics by documentation area - shows which sections need the most attention for Linux-first improvements
             </p>
         </div>
@@ -688,7 +654,7 @@
             </div>
         {% else %}
             <div class="empty-state">
-                <p style="color: #6b7280; text-align: center; padding: 2em;">
+                <p style="color: var(--text-muted); text-align: center; padding: 2em;">
                     No completed scans available yet. The leaderboard will populate after scans are completed.
                 </p>
             </div>
@@ -703,7 +669,7 @@
                 <thead>
                     <tr>
                         <th>Started</th>
-                        <th>Target URL</th>
+                        <th>Repo</th>
                         <th>Pages</th>
                         <th>Flagged</th>
                         <th>Bias Rate</th>
@@ -715,8 +681,8 @@
                 {% for scan in all_scans[:10] %}
                     <tr>
                         <td data-label="Started">{{ scan.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                        <td data-label="Target URL" style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">
-                            {{ scan.url or 'Default path' }}
+                        <td data-label="Repo">
+                            {{ scan.url|url_to_repo_display }}
                         </td>
                         <td data-label="Pages">{{ scan.scanned_count }}</td>
                         <td data-label="Flagged">{{ scan.flagged_count }}</td>
@@ -744,7 +710,7 @@
                 </tbody>
             </table>
         {% else %}
-            <p style="color: #6b7280; text-align: center; padding: 2em;">
+            <p style="color: var(--text-muted); text-align: center; padding: 2em;">
                 No scans completed yet. Scans are scheduled to run automatically.
             </p>
         {% endif %}
@@ -755,7 +721,7 @@
     {% if recent_flagged_pages and recent_flagged_pages|length > 0 %}
     <div class="recent-activity" style="margin-left:220px">
         <h2>Recent Biased Pages</h2>
-        <p style="color: #64748b; margin-bottom: 1.5em;">Summary of bias detected per page (aggregated from all flagged snippets)</p>
+        <p style="color: var(--text-muted); margin-bottom: 1.5em;">Summary of bias detected per page (aggregated from all flagged snippets)</p>
         {% for page in recent_flagged_pages %}
         <div class="snippet-card">
             <div class="snippet-header">
@@ -798,53 +764,18 @@
 </div>
 </body>
 <style>
-.left-nav {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 200px;
-    height: 100vh;
-    background: #f8fafc;
-    border-right: 1px solid #e5e7eb;
-    padding: 2em 1em 1em 1em;
-    overflow-y: auto;
-    z-index: 10;
-}
-.left-nav h3 {
-    font-size: 1.1em;
-    margin-bottom: 1em;
-    color: #374151;
-    font-weight: 600;
-}
-.left-nav ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-.left-nav li {
-    margin-bottom: 0.7em;
-}
-.left-nav a {
-    color: #2563eb;
-    text-decoration: none;
-    font-size: 1em;
-    transition: color 0.2s;
-}
-.left-nav a:hover {
-    color: #1e40af;
-    text-decoration: underline;
-}
+/* Override left-nav for this page - inherits dark theme from dashboard.css */
 @media (max-width: 900px) {
     .header, .dashboard-grid, #progress, .recent-activity, .biasChart, .leaderboard-section { margin-left: 0 !important; }
 }
 
-/* Leaderboard Styles */
+/* Leaderboard Styles - Dark Theme */
 .leaderboard-container {
-    background: white;
+    background: var(--bg-card);
     border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     overflow: hidden;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-color);
 }
 
 .leaderboard-table {
@@ -854,14 +785,15 @@
 }
 
 .leaderboard-table th {
-    background: #f8fafc;
-    color: #374151;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
     font-weight: 600;
     padding: 1em 1.25em;
     text-align: left;
-    border-bottom: 2px solid #e5e7eb;
+    border-bottom: 2px solid var(--border-color);
     position: relative;
     user-select: none;
+    font-family: var(--font-mono);
 }
 
 .leaderboard-table th.sortable {
@@ -870,58 +802,58 @@
 }
 
 .leaderboard-table th.sortable:hover {
-    background: #f1f5f9;
+    background: var(--bg-card-hover);
 }
 
 .leaderboard-table th.sortable.sorted-asc .sort-indicator::after {
     content: ' ↑';
-    color: #2563eb;
+    color: var(--accent-yellow);
     font-weight: bold;
 }
 
 .leaderboard-table th.sortable.sorted-desc .sort-indicator::after {
     content: ' ↓';
-    color: #2563eb;
+    color: var(--accent-yellow);
     font-weight: bold;
 }
 
 .leaderboard-table td {
     padding: 1em 1.25em;
-    border-bottom: 1px solid #f3f4f6;
-    color: #374151;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+    color: var(--text-secondary);
 }
 
 .leaderboard-row:hover {
-    background: #f9fafb;
+    background: rgba(51, 65, 85, 0.3);
 }
 
 .leaderboard-row:nth-child(even) {
-    background: #fdfdfd;
+    background: rgba(30, 41, 59, 0.5);
 }
 
 .leaderboard-row:nth-child(even):hover {
-    background: #f9fafb;
+    background: rgba(51, 65, 85, 0.3);
 }
 
 .doc-set-name {
     font-weight: 600;
-    color: #1f2937;
+    color: var(--text-primary);
 }
 
 .doc-set-link {
-    color: #2563eb;
+    color: var(--accent-yellow);
     text-decoration: none;
     font-weight: 600;
     transition: color 0.2s ease;
 }
 
 .doc-set-link:hover {
-    color: #1d4ed8;
+    color: #fde047;
     text-decoration: underline;
 }
 
 .total-pages, .biased-pages {
-    font-family: 'Monaco', 'Menlo', monospace;
+    font-family: var(--font-mono);
     text-align: right;
 }
 
@@ -940,24 +872,24 @@
 }
 
 .bias-rate.low {
-    background: #dcfce7;
-    color: #166534;
+    background: var(--accent-green-dim);
+    color: var(--accent-green);
 }
 
 .bias-rate.medium {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--accent-yellow-dim);
+    color: var(--accent-yellow);
 }
 
 .bias-rate.high {
-    background: #fee2e2;
-    color: #dc2626;
+    background: var(--accent-red-dim);
+    color: var(--accent-red);
 }
 
 .empty-state {
-    background: white;
+    background: var(--bg-card);
     border-radius: 8px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-color);
 }
 
 /* Expandable Leaderboard Styles */
@@ -972,18 +904,18 @@
 .leaderboard-toggle {
     text-align: center;
     padding: 1em;
-    background: #f8fafc;
-    border-top: 1px solid #e5e7eb;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
 }
 
 .toggle-button {
-    background: #2563eb;
-    color: white;
+    background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%);
+    color: var(--bg-primary);
     border: none;
     padding: 0.75em 1.5em;
     border-radius: 6px;
     font-size: 0.9em;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
     display: inline-flex;
@@ -992,8 +924,8 @@
 }
 
 .toggle-button:hover {
-    background: #1d4ed8;
     transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
 }
 
 .toggle-button:active {
@@ -1007,78 +939,6 @@
 
 .toggle-button.expanded .toggle-icon {
     transform: rotate(180deg);
-}
-
-/* Authentication styles */
-.auth-status {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 1000;
-    background: linear-gradient(135deg, #ffffff, #f3f4f6);
-    border: 1px solid #d1d5db;
-    border-radius: 16px;
-    padding: 1.5em 2em;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
-    display: flex;
-    align-items: center;
-    gap: 2em;
-    font-size: 1em;
-}
-
-.auth-status img {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    border: 3px solid #d1d5db;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-}
-
-.auth-status span {
-    font-weight: 600;
-    color: #374151;
-    font-size: 1em;
-    display: flex;
-    align-items: center;
-    margin-right: 1em;
-}
-
-.auth-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5em;
-    padding: 0.8em 1.5em;
-    background: #24292e;
-    color: #fff;
-    text-decoration: none;
-    border-radius: 6px;
-    font-weight: 500;
-    font-size: 0.9em;
-    border: none;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.auth-btn:hover {
-    background: #2f363d;
-}
-
-.logout-btn {
-    background-color: #ef4444 !important;
-    color: #fff;
-    border: none;
-    border-radius: 12px;
-    padding: 0.8em 1.5em;
-    cursor: pointer;
-    font-size: 0.95em;
-    font-weight: 600;
-    transition: background-color 0.3s ease, box-shadow 0.3s ease;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-}
-
-.logout-btn:hover {
-    background-color: #dc2626 !important;
-    box-shadow: 0 4px 12px rgba(220,38,38,0.3);
 }
 </style>
 <!-- ...rest of file... -->

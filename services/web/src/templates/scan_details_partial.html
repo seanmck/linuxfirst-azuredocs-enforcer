@@ -32,7 +32,7 @@
     <!-- Overall Progress Bar -->
     <div class="progress-container">
         <div class="progress-bar-container">
-            {% set initial_progress = (scan.pages_processed / scan.total_pages_found * 100) if scan.total_pages_found and scan.total_pages_found > 0 else (100 if scan.status == 'completed' else 0) %}
+            {% set initial_progress = (scan.total_files_completed / scan.total_files_queued * 100) if scan.total_files_queued and scan.total_files_queued > 0 else (100 if scan.status == 'completed' else 0) %}
             <div class="progress-bar" id="overall-progress-bar" style="width: {{ initial_progress }}%" data-initial-progress="{{ initial_progress }}">{{ initial_progress|round|int }}%</div>
         </div>
     </div>
@@ -81,18 +81,18 @@
             </button>
             {% endif %}
         </p>
-        <p><strong>Target URL:</strong> {{ scan.url or 'Default path' }}</p>
+        <p><strong>Target Repo:</strong> {{ scan.url|url_to_repo_display }}</p>
         
         {% if scan.current_phase %}
         <p><strong>Current Phase:</strong> {{ scan.current_phase }}</p>
         {% endif %}
         
-        {% if scan.total_pages_found %}
-        <p><strong>Pages Found:</strong> {{ scan.total_pages_found }}</p>
+        {% if scan.total_files_queued %}
+        <p><strong>Files Queued:</strong> {{ scan.total_files_queued }}</p>
         {% endif %}
-        
-        {% if scan.pages_processed %}
-        <p><strong>Pages Processed:</strong> {{ scan.pages_processed }}</p>
+
+        {% if scan.total_files_completed %}
+        <p><strong>Files Completed:</strong> {{ scan.total_files_completed }}</p>
         {% endif %}
         
         {% if scan.estimated_completion and scan.status != 'completed' %}
@@ -101,7 +101,9 @@
     </div>
 </div>
 
-<!-- CSS for new components -->
+<!-- Contribution prompt will be handled by top navigation authentication -->
+
+<!-- CSS for new components - Dark Theme -->
 <style>
 /* Key Metrics - Promoted and Enhanced */
 .key-metrics {
@@ -116,30 +118,32 @@
 }
 
 .summary-card {
-    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    background: var(--bg-card);
     border-radius: 12px;
     padding: 1.5em;
     text-align: center;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .summary-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    border-color: var(--accent-yellow);
 }
 
 .summary-value {
     font-size: 2.5em;
     font-weight: 800;
-    color: #1e293b;
+    color: var(--accent-yellow);
     margin-bottom: 0.3em;
     line-height: 1;
+    font-family: var(--font-mono);
 }
 
 .summary-label {
-    color: #64748b;
+    color: var(--text-muted);
     font-size: 0.95em;
     font-weight: 600;
     text-transform: uppercase;
@@ -148,11 +152,11 @@
 
 /* Compact Progress Section */
 .progress-section-compact {
-    background: #f8fafc;
+    background: var(--bg-secondary);
     border-radius: 8px;
     padding: 1em;
     margin-bottom: 1em;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
 }
 
 .progress-header-compact {
@@ -165,7 +169,8 @@
 .progress-header-compact h3 {
     font-size: 1.1em;
     margin: 0;
-    color: #374151;
+    color: var(--accent-yellow);
+    font-family: var(--font-mono);
 }
 
 .connection-status {
@@ -173,13 +178,13 @@
     font-weight: 600;
     padding: 0.2em 0.6em;
     border-radius: 6px;
-    background: #fee2e2;
-    color: #dc2626;
+    background: var(--accent-red-dim);
+    color: var(--accent-red);
 }
 
 .connection-status.connected {
-    background: #dcfce7;
-    color: #16a34a;
+    background: var(--accent-green-dim);
+    color: var(--accent-green);
 }
 
 .progress-container {
@@ -187,7 +192,7 @@
 }
 
 .progress-bar-container {
-    background: #e5e7eb;
+    background: rgba(51, 65, 85, 0.5);
     border-radius: 6px;
     height: 20px;
     position: relative;
@@ -195,13 +200,13 @@
 }
 
 .progress-bar {
-    background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+    background: linear-gradient(90deg, var(--accent-yellow), #eab308);
     height: 100%;
     border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: var(--bg-primary);
     font-weight: 600;
     font-size: 0.85em;
     transition: width 0.3s ease;
@@ -209,13 +214,14 @@
 }
 
 .current-activity-compact {
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--bg-card);
     border-radius: 6px;
     padding: 0.75em;
     margin-bottom: 0.75em;
     display: flex;
     gap: 1.5em;
     flex-wrap: wrap;
+    color: var(--text-secondary);
 }
 
 .current-activity-compact .activity-item {
@@ -223,8 +229,12 @@
     margin-bottom: 0;
 }
 
+.current-activity-compact .activity-item strong {
+    color: var(--text-primary);
+}
+
 .activity-feed-details {
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--bg-card);
     border-radius: 6px;
     padding: 0.75em;
 }
@@ -232,7 +242,7 @@
 .activity-feed-details summary {
     cursor: pointer;
     font-weight: 600;
-    color: #374151;
+    color: var(--text-primary);
     font-size: 0.95em;
     margin-bottom: 0.5em;
 }
@@ -240,16 +250,16 @@
 .activity-feed {
     max-height: 150px;
     overflow-y: auto;
-    background: white;
+    background: var(--bg-primary);
     border-radius: 4px;
     padding: 0.6em;
-    border: 1px solid #e5e7eb;
+    border: 1px solid var(--border-color);
     margin-top: 0.5em;
 }
 
 .activity-feed .activity-item {
     padding: 0.4em 0;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.5);
     display: flex;
     gap: 1em;
     font-size: 0.85em;
@@ -260,29 +270,34 @@
 }
 
 .activity-time {
-    color: #6b7280;
+    color: var(--text-muted);
     font-weight: 500;
     min-width: 60px;
 }
 
 .activity-message {
-    color: #374151;
+    color: var(--text-secondary);
     flex: 1;
 }
 
 .activity-item.error .activity-message {
-    color: #dc2626;
+    color: var(--accent-red);
 }
 
 .activity-item.error .activity-time {
-    color: #dc2626;
+    color: var(--accent-red);
 }
 
 .scan-info {
-    background: rgba(255, 255, 255, 0.9);
+    background: var(--bg-secondary);
     border-radius: 8px;
     padding: 1em;
     margin-top: 1em;
+    color: var(--text-secondary);
+}
+
+.scan-info strong {
+    color: var(--text-primary);
 }
 
 /* Mobile responsive adjustments */
@@ -291,24 +306,24 @@
         grid-template-columns: repeat(2, 1fr);
         gap: 0.75em;
     }
-    
+
     .summary-card {
         padding: 1.25em;
     }
-    
+
     .summary-value {
         font-size: 2em;
     }
-    
+
     .summary-label {
         font-size: 0.85em;
     }
-    
+
     .current-activity-compact {
         flex-direction: column;
         gap: 0.5em;
     }
-    
+
     .progress-section-compact {
         padding: 0.75em;
     }
@@ -319,69 +334,139 @@
         grid-template-columns: 1fr;
     }
 }
+
 </style>
 
-<!-- Problematic Pages (Holistic MCP) -->
+<!-- Problematic Pages (Holistic MCP) - Redesigned -->
 <div class="scan-details">
-    <h2>Problematic Pages</h2>
+    {% set flagged_count = namespace(value=0) %}
     {% if pages and pages|length > 0 %}
-        {% set has_flagged = false %}
         {% for page in pages %}
             {% if page.mcp_holistic and page.mcp_holistic.get('bias_types') %}
-                {% set has_flagged = true %}
-                <div class="page-section">
-                    <div class="page-header">
-                        <div class="page-url">
-                            <a href="{{ page.url }}" target="_blank" rel="noopener noreferrer">{{ page.url }}</a>
-                            <a href="/docpage/{{ page.id }}" style="margin-left: 0.5em; color: #2563eb; text-decoration: none; font-size: 0.9em;">[View Details]</a>
+                {% set flagged_count.value = flagged_count.value + 1 %}
+            {% endif %}
+        {% endfor %}
+    {% endif %}
+
+    <div class="problematic-pages-header">
+        <h2>Problematic Pages</h2>
+        {% if flagged_count.value > 0 %}
+        <span class="problematic-pages-count">{{ flagged_count.value }} issue{{ 's' if flagged_count.value != 1 else '' }} found</span>
+        {% endif %}
+    </div>
+
+    {% if pages and pages|length > 0 %}
+        {% set ns = namespace(has_flagged=false) %}
+        {% for page in pages %}
+            {% if page.mcp_holistic and page.mcp_holistic.get('bias_types') %}
+                {% set ns.has_flagged = true %}
+                <div class="page-card" data-priority="{{ page['priority_label']|lower }}">
+                    <!-- Card Header -->
+                    <div class="page-card-header">
+                        <div class="page-card-title-group">
+                            <span class="page-card-docset">{{ page.doc_set_display }}</span>
+                            <span class="page-card-title">{{ page.mcp_holistic.get('page_title') or page.url|url_to_title }}</span>
+                            <a href="{{ page.url }}" target="_blank" rel="noopener noreferrer" class="page-card-url">
+                                <svg class="page-card-url-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                    <polyline points="15,3 21,3 21,9"></polyline>
+                                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                                </svg>
+                                {{ page.url|truncate_url }}
+                            </a>
                         </div>
-                        
-                        <span class="priority-badge priority-{{ page['priority_label']|lower }}">{{ page['priority_label'] }} Priority</span>
+                        <div class="page-card-priority">
+                            <span class="priority-indicator priority-indicator-{{ page['priority_label']|lower }}">
+                                {{ page['priority_label'] }} Priority
+                            </span>
+                            <a href="/docpage/{{ page.id }}" class="page-detail-link">View Details →</a>
+                        </div>
                     </div>
-                    <div class="analysis-content">
-                        <div class="snippet-label">Bias Types:</div>
-                        <div class="bias-types-row">
-                            {% for bias in page.mcp_holistic.get('bias_types') %}
-                                <div class="bias-type-box">
-                                    <span class="bias-type-icon">{{ bias_icon_map.get(bias, '⚠️') }}</span>
+
+                    <!-- Metadata Row -->
+                    <div class="page-card-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Reviewed by:</span>
+                            {% if page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm' %}
+                                <span class="meta-value meta-value-llm">LLM Analysis</span>
+                            {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm_pending' %}
+                                <span class="meta-value meta-value-pending">Pending LLM Review</span>
+                            {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'heuristic_skip' %}
+                                <span class="meta-value meta-value-heuristic">Heuristic Rules</span>
+                            {% elif page.mcp_holistic and page.mcp_holistic.get('review_method') == 'llm_error' %}
+                                <span class="meta-value meta-value-error">LLM Error</span>
+                            {% else %}
+                                <span class="meta-value">Unknown</span>
+                            {% endif %}
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Issues:</span>
+                            <span class="meta-value">{{ page.mcp_holistic.get('bias_types', [])|length }} bias type{{ 's' if page.mcp_holistic.get('bias_types', [])|length != 1 else '' }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Card Body - Analysis Content -->
+                    <div class="page-card-body">
+                        <!-- Bias Types -->
+                        <div class="analysis-section">
+                            <span class="analysis-label">Detected Bias Types</span>
+                            <div class="bias-chips">
+                                {% for bias in page.mcp_holistic.get('bias_types') %}
+                                <span class="bias-chip">
+                                    <span class="bias-chip-icon">{{ bias_icon_map.get(bias, '⚠️') }}</span>
                                     {{ bias }}
-                                </div>
-                            {% endfor %}
+                                </span>
+                                {% endfor %}
+                            </div>
                         </div>
-                        <div class="snippet-label">Summary:</div>
-                        <div class="explanation-text">{{ page.mcp_holistic.summary }}</div>
-                        <div class="snippet-label">Recommendations:</div>
-                        {% if page.mcp_holistic.get('recommendations') is string %}
-                        <div class="explanation-text">{{ page.mcp_holistic.recommendations }}</div>
-                        {% else %}
-                        <ul class="explanation-text">
-                        {% for rec in page.mcp_holistic.get('recommendations', []) %}
-                            <li>{{ rec }}</li>
-                        {% endfor %}
-                        </ul>
-                        {% endif %}
+
+                        <!-- Summary -->
+                        <div class="analysis-section">
+                            <span class="analysis-label">Summary</span>
+                            <div class="analysis-text">{{ page.mcp_holistic.summary }}</div>
+                        </div>
+
+                        <!-- Recommendations -->
+                        <div class="analysis-section">
+                            <span class="analysis-label">Recommendations</span>
+                            <div class="analysis-text">
+                                {% if page.mcp_holistic.get('recommendations') is string %}
+                                    {{ page.mcp_holistic.recommendations }}
+                                {% else %}
+                                    <ul>
+                                    {% for rec in page.mcp_holistic.get('recommendations', []) %}
+                                        <li>{{ rec }}</li>
+                                    {% endfor %}
+                                    </ul>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Feedback Widget -->
+                        {% include 'feedback_widget.html' %}
                     </div>
-                    <!-- Create Pull Request Button -->
-                    <div style="margin-top: 1em; text-align: right;">
-                        <a href="/proposed_change?page_id={{ page.id }}" class="github-pr-btn" style="display: inline-flex; align-items: center; gap: 0.5em; padding: 0.5em 1em; background: #24292f; color: #fff; border-radius: 5px; text-decoration: none; font-weight: 500;">
-                            <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" style="width: 20px; height: 20px; vertical-align: middle;">
-                            Create pull request
+
+                    <!-- Card Footer -->
+                    <div class="page-card-footer">
+                        <a href="/proposed_change?page_id={{ page.id }}" class="btn-github-pr">
+                            <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub">
+                            Create Pull Request
                         </a>
                     </div>
-                    
-                    <!-- Feedback Widget -->
-                    {% include 'feedback_widget.html' %}
                 </div>
             {% endif %}
         {% endfor %}
-        {% if not has_flagged %}
-            <div class="no-flagged">
-                <p>No problematic pages found in this scan. All pages appear to be Linux-friendly! 🐧</p>
-            </div>
+
+        {% if not ns.has_flagged %}
+        <div class="no-issues-found">
+            <div class="no-issues-found-icon">🐧</div>
+            <p class="no-issues-found-text">No problematic pages found in this scan. All pages appear to be Linux-friendly!</p>
+        </div>
         {% endif %}
     {% else %}
-        <div class="no-flagged">
-            <p>No pages were scanned in this run.</p>
+        <div class="no-issues-found">
+            <div class="no-issues-found-icon">📄</div>
+            <p class="no-issues-found-text">No pages were scanned in this run.</p>
         </div>
     {% endif %}
 </div>

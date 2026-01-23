@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrate
+  namespace: azuredocs-app
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  template:
+    metadata:
+      labels:
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: azuredocs-app-sa
+      containers:
+      - name: migrate
+        image: seanmckdemo.azurecr.io/linuxfirst-azuredocs-db-migrations
+        command: ["/bin/sh", "-c"]
+        args: ["cd /app/infra/db && ./migrate.sh"]
+        envFrom:
+        - secretRef:
+            name: sc-azuredocsdbconnection-secret
+      restartPolicy: Never
+  backoffLimit: 1

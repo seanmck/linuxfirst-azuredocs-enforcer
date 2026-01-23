@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bias-scoring-service
+  namespace: azuredocs-app
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9000
+      targetPort: 9000
+  selector:
+    app: bias-scoring-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bias-scoring-service
+  namespace: azuredocs-app
+  labels:
+    app: bias-scoring-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: bias-scoring-service
+  template:
+    metadata:
+      labels:
+        app: bias-scoring-service
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: azuredocs-app-sa
+      priorityClassName: service-critical-priority
+      containers:
+        - name: bias-scoring-service
+          image: seanmckdemo.azurecr.io/bias-scoring-service
+          env:
+            - name: AZURE_OPENAI_DEPLOYMENT
+              value: "gpt-4.1"
+            - name: AZURE_OPENAI_RPM
+              value: "10"
+          envFrom:
+            - secretRef:
+                name: sc-linuxdocsazureopenai-secret
+          ports:
+            - containerPort: 9000
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: bias-scoring-service-scaler
+  namespace: azuredocs-app
+spec:
+  scaleTargetRef:
+    name: bias-scoring-service
+  minReplicaCount: 2
+  maxReplicaCount: 2
+  cooldownPeriod: 60
+  triggers:
+  - type: cpu
+    metricType: Utilization
+    metadata:
+      value: "20"

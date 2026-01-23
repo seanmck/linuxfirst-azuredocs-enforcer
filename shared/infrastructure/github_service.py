@@ -7,10 +7,16 @@ import re
 import time
 import random
 import json
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from github import Github
+from github.Repository import Repository
+from github.GithubException import UnknownObjectException
 from shared.config import config
 from shared.utils.logging import get_logger
+from shared.utils.markdown_utils import (
+    extract_yaml_frontmatter,
+    extract_title_from_frontmatter,
+)
 
 
 
@@ -24,6 +30,7 @@ class GitHubService:
         
         self.github_client = Github(self.github_token)
         self.logger = get_logger(__name__)
+        self._repo_cache: Dict[str, Repository] = {}
 
     def _check_rate_limit(self):
         """
@@ -55,6 +62,19 @@ class GitHubService:
             # Don't let rate limit checking break the actual operation
             self.logger.warning(f"Could not check rate limit: {e}")
 
+    def _get_cached_repo(self, repo_full_name: str) -> Repository:
+        """
+        Get a Repository object, using cache to avoid redundant API calls.
+
+        Args:
+            repo_full_name: GitHub repository in format 'owner/repo'
+
+        Returns:
+            PyGithub Repository object
+        """
+        if repo_full_name not in self._repo_cache:
+            self._repo_cache[repo_full_name] = self.github_client.get_repo(repo_full_name)
+        return self._repo_cache[repo_full_name]
 
     def parse_github_url(self, url: str) -> Optional[Dict[str, str]]:
         """
@@ -97,10 +117,38 @@ class GitHubService:
         )
 
     def is_windows_focused_content(self, content: str) -> bool:
-        """Check if markdown content appears to be Windows-focused"""
-        h1_match = re.search(r'^# (.+)$', content, re.MULTILINE)
-        if h1_match and 'powershell' in h1_match.group(1).lower():
-            return True
+        """
+        Check if markdown content is intentionally Windows-focused.
+
+        Checks both YAML frontmatter title and H1 heading against
+        Windows-focused title patterns to identify pages that should
+        not be flagged for Windows bias.
+
+        Args:
+            content: Full markdown content of the page
+
+        Returns:
+            True if the page is intentionally Windows-focused
+        """
+        from packages.scorer.heuristics import is_windows_intentional_title
+
+        if not content:
+            return False
+
+        # Check frontmatter title
+        frontmatter = extract_yaml_frontmatter(content)
+        if frontmatter:
+            frontmatter_title = extract_title_from_frontmatter(frontmatter)
+            if frontmatter_title and is_windows_intentional_title(frontmatter_title):
+                return True
+
+        # Also check H1 heading (may differ from frontmatter title)
+        h1_match = re.search(r'^#\s+(.+?)(?:\s*#*)?\s*$', content, re.MULTILINE)
+        if h1_match:
+            h1_title = h1_match.group(1).strip()
+            if is_windows_intentional_title(h1_title):
+                return True
+
         return False
 
     def list_markdown_files(
@@ -126,7 +174,7 @@ class GitHubService:
         Returns:
             List of dictionaries with 'path' and 'sha' keys
         """
-        repo = self.github_client.get_repo(repo_full_name)
+        repo = self._get_cached_repo(repo_full_name)
         
         files = []
         dirs_to_process = [path]
@@ -221,7 +269,7 @@ class GitHubService:
             # Check rate limit before making API call
             self._check_rate_limit()
             
-            repo = self.github_client.get_repo(repo_full_name)
+            repo = self._get_cached_repo(repo_full_name)
             file_content_obj = repo.get_contents(file_path, ref=branch)
             
             # Rate limit info is now updated from the API response headers
@@ -264,7 +312,7 @@ class GitHubService:
             # Check rate limit before making API calls
             self._check_rate_limit()
             
-            repo = self.github_client.get_repo(repo_full_name)
+            repo = self._get_cached_repo(repo_full_name)
             file_obj = repo.get_contents(file_path, ref=branch)
             
             # Get commit info for last modified date
@@ -301,24 +349,30 @@ class GitHubService:
             
         return metadata['sha'] != current_sha
 
-    def get_head_commit(self, repo_full_name: str, branch: str) -> Optional[str]:
+    def get_head_commit(self, repo_full_name: str, branch: str) -> Tuple[Optional[str], bool]:
         """
         Get the HEAD commit SHA for a repository branch
-        
+
         Args:
             repo_full_name: GitHub repository in format 'owner/repo'
             branch: Branch to get HEAD commit from
-            
+
         Returns:
-            HEAD commit SHA or None if error
+            Tuple of (HEAD commit SHA or None, is_not_found)
+            - (sha, False) on success
+            - (None, True) if repo not found (404)
+            - (None, False) on other errors
         """
         try:
-            repo = self.github_client.get_repo(repo_full_name)
+            repo = self._get_cached_repo(repo_full_name)
             branch_obj = repo.get_branch(branch)
-            return branch_obj.commit.sha
+            return branch_obj.commit.sha, False
+        except UnknownObjectException as e:
+            print(f"[ERROR] Could not get HEAD commit for {repo_full_name}:{branch}: {e}")
+            return None, True  # 404 - repo not found
         except Exception as e:
             print(f"[ERROR] Could not get HEAD commit for {repo_full_name}:{branch}: {e}")
-            return None
+            return None, False  # Other error
 
     def compare_commits(self, repo_full_name: str, base_sha: str, head_sha: str):
         """
@@ -333,7 +387,7 @@ class GitHubService:
             GitHub comparison object or None if error
         """
         try:
-            repo = self.github_client.get_repo(repo_full_name)
+            repo = self._get_cached_repo(repo_full_name)
             comparison = repo.compare(base_sha, head_sha)
             return comparison
         except Exception as e:
@@ -354,7 +408,7 @@ class GitHubService:
             GitHub tree object or None if error
         """
         try:
-            repo = self.github_client.get_repo(repo_full_name)
+            repo = self._get_cached_repo(repo_full_name)
             if path:
                 # Get tree for specific path
                 contents = repo.get_contents(path, ref=sha)

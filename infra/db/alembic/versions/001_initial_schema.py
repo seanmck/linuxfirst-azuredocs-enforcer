@@ -19,10 +19,71 @@ depends_on = None
 
 def upgrade():
     """Create all tables with complete schema"""
-    
-    # Note: Base tables (scans, pages, snippets) are created by schema.sql
-    # This migration adds all the additional columns and new tables
-    
+
+    # Create base tables if they don't exist
+    connection = op.get_bind()
+
+    # Check if scans table exists
+    scans_exists = connection.execute(text("""
+        SELECT COUNT(*) FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'scans'
+    """)).scalar() > 0
+
+    if not scans_exists:
+        print("Creating scans table...")
+        op.create_table(
+            'scans',
+            sa.Column('id', sa.Integer(), primary_key=True),
+            sa.Column('url', sa.String(), nullable=True),
+            sa.Column('started_at', sa.DateTime(), nullable=True),
+            sa.Column('finished_at', sa.DateTime(), nullable=True),
+            sa.Column('status', sa.String(), nullable=True),
+            sa.Column('biased_pages_count', sa.Integer(), nullable=True),
+            sa.Column('flagged_snippets_count', sa.Integer(), nullable=True),
+        )
+        print("scans table created successfully.")
+    else:
+        print("scans table already exists, skipping...")
+
+    # Check if pages table exists
+    pages_exists = connection.execute(text("""
+        SELECT COUNT(*) FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'pages'
+    """)).scalar() > 0
+
+    if not pages_exists:
+        print("Creating pages table...")
+        op.create_table(
+            'pages',
+            sa.Column('id', sa.Integer(), primary_key=True),
+            sa.Column('scan_id', sa.Integer(), sa.ForeignKey('scans.id'), nullable=True),
+            sa.Column('url', sa.String(), nullable=True),
+            sa.Column('status', sa.String(), nullable=True),
+        )
+        print("pages table created successfully.")
+    else:
+        print("pages table already exists, skipping...")
+
+    # Check if snippets table exists
+    snippets_exists = connection.execute(text("""
+        SELECT COUNT(*) FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'snippets'
+    """)).scalar() > 0
+
+    if not snippets_exists:
+        print("Creating snippets table...")
+        op.create_table(
+            'snippets',
+            sa.Column('id', sa.Integer(), primary_key=True),
+            sa.Column('page_id', sa.Integer(), sa.ForeignKey('pages.id'), nullable=True),
+            sa.Column('context', sa.Text(), nullable=True),
+            sa.Column('code', sa.Text(), nullable=True),
+            sa.Column('llm_score', sa.JSON(), nullable=True),
+        )
+        print("snippets table created successfully.")
+    else:
+        print("snippets table already exists, skipping...")
+
     # Add mcp_holistic column to pages table
     # Check if mcp_holistic column exists in pages
     connection = op.get_bind()

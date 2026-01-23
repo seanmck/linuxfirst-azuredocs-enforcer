@@ -1,0 +1,199 @@
+name: Promote to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Show diff only, do not create PR'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    env:
+      REGISTRY: seanmckdemo.azurecr.io
+      DEV_OVERLAY: infra/k8s/overlays/dev
+      PROD_OVERLAY: infra/k8s/overlays/prod
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install Kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Install yq
+        uses: mikefarah/yq@v4
+
+      - name: Extract dev image tags
+        id: dev-tags
+        run: |
+          WEBUI_TAG=$(yq eval '.images[] | select(.name == "'"$REGISTRY"'/webui") | .newTag' "$DEV_OVERLAY/kustomization.yaml")
+          WORKER_TAG=$(yq eval '.images[] | select(.name == "'"$REGISTRY"'/queue-worker") | .newTag' "$DEV_OVERLAY/kustomization.yaml")
+          BIAS_TAG=$(yq eval '.images[] | select(.name == "'"$REGISTRY"'/bias-scoring-service") | .newTag' "$DEV_OVERLAY/kustomization.yaml")
+          DB_TAG=$(yq eval '.images[] | select(.name == "'"$REGISTRY"'/linuxfirst-azuredocs-db-migrations") | .newTag' "$DEV_OVERLAY/kustomization.yaml")
+
+          # Validate all tags were extracted successfully
+          MISSING_TAGS=()
+          if [ -z "$WEBUI_TAG" ]; then MISSING_TAGS+=("webui"); fi
+          if [ -z "$WORKER_TAG" ]; then MISSING_TAGS+=("queue-worker"); fi
+          if [ -z "$BIAS_TAG" ]; then MISSING_TAGS+=("bias-scoring-service"); fi
+          if [ -z "$DB_TAG" ]; then MISSING_TAGS+=("linuxfirst-azuredocs-db-migrations"); fi
+
+          if [ ${#MISSING_TAGS[@]} -gt 0 ]; then
+            echo "::error::Failed to extract image tags for the following services from $DEV_OVERLAY/kustomization.yaml: ${MISSING_TAGS[*]}"
+            echo "::error::Please ensure all required images are defined in the dev overlay kustomization.yaml"
+            exit 1
+          fi
+
+          echo "webui=$WEBUI_TAG" >> $GITHUB_OUTPUT
+          echo "worker=$WORKER_TAG" >> $GITHUB_OUTPUT
+          echo "bias=$BIAS_TAG" >> $GITHUB_OUTPUT
+          echo "db=$DB_TAG" >> $GITHUB_OUTPUT
+
+          echo "### Dev Image Tags" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Tag |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| webui | $WEBUI_TAG |" >> $GITHUB_STEP_SUMMARY
+          echo "| queue-worker | $WORKER_TAG |" >> $GITHUB_STEP_SUMMARY
+          echo "| bias-scoring-service | $BIAS_TAG |" >> $GITHUB_STEP_SUMMARY
+          echo "| db-migrations | $DB_TAG |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Extract current prod image tags
+        id: prod-tags
+        run: |
+          WEBUI_TAG=$(yq eval '.images[] | select(.name == "'"$REGISTRY"'/webui") | .newTag' "$PROD_OVERLAY/kustomization.yaml")
+          WORKER_TAG=$(yq eval '.images[] | select(.name == "'"$REGISTRY"'/queue-worker") | .newTag' "$PROD_OVERLAY/kustomization.yaml")
+          BIAS_TAG=$(yq eval '.images[] | select(.name == "'"$REGISTRY"'/bias-scoring-service") | .newTag' "$PROD_OVERLAY/kustomization.yaml")
+          DB_TAG=$(yq eval '.images[] | select(.name == "'"$REGISTRY"'/linuxfirst-azuredocs-db-migrations") | .newTag' "$PROD_OVERLAY/kustomization.yaml")
+
+          # Validate all tags were extracted successfully
+          MISSING_TAGS=()
+          if [ -z "$WEBUI_TAG" ]; then MISSING_TAGS+=("webui"); fi
+          if [ -z "$WORKER_TAG" ]; then MISSING_TAGS+=("queue-worker"); fi
+          if [ -z "$BIAS_TAG" ]; then MISSING_TAGS+=("bias-scoring-service"); fi
+          if [ -z "$DB_TAG" ]; then MISSING_TAGS+=("linuxfirst-azuredocs-db-migrations"); fi
+
+          if [ ${#MISSING_TAGS[@]} -gt 0 ]; then
+            echo "::error::Failed to extract image tags for the following services from $PROD_OVERLAY/kustomization.yaml: ${MISSING_TAGS[*]}"
+            echo "::error::Please ensure all required images are defined in the prod overlay kustomization.yaml"
+            exit 1
+          fi
+
+          echo "webui=$WEBUI_TAG" >> $GITHUB_OUTPUT
+          echo "worker=$WORKER_TAG" >> $GITHUB_OUTPUT
+          echo "bias=$BIAS_TAG" >> $GITHUB_OUTPUT
+          echo "db=$DB_TAG" >> $GITHUB_OUTPUT
+
+          echo "### Current Prod Image Tags" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Tag |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| webui | $WEBUI_TAG |" >> $GITHUB_STEP_SUMMARY
+          echo "| queue-worker | $WORKER_TAG |" >> $GITHUB_STEP_SUMMARY
+          echo "| bias-scoring-service | $BIAS_TAG |" >> $GITHUB_STEP_SUMMARY
+          echo "| db-migrations | $DB_TAG |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Update prod overlay
+        run: |
+          cd "$PROD_OVERLAY"
+          kustomize edit set image "$REGISTRY/webui:${{ steps.dev-tags.outputs.webui }}"
+          kustomize edit set image "$REGISTRY/queue-worker:${{ steps.dev-tags.outputs.worker }}"
+          kustomize edit set image "$REGISTRY/bias-scoring-service:${{ steps.dev-tags.outputs.bias }}"
+          kustomize edit set image "$REGISTRY/linuxfirst-azuredocs-db-migrations:${{ steps.dev-tags.outputs.db }}"
+
+      - name: Show diff
+        id: diff
+        run: |
+          echo "### Changes to prod overlay" >> $GITHUB_STEP_SUMMARY
+          echo '```diff' >> $GITHUB_STEP_SUMMARY
+          git diff "$PROD_OVERLAY/kustomization.yaml" >> $GITHUB_STEP_SUMMARY || true
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          if git diff --quiet "$PROD_OVERLAY/kustomization.yaml"; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes detected - dev and prod already have the same tags"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create promotion PR
+        id: create-pr
+        if: ${{ !inputs.dry_run && steps.diff.outputs.has_changes == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="promote-to-prod/${{ steps.dev-tags.outputs.webui }}-${{ github.run_id }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH_NAME"
+          git add "$PROD_OVERLAY/kustomization.yaml"
+          git commit -m "chore(prod): promote dev images to production"
+          git push --force origin "$BRANCH_NAME"
+
+          PR_BODY="$(cat <<EOF
+          ## Production Promotion
+
+          This PR promotes the current dev image tags to production.
+
+          ### Image Tag Changes
+
+          | Service | From (prod) | To (dev) |
+          |---------|-------------|----------|
+          | webui | ${{ steps.prod-tags.outputs.webui }} | ${{ steps.dev-tags.outputs.webui }} |
+          | queue-worker | ${{ steps.prod-tags.outputs.worker }} | ${{ steps.dev-tags.outputs.worker }} |
+          | bias-scoring-service | ${{ steps.prod-tags.outputs.bias }} | ${{ steps.dev-tags.outputs.bias }} |
+          | db-migrations | ${{ steps.prod-tags.outputs.db }} | ${{ steps.dev-tags.outputs.db }} |
+
+          ### Workflow Run
+
+          Triggered by: @${{ github.actor }}
+          Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF
+          )"
+
+          # Check if a PR already exists for this branch
+          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --json number --jq '.[0].number' || echo "")
+          
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #$EXISTING_PR already exists for branch $BRANCH_NAME"
+            echo "pr_number=$EXISTING_PR" >> $GITHUB_OUTPUT
+            echo "pr_action=updated" >> $GITHUB_OUTPUT
+          else
+            gh pr create \
+              --title "Promote to Production: ${{ steps.dev-tags.outputs.webui }}" \
+              --body "$PR_BODY"
+            
+            NEW_PR=$(gh pr list --head "$BRANCH_NAME" --json number --jq '.[0].number')
+            echo "pr_number=$NEW_PR" >> $GITHUB_OUTPUT
+            echo "pr_action=created" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Summary
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "### Dry Run Complete" >> $GITHUB_STEP_SUMMARY
+            echo "No PR was created. Review the diff above." >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.diff.outputs.has_changes }}" = "false" ]; then
+            echo "### No Changes" >> $GITHUB_STEP_SUMMARY
+            echo "Dev and prod already have the same image tags. No PR needed." >> $GITHUB_STEP_SUMMARY
+          else
+            if [ "${{ steps.create-pr.outputs.pr_action }}" == "created" ]; then
+              echo "### PR Created" >> $GITHUB_STEP_SUMMARY
+              echo "Pull request #${{ steps.create-pr.outputs.pr_number }} has been created for review." >> $GITHUB_STEP_SUMMARY
+            else
+              echo "### PR Already Exists" >> $GITHUB_STEP_SUMMARY
+              echo "Pull request #${{ steps.create-pr.outputs.pr_number }} already exists for this branch." >> $GITHUB_STEP_SUMMARY
+            fi
+          fi

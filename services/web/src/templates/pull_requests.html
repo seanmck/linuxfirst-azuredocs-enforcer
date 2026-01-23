@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pull Requests - Linux-first Docs for Azure</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <style>
+        .container {
+            max-width: 1400px;
+            margin: 2em auto;
+            padding: 0 2em;
+        }
+        .header {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.2);
+            padding: 2em 2.5em;
+            margin-bottom: 2em;
+            display: flex;
+            align-items: center;
+            gap: 2em;
+        }
+        .header-icon {
+            flex-shrink: 0;
+        }
+        h1 {
+            font-size: 2.2em;
+            font-weight: 700;
+            margin: 0;
+            color: var(--accent-yellow);
+            letter-spacing: -1px;
+            font-family: var(--font-mono);
+        }
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1em;
+            margin: 0.5em 0 0 0;
+        }
+
+        /* Stats Cards */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1em;
+            margin-bottom: 2em;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.25em;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2em;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            margin-bottom: 0.25em;
+        }
+        .stat-value.pending { color: var(--accent-yellow); }
+        .stat-value.open { color: var(--accent-blue); }
+        .stat-value.merged { color: var(--accent-green); }
+        .stat-value.closed { color: var(--text-muted); }
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+
+        /* Filter/Tab Section */
+        .controls-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.25em;
+            margin-bottom: 1.5em;
+            display: flex;
+            align-items: center;
+            gap: 1.5em;
+            flex-wrap: wrap;
+        }
+        .tab-buttons {
+            display: flex;
+            gap: 0.5em;
+        }
+        .tab-btn {
+            padding: 0.5em 1.25em;
+            border: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover {
+            border-color: var(--accent-yellow);
+            color: var(--accent-yellow);
+        }
+        .tab-btn.active {
+            background: var(--accent-yellow);
+            color: var(--bg-primary);
+            border-color: var(--accent-yellow);
+            font-weight: 600;
+        }
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 0.75em;
+        }
+        .filter-group label {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .filter-group select {
+            padding: 0.5em 1em;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            min-width: 200px;
+        }
+        .filter-group select:focus {
+            outline: none;
+            border-color: var(--accent-yellow);
+        }
+
+        /* Section Headers */
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1em;
+            padding-bottom: 0.5em;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .section-title {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+        }
+        .section-count {
+            color: var(--text-muted);
+            font-size: 0.95em;
+        }
+
+        /* PR Table */
+        .pr-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            margin-bottom: 2em;
+            overflow: hidden;
+        }
+        .pr-section-inner {
+            padding: 1.5em;
+        }
+        .pr-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .pr-table th {
+            background: var(--bg-secondary);
+            padding: 0.9em 1em;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--border-color);
+            font-size: 0.9em;
+            font-family: var(--font-mono);
+        }
+        .pr-table td {
+            padding: 1em;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+            color: var(--text-secondary);
+            vertical-align: middle;
+        }
+        .pr-table tr:hover {
+            background: rgba(51, 65, 85, 0.3);
+        }
+        .pr-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* PR Status Badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4em;
+            padding: 0.3em 0.75em;
+            border-radius: 1em;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        .status-badge.pending {
+            background: var(--accent-yellow-dim);
+            color: var(--accent-yellow);
+        }
+        .status-badge.open {
+            background: var(--accent-blue-dim);
+            color: var(--accent-blue);
+        }
+        .status-badge.merged {
+            background: var(--accent-green-dim);
+            color: var(--accent-green);
+        }
+        .status-badge.closed {
+            background: rgba(100, 116, 139, 0.2);
+            color: var(--text-muted);
+        }
+        .status-icon {
+            width: 12px;
+            height: 12px;
+        }
+
+        /* Links */
+        .pr-link {
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .pr-link:hover {
+            text-decoration: underline;
+        }
+        .docset-link {
+            color: var(--accent-yellow);
+            text-decoration: none;
+        }
+        .docset-link:hover {
+            text-decoration: underline;
+        }
+        .file-path {
+            font-family: var(--font-mono);
+            font-size: 0.85em;
+            color: var(--text-muted);
+            word-break: break-all;
+        }
+
+        /* User Avatar */
+        .user-cell {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+        }
+        .user-avatar-small {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 1px solid var(--border-color);
+        }
+        .username {
+            color: var(--text-secondary);
+        }
+
+        /* Time display */
+        .time-ago {
+            color: var(--text-muted);
+            font-size: 0.9em;
+        }
+
+        /* Action buttons */
+        .action-btn {
+            display: inline-block;
+            padding: 0.4em 0.8em;
+            background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%);
+            color: var(--bg-primary);
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.85em;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
+        }
+        .action-btn.secondary {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+        .action-btn.secondary:hover {
+            border-color: var(--accent-yellow);
+            color: var(--accent-yellow);
+            box-shadow: none;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 4em 2em;
+        }
+        .empty-state-icon {
+            font-size: 3em;
+            margin-bottom: 0.5em;
+        }
+        .empty-state h3 {
+            color: var(--text-primary);
+            margin: 0 0 0.5em 0;
+            font-family: var(--font-mono);
+        }
+        .empty-state p {
+            color: var(--text-secondary);
+            margin: 0 0 1.5em 0;
+        }
+
+        /* Login prompt */
+        .login-prompt {
+            background: var(--bg-secondary);
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 1.5em;
+            text-align: center;
+            margin-bottom: 2em;
+        }
+        .login-prompt p {
+            color: var(--text-secondary);
+            margin: 0 0 1em 0;
+        }
+        .login-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5em;
+            padding: 0.5em 1.25em;
+            background: #24292e;
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        .login-btn:hover {
+            background: #374151;
+        }
+        .login-btn img {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 0.5em;
+            margin-top: 1.5em;
+        }
+        .page-btn {
+            padding: 0.5em 0.9em;
+            border: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+        .page-btn:hover {
+            border-color: var(--accent-yellow);
+            color: var(--accent-yellow);
+        }
+        .page-btn.active {
+            background: var(--accent-yellow);
+            color: var(--bg-primary);
+            border-color: var(--accent-yellow);
+        }
+        .page-btn.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        @media (max-width: 900px) {
+            .container {
+                padding: 0 1em;
+            }
+            .header {
+                flex-direction: column;
+                text-align: center;
+                padding: 1.5em;
+            }
+            .controls-section {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .tab-buttons {
+                justify-content: center;
+            }
+            .filter-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .filter-group select {
+                min-width: 100%;
+            }
+            .pr-table {
+                font-size: 0.9em;
+            }
+            .pr-table th,
+            .pr-table td {
+                padding: 0.75em 0.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include 'components/top_nav.html' %}
+
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <svg class="header-icon" width="56" height="56" viewBox="0 0 16 16" fill="var(--accent-yellow)" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z"/>
+            </svg>
+            <div>
+                <h1>Pull Requests</h1>
+                <p class="subtitle">Track contributions to fix Windows bias in Azure documentation</p>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-value pending">{{ overall_stats.pending }}</div>
+                <div class="stat-label">Pending</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value open">{{ overall_stats.open }}</div>
+                <div class="stat-label">Open PRs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value merged">{{ overall_stats.merged }}</div>
+                <div class="stat-label">Merged</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value closed">{{ overall_stats.closed }}</div>
+                <div class="stat-label">Closed</div>
+            </div>
+        </div>
+
+        <!-- Filter/Tab Controls -->
+        <div class="controls-section">
+            <div class="tab-buttons">
+                <a href="?status=open{% if selected_docset %}&docset={{ selected_docset }}{% endif %}"
+                   class="tab-btn {% if status == 'open' %}active{% endif %}">
+                    Open ({{ overall_stats.open_total }})
+                </a>
+                <a href="?status=closed{% if selected_docset %}&docset={{ selected_docset }}{% endif %}"
+                   class="tab-btn {% if status == 'closed' %}active{% endif %}">
+                    Closed ({{ overall_stats.closed_total }})
+                </a>
+            </div>
+            <div class="filter-group">
+                <label for="docset-filter">Product:</label>
+                <select id="docset-filter" onchange="filterByDocset(this.value)">
+                    <option value="">All Products</option>
+                    {% for ds in available_docsets %}
+                    <option value="{{ ds }}" {% if selected_docset == ds %}selected{% endif %}>
+                        {{ format_doc_set_name(ds) }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- My Pull Requests Section (only if logged in) -->
+        {% if user %}
+        <div class="pr-section">
+            <div class="pr-section-inner">
+                <div class="section-header">
+                    <span class="section-title">My Pull Requests</span>
+                    <span class="section-count">{{ my_prs_total }} PR{% if my_prs_total != 1 %}s{% endif %}</span>
+                </div>
+
+                {% if my_prs %}
+                <table class="pr-table">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>File</th>
+                            <th>Product</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pr in my_prs %}
+                        <tr>
+                            <td>
+                                <span class="status-badge {{ pr.status }}">
+                                    {% if pr.status == 'pending' %}
+                                    <svg class="status-icon" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="4"/></svg>
+                                    Pending
+                                    {% elif pr.status == 'open' %}
+                                    <svg class="status-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z"/></svg>
+                                    Open
+                                    {% elif pr.status == 'merged' %}
+                                    <svg class="status-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218Z"/></svg>
+                                    Merged
+                                    {% else %}
+                                    <svg class="status-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>
+                                    Closed
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="file-path">{{ pr.file_path }}</span>
+                            </td>
+                            <td>
+                                {% if pr.doc_set %}
+                                <a href="/docset/{{ pr.doc_set }}" class="docset-link">{{ pr.doc_set_display }}</a>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="time-ago" title="{{ pr.created_at }}">{{ pr.created_at[:10] if pr.created_at else '-' }}</span>
+                            </td>
+                            <td>
+                                {% if pr.pr_url %}
+                                <a href="{{ pr.pr_url }}" target="_blank" class="action-btn">View PR</a>
+                                {% else %}
+                                <a href="{{ pr.compare_url }}" target="_blank" class="action-btn">Create PR</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">📝</div>
+                    <h3>No Pull Requests Yet</h3>
+                    <p>You haven't created any pull requests to fix documentation bias.</p>
+                    <a href="/flagged" class="action-btn">Browse Flagged Docs</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="login-prompt">
+            <p>Sign in with GitHub to see your pull requests and track your contributions.</p>
+            <a href="/auth/github/login?redirect=/pull-requests" class="login-btn">
+                <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub">
+                Sign in with GitHub
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- All Pull Requests Section -->
+        <div class="pr-section">
+            <div class="pr-section-inner">
+                <div class="section-header">
+                    <span class="section-title">All Pull Requests</span>
+                    <span class="section-count">{{ all_prs_total }} PR{% if all_prs_total != 1 %}s{% endif %}</span>
+                </div>
+
+                {% if all_prs %}
+                <table class="pr-table">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Contributor</th>
+                            <th>File</th>
+                            <th>Product</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pr in all_prs %}
+                        <tr>
+                            <td>
+                                <span class="status-badge {{ pr.status }}">
+                                    {% if pr.status == 'pending' %}
+                                    <svg class="status-icon" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="4"/></svg>
+                                    Pending
+                                    {% elif pr.status == 'open' %}
+                                    <svg class="status-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z"/></svg>
+                                    Open
+                                    {% elif pr.status == 'merged' %}
+                                    <svg class="status-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218Z"/></svg>
+                                    Merged
+                                    {% else %}
+                                    <svg class="status-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>
+                                    Closed
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                {% if pr.user %}
+                                <div class="user-cell">
+                                    <img src="{{ pr.user.avatar_url }}" alt="{{ pr.user.username }}" class="user-avatar-small">
+                                    <span class="username">{{ pr.user.username }}</span>
+                                </div>
+                                {% else %}
+                                <span class="text-muted">Anonymous</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="file-path">{{ pr.file_path }}</span>
+                            </td>
+                            <td>
+                                {% if pr.doc_set %}
+                                <a href="/docset/{{ pr.doc_set }}" class="docset-link">{{ pr.doc_set_display }}</a>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="time-ago" title="{{ pr.created_at }}">{{ pr.created_at[:10] if pr.created_at else '-' }}</span>
+                            </td>
+                            <td>
+                                {% if pr.pr_url %}
+                                <a href="{{ pr.pr_url }}" target="_blank" class="action-btn secondary">View PR</a>
+                                {% else %}
+                                <a href="{{ pr.compare_url }}" target="_blank" class="action-btn secondary">View</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <!-- Pagination -->
+                {% if total_pages > 1 %}
+                <div class="pagination">
+                    <a href="?status={{ status }}{% if selected_docset %}&docset={{ selected_docset }}{% endif %}&page={{ current_page - 1 }}"
+                       class="page-btn {% if current_page == 1 %}disabled{% endif %}">
+                        &laquo; Prev
+                    </a>
+                    {% for p in range(1, total_pages + 1) %}
+                        {% if p == current_page %}
+                        <span class="page-btn active">{{ p }}</span>
+                        {% elif p == 1 or p == total_pages or (p >= current_page - 2 and p <= current_page + 2) %}
+                        <a href="?status={{ status }}{% if selected_docset %}&docset={{ selected_docset }}{% endif %}&page={{ p }}" class="page-btn">{{ p }}</a>
+                        {% elif p == current_page - 3 or p == current_page + 3 %}
+                        <span class="page-btn disabled">...</span>
+                        {% endif %}
+                    {% endfor %}
+                    <a href="?status={{ status }}{% if selected_docset %}&docset={{ selected_docset }}{% endif %}&page={{ current_page + 1 }}"
+                       class="page-btn {% if current_page == total_pages %}disabled{% endif %}">
+                        Next &raquo;
+                    </a>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <h3>No Pull Requests Found</h3>
+                    {% if status == 'closed' %}
+                    <p>No closed or merged pull requests yet.</p>
+                    {% else %}
+                    <p>No open pull requests at the moment. Be the first to contribute!</p>
+                    {% endif %}
+                    <a href="/flagged" class="action-btn">Browse Flagged Docs</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function filterByDocset(docset) {
+        const currentStatus = '{{ status }}';
+        if (docset) {
+            window.location.href = `/pull-requests?status=${currentStatus}&docset=${encodeURIComponent(docset)}`;
+        } else {
+            window.location.href = `/pull-requests?status=${currentStatus}`;
+        }
+    }
+    </script>
+</body>
+</html>

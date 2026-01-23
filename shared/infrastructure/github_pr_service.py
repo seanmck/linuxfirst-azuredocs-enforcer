@@ -14,7 +14,7 @@ from github.Branch import Branch
 from github.ContentFile import ContentFile
 import logging
 
-from shared.config import config
+from shared.config import config, AZURE_DOCS_REPOS
 from shared.utils.logging import get_logger
 from shared.infrastructure.github_app_service import github_app_service
 from shared.utils.date_utils import update_ms_date_in_content
@@ -171,10 +171,12 @@ class GitHubPRService:
             return fallback_name
             
         except Exception as e:
-            self.logger.error(f"Error generating unique branch name: {e}")
+            self.logger.error(f"Error generating unique branch name for '{base_branch_name}': {e}")
             # Final fallback: add random timestamp
             timestamp_suffix = datetime.utcnow().strftime("%H%M%S")
-            return f"{base_branch_name}-{timestamp_suffix}"
+            fallback_with_timestamp = f"{base_branch_name}-{timestamp_suffix}"
+            self.logger.warning(f"Using timestamp fallback due to error: '{fallback_with_timestamp}'")
+            return fallback_with_timestamp
         
     async def check_user_fork(self, repo_full_name: str) -> Optional[Repository]:
         """Check if user has a fork of the repository"""
@@ -419,9 +421,22 @@ class GitHubPRService:
             
             self.logger.info(f"User: {username}, Auth: {self.auth_method}, Source: {source_repo}, File: {file_path}")
             
-            # Extract repository name from full path (e.g., "microsoftdocs/azure-docs-pr" -> "azure-docs-pr")
-            repo_name = "azure-docs-pr"
-            
+            # Ensure we target the private (-pr) version of the repo
+            # Scans run against public repos, but PRs must go to private repos
+            # e.g., "azure-docs" -> "azure-docs-pr"
+            source_parts = source_repo.split('/')
+            source_owner = source_parts[0] if len(source_parts) > 1 else "MicrosoftDocs"
+            source_repo_name = source_parts[1] if len(source_parts) > 1 else source_repo
+
+            # Add -pr suffix if not already present
+            if not source_repo_name.endswith('-pr'):
+                repo_name = f"{source_repo_name}-pr"
+                source_repo = f"{source_owner}/{repo_name}"
+                self.logger.info(f"Mapped to private repo: {source_repo}")
+            else:
+                repo_name = source_repo_name
+                self.logger.info(f"Using private repo: {source_repo}")
+
             user_fork_name = f"{username}/{repo_name}"
             
             self.logger.info(f"Step 1: Assuming user fork exists at {user_fork_name}")
@@ -439,9 +454,11 @@ class GitHubPRService:
             # 2. Create unique branch name with document name
             date_str = datetime.utcnow().strftime("%Y%m%d")
             doc_name = self.extract_doc_name_from_path(file_path)
+            self.logger.info(f"Branch naming debug: file_path='{file_path}' -> doc_name='{doc_name}' -> date_str='{date_str}'")
             base_branch_name = f"linuxfirstdocs-{doc_name}-{date_str}"
+            self.logger.info(f"Generated base branch name: '{base_branch_name}'")
             branch_name = await self.generate_unique_branch_name(fork, base_branch_name)
-            self.logger.info(f"Step 2: Creating branch {branch_name} for document: {file_path}")
+            self.logger.info(f"Final branch name after uniqueness check: '{branch_name}'")
             
             # 3. Create branch in the user's fork
             await self.create_branch(fork, branch_name, base_branch)

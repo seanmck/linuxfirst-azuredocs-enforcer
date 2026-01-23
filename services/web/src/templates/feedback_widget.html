@@ -61,12 +61,13 @@
             <!-- Unauthenticated user - show login prompt -->
             <div class="feedback-login-prompt">
                 <p class="feedback-prompt-text">
-                    <span class="feedback-icon">🔐</span>
+                    <span class="feedback-icon">💬</span>
                     Help us improve by rating this assessment
                 </p>
-                <a href="/auth/github/login?redirect={{ request.url }}" class="btn btn-primary btn-sm">
-                    <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" 
-                         alt="GitHub" style="width: 16px; height: 16px; vertical-align: middle;">
+                <a href="/auth/github/login?redirect={% if scan is defined %}/scan/{{ scan.id }}{% else %}{{ request.url }}{% endif %}" class="btn-github">
+                    <svg class="github-logo" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                    </svg>
                     Sign in with GitHub
                 </a>
             </div>
@@ -75,12 +76,13 @@
 </div>
 
 <style>
+/* Feedback widget - uses dark theme variables from dashboard.css */
 .feedback-widget {
     margin-top: 1.5em;
     padding: 1em;
-    background: #f8fafc;
+    background: var(--bg-card);
     border-radius: 8px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     font-size: 0.9em;
 }
 
@@ -93,13 +95,13 @@
 
 .feedback-label {
     font-weight: 600;
-    color: #374151;
+    color: var(--text-primary);
     font-size: 0.95em;
 }
 
 .feedback-stats {
     font-size: 0.8em;
-    color: #6b7280;
+    color: var(--text-secondary);
 }
 
 .feedback-buttons {
@@ -112,34 +114,37 @@
     display: flex;
     align-items: center;
     gap: 0.5em;
-    padding: 0.5em 1em;
-    border: 1px solid #d1d5db;
+    padding: 0.75em 1.25em;
+    border: 1px solid var(--border-color);
     border-radius: 6px;
-    background: white;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
     cursor: pointer;
     transition: all 0.2s ease;
-    font-size: 0.9em;
+    font-size: 1em;
 }
 
 .feedback-btn:hover {
-    background: #f9fafb;
-    border-color: #9ca3af;
+    background: var(--bg-card-hover);
+    border-color: var(--text-muted);
 }
 
 .feedback-btn.active {
-    background: #2563eb;
-    border-color: #2563eb;
-    color: white;
+    background: var(--accent-yellow);
+    border-color: var(--accent-yellow);
+    color: #0f172a;
 }
 
 .feedback-btn.active.thumbs-up {
-    background: #10b981;
-    border-color: #10b981;
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+    color: #0f172a;
 }
 
 .feedback-btn.active.thumbs-down {
-    background: #ef4444;
-    border-color: #ef4444;
+    background: var(--accent-red);
+    border-color: var(--accent-red);
+    color: white;
 }
 
 .feedback-btn:disabled {
@@ -148,30 +153,36 @@
 }
 
 .feedback-icon {
-    font-size: 1.1em;
+    font-size: 1.3em;
 }
 
 .feedback-comment-section {
     margin-top: 0.75em;
     padding-top: 0.75em;
-    border-top: 1px solid #e5e7eb;
+    border-top: 1px solid var(--border-color);
 }
 
 .feedback-comment {
     width: 100%;
     padding: 0.75em;
-    border: 1px solid #d1d5db;
+    border: 1px solid var(--border-color);
     border-radius: 6px;
-    font-size: 1.1em; /* Increased font size */
-    font-family: 'Arial', sans-serif; /* Nicer font */
+    font-size: 1.1em;
+    font-family: var(--font-body);
     resize: vertical;
     min-height: 80px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.feedback-comment::placeholder {
+    color: var(--text-muted);
 }
 
 .feedback-comment:focus {
     outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    border-color: var(--accent-yellow);
+    box-shadow: 0 0 0 3px var(--accent-yellow-dim);
 }
 
 .comment-actions {
@@ -180,7 +191,7 @@
     margin-top: 0.5em;
 }
 
-.btn {
+.feedback-widget .btn {
     padding: 0.5em 1em;
     border: none;
     border-radius: 6px;
@@ -190,22 +201,23 @@
     transition: all 0.2s ease;
 }
 
-.btn-primary {
-    background: #2563eb;
-    color: white;
+.feedback-widget .btn-primary {
+    background: var(--accent-yellow);
+    color: #0f172a;
 }
 
-.btn-primary:hover {
-    background: #1d4ed8;
+.feedback-widget .btn-primary:hover {
+    background: #eab308;
+    transform: translateY(-1px);
 }
 
-.btn-secondary {
-    background: #6b7280;
-    color: white;
+.feedback-widget .btn-secondary {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
 }
 
-.btn-secondary:hover {
-    background: #4b5563;
+.feedback-widget .btn-secondary:hover {
+    background: var(--text-muted);
 }
 
 .btn-sm {
@@ -214,17 +226,52 @@
 }
 
 .feedback-login-prompt {
-    text-align: center;
-    padding: 1em;
-    background: rgba(255, 255, 255, 0.7);
-    border-radius: 6px;
-    border: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: var(--bg-primary);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
 }
 
 .feedback-prompt-text {
-    margin: 0 0 0.75em 0;
-    color: #6b7280;
-    font-size: 0.9em;
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* GitHub-branded sign in button */
+.btn-github {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    background: #24292f;
+    color: #ffffff;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 6px;
+    text-decoration: none;
+    white-space: nowrap;
+    border: 1px solid rgba(240, 246, 252, 0.1);
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-github:hover {
+    background: #32383f;
+    border-color: rgba(240, 246, 252, 0.2);
+}
+
+.btn-github .github-logo {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
 }
 
 .feedback-status {
@@ -236,15 +283,15 @@
 }
 
 .feedback-status.success {
-    background: #dcfce7;
-    color: #166534;
-    border: 1px solid #bbf7d0;
+    background: var(--accent-green-dim);
+    color: var(--accent-green);
+    border: 1px solid rgba(34, 197, 94, 0.3);
 }
 
 .feedback-status.error {
-    background: #fee2e2;
-    color: #dc2626;
-    border: 1px solid #fecaca;
+    background: var(--accent-red-dim);
+    color: var(--accent-red);
+    border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 /* Mobile responsive */
@@ -253,20 +300,36 @@
         padding: 0.75em;
         font-size: 0.85em;
     }
-    
+
     .feedback-buttons {
         flex-direction: column;
         gap: 0.4em;
     }
-    
+
     .feedback-btn {
         justify-content: center;
         padding: 0.6em 1em;
     }
-    
+
     .comment-actions {
         flex-direction: column;
         gap: 0.4em;
+    }
+
+    .feedback-login-prompt {
+        flex-direction: column;
+        text-align: center;
+        padding: 1rem;
+        gap: 0.75rem;
+    }
+
+    .feedback-prompt-text {
+        justify-content: center;
+    }
+
+    .feedback-login-prompt .btn-github {
+        width: 100%;
+        justify-content: center;
     }
 }
 </style>

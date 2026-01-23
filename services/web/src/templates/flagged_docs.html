@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Flagged Documents - Linux-first Docs for Azure</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="stylesheet" href="/static/dashboard.css">
+    <style>
+        /* Dark theme styles for flagged docs page */
+        .container {
+            max-width: 1400px;
+            margin: 2em auto;
+            padding: 0 2em;
+        }
+        .header {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.2);
+            padding: 2em 2.5em;
+            margin-bottom: 2em;
+            display: flex;
+            align-items: center;
+            gap: 2em;
+        }
+        .header-icon {
+            flex-shrink: 0;
+        }
+        .header-icon path[stroke="#374151"] {
+            stroke: var(--text-muted);
+        }
+        h1 {
+            font-size: 2.2em;
+            font-weight: 700;
+            margin: 0;
+            color: var(--accent-yellow);
+            letter-spacing: -1px;
+            font-family: var(--font-mono);
+        }
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1em;
+            margin: 0.5em 0 0 0;
+        }
+        .filter-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5em;
+            margin-bottom: 2em;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            gap: 1em;
+            flex-wrap: wrap;
+        }
+        .filter-section label {
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        .filter-section select {
+            padding: 0.5em 1em;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 1em;
+            min-width: 250px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        .filter-section select:focus {
+            outline: none;
+            border-color: var(--accent-yellow);
+            box-shadow: 0 0 0 3px var(--accent-yellow-dim);
+        }
+        .results-count {
+            margin-left: auto;
+            color: var(--text-muted);
+            font-size: 0.95em;
+        }
+        .table-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .flagged-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .flagged-table th {
+            background: var(--bg-secondary);
+            padding: 1em 1.25em;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--border-color);
+            white-space: nowrap;
+            font-family: var(--font-mono);
+        }
+        .flagged-table th.sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+        .flagged-table th.sortable:hover {
+            background: var(--bg-card-hover);
+        }
+        .flagged-table th.sorted-asc::after {
+            content: ' ▲';
+            font-size: 0.8em;
+            color: var(--accent-yellow);
+        }
+        .flagged-table th.sorted-desc::after {
+            content: ' ▼';
+            font-size: 0.8em;
+            color: var(--accent-yellow);
+        }
+        .flagged-table td {
+            padding: 1em 1.25em;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+            vertical-align: middle;
+            color: var(--text-secondary);
+        }
+        .flagged-table tr:hover {
+            background: rgba(51, 65, 85, 0.3);
+        }
+        .flagged-table tr:last-child td {
+            border-bottom: none;
+        }
+        .doc-set-link {
+            color: var(--accent-yellow);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .doc-set-link:hover {
+            text-decoration: underline;
+            color: #fde047;
+        }
+        .page-url-cell {
+            max-width: 350px;
+        }
+        .page-link {
+            color: var(--accent-blue);
+            text-decoration: none;
+            word-break: break-word;
+        }
+        .page-link:hover {
+            text-decoration: underline;
+        }
+        .bias-types-cell {
+            max-width: 250px;
+        }
+        .bias-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35em;
+        }
+        .bias-type-badge {
+            display: inline-block;
+            padding: 0.2em 0.6em;
+            border-radius: 0.5em;
+            font-size: 0.75em;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .bias-type-powershell-heavy { background: var(--accent-yellow-dim); color: var(--accent-yellow); }
+        .bias-type-windows-first { background: var(--accent-red-dim); color: var(--accent-red); }
+        .bias-type-missing-linux-example { background: rgba(190, 24, 93, 0.2); color: #f472b6; }
+        .bias-type-windows-tools { background: rgba(167, 139, 250, 0.2); color: #a78bfa; }
+        .bias-type-windows-paths { background: var(--accent-blue-dim); color: var(--accent-blue); }
+        .bias-type-windows-commands { background: rgba(251, 146, 60, 0.2); color: #fb923c; }
+        .bias-type-default { background: rgba(100, 116, 139, 0.2); color: var(--text-secondary); }
+        .more-badge {
+            background: rgba(100, 116, 139, 0.3);
+            color: var(--text-muted);
+            padding: 0.2em 0.5em;
+            border-radius: 0.5em;
+            font-size: 0.75em;
+            font-weight: 500;
+        }
+        .priority-badge {
+            display: inline-block;
+            padding: 0.25em 0.75em;
+            border-radius: 1em;
+            font-weight: 600;
+            font-size: 0.85em;
+        }
+        .priority-high {
+            background: var(--accent-red-dim);
+            color: var(--accent-red);
+        }
+        .priority-medium {
+            background: var(--accent-yellow-dim);
+            color: var(--accent-yellow);
+        }
+        .priority-low {
+            background: var(--accent-green-dim);
+            color: var(--accent-green);
+        }
+        .view-btn {
+            display: inline-block;
+            padding: 0.4em 0.8em;
+            background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%);
+            color: var(--bg-primary);
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 0.85em;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .view-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
+        }
+        .empty-state {
+            text-align: center;
+            padding: 4em 2em;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 2px 16px rgba(0,0,0,0.2);
+        }
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 0.3em;
+        }
+        .empty-state h3 {
+            color: var(--accent-green);
+            margin: 0 0 0.5em 0;
+            font-family: var(--font-mono);
+        }
+        .empty-state p {
+            color: var(--text-secondary);
+            margin: 0 0 1.5em 0;
+        }
+        .btn-primary {
+            display: inline-block;
+            padding: 0.6em 1.2em;
+            background: linear-gradient(135deg, var(--accent-yellow) 0%, #eab308 100%);
+            color: var(--bg-primary);
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(250, 204, 21, 0.3);
+        }
+        @media (max-width: 900px) {
+            .container {
+                padding: 0 1em;
+            }
+            .header {
+                flex-direction: column;
+                text-align: center;
+                padding: 1.5em;
+            }
+            .filter-section {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .filter-section select {
+                min-width: 100%;
+            }
+            .results-count {
+                margin-left: 0;
+                margin-top: 0.5em;
+            }
+            .table-container {
+                overflow-x: auto;
+            }
+            .flagged-table th,
+            .flagged-table td {
+                padding: 0.75em 0.5em;
+                font-size: 0.9em;
+            }
+            .page-url-cell {
+                max-width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% include 'components/top_nav.html' %}
+
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <svg class="header-icon" width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 22V4" stroke="#374151" stroke-width="2" stroke-linecap="round"/>
+                <path d="M5 4C5 4 6.5 3 9.5 3C12.5 3 14 5 17 5C20 5 21 4 21 4V14C21 14 20 15 17 15C14 15 12.5 13 9.5 13C6.5 13 5 14 5 14V4Z" fill="url(#flagGradient)" stroke="#dc2626" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <defs>
+                    <linearGradient id="flagGradient" x1="5" y1="3" x2="21" y2="15" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#ef4444"/>
+                        <stop offset="1" stop-color="#dc2626"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+            <div>
+                <h1>Flagged Documents</h1>
+                <p class="subtitle">Documentation pages with detected Windows bias</p>
+            </div>
+        </div>
+
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <label for="docset-filter">Filter by Product:</label>
+            <select id="docset-filter" onchange="filterByDocset(this.value)">
+                <option value="">All Products</option>
+                {% for ds in available_docsets %}
+                <option value="{{ ds }}" {% if selected_docset == ds %}selected{% endif %}>
+                    {{ ds | format_doc_set_name }}
+                </option>
+                {% endfor %}
+            </select>
+            <span class="results-count">
+                Showing {{ flagged_pages|length }} flagged page{% if flagged_pages|length != 1 %}s{% endif %}
+            </span>
+        </div>
+
+        <!-- Results Table -->
+        {% if flagged_pages and flagged_pages|length > 0 %}
+        <div class="table-container">
+            <table class="flagged-table" id="flaggedDocsTable">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-column="doc_set">Product</th>
+                        <th class="sortable" data-column="url">Page</th>
+                        <th>Bias Types</th>
+                        <th class="sortable" data-column="priority">Priority</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for page in flagged_pages %}
+                    <tr data-docset="{{ page.doc_set or '' }}" data-priority="{{ page.priority_score }}">
+                        <td>
+                            <a href="/docset/{{ page.doc_set }}" class="doc-set-link">
+                                {{ page.display_name }}
+                            </a>
+                        </td>
+                        <td class="page-url-cell">
+                            <a href="/docpage/{{ page.id }}" class="page-link" title="{{ page.url }}">
+                                {{ page.url | truncate_url }}
+                            </a>
+                        </td>
+                        <td class="bias-types-cell">
+                            <div class="bias-badges">
+                                {% for bias_type in page.bias_types[:3] %}
+                                {% set badge_class = 'bias-type-' + bias_type.replace('_', '-') %}
+                                <span class="bias-type-badge {{ badge_class if badge_class in ['bias-type-powershell-heavy', 'bias-type-windows-first', 'bias-type-missing-linux-example', 'bias-type-windows-tools', 'bias-type-windows-paths', 'bias-type-windows-commands'] else 'bias-type-default' }}">
+                                    {{ bias_type.replace('_', ' ').title() }}
+                                </span>
+                                {% endfor %}
+                                {% if page.bias_types|length > 3 %}
+                                <span class="more-badge">+{{ page.bias_types|length - 3 }}</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="priority-badge priority-{{ page.priority|lower }}">
+                                {{ page.priority }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="/docpage/{{ page.id }}" class="view-btn">View Details</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">🎉</div>
+            <h3>No Flagged Pages Found!</h3>
+            {% if selected_docset %}
+            <p>No pages with Windows bias detected in "{{ selected_docset | format_doc_set_name }}".</p>
+            <a href="/flagged" class="btn-primary">View All Products</a>
+            {% else %}
+            <p>No pages with Windows bias have been detected in any documentation.</p>
+            <a href="/" class="btn-primary">Back to Dashboard</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+    function filterByDocset(docset) {
+        if (docset) {
+            window.location.href = '/flagged?docset=' + encodeURIComponent(docset);
+        } else {
+            window.location.href = '/flagged';
+        }
+    }
+
+    // Client-side table sorting
+    function initializeSorting() {
+        const table = document.getElementById('flaggedDocsTable');
+        if (!table) return;
+
+        let currentSort = { column: 'doc_set', ascending: true };
+
+        table.querySelectorAll('th.sortable').forEach(th => {
+            th.addEventListener('click', function() {
+                const column = this.getAttribute('data-column');
+                if (currentSort.column === column) {
+                    currentSort.ascending = !currentSort.ascending;
+                } else {
+                    currentSort.column = column;
+                    currentSort.ascending = true;
+                }
+                sortTable(column, currentSort.ascending);
+                updateSortIndicators(this, currentSort.ascending);
+            });
+        });
+
+        // Set initial sort indicator
+        const initialTh = table.querySelector('th[data-column="doc_set"]');
+        if (initialTh) {
+            initialTh.classList.add('sorted-asc');
+        }
+    }
+
+    function sortTable(column, ascending) {
+        const table = document.getElementById('flaggedDocsTable');
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+
+        rows.sort((a, b) => {
+            let aVal, bVal;
+            switch(column) {
+                case 'doc_set':
+                    aVal = a.querySelector('.doc-set-link').textContent.trim().toLowerCase();
+                    bVal = b.querySelector('.doc-set-link').textContent.trim().toLowerCase();
+                    break;
+                case 'url':
+                    aVal = a.querySelector('.page-link').getAttribute('title').toLowerCase();
+                    bVal = b.querySelector('.page-link').getAttribute('title').toLowerCase();
+                    break;
+                case 'priority':
+                    aVal = parseInt(a.getAttribute('data-priority')) || 0;
+                    bVal = parseInt(b.getAttribute('data-priority')) || 0;
+                    return ascending ? aVal - bVal : bVal - aVal;
+                default:
+                    return 0;
+            }
+            return ascending ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        });
+
+        rows.forEach(row => tbody.appendChild(row));
+    }
+
+    function updateSortIndicators(clickedTh, ascending) {
+        document.querySelectorAll('th.sortable').forEach(th => {
+            th.classList.remove('sorted-asc', 'sorted-desc');
+        });
+        clickedTh.classList.add(ascending ? 'sorted-asc' : 'sorted-desc');
+    }
+
+    document.addEventListener('DOMContentLoaded', initializeSorting);
+    </script>
+</body>
+</html>

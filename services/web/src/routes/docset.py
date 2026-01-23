@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from shared.utils.database import SessionLocal
 from shared.models import Scan, Page, Snippet, BiasSnapshotByDocset, User
 from datetime import datetime, date, timedelta
@@ -13,11 +12,25 @@ from shared.utils.bias_utils import is_page_biased, count_biased_pages, get_bias
 from shared.utils.url_utils import extract_doc_set_from_url, format_doc_set_name
 from utils.docset_queries import get_docset_complete_data, get_available_docsets
 from routes.auth import get_current_user
+from jinja_env import templates
 
 router = APIRouter()
 
-TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "../templates")
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
+# Bias type to icon mapping (consistent with scan_details)
+BIAS_ICON_MAP = {
+    "Platform Bias": "💻",
+    "Language Bias": "🗣️",
+    "Geography Bias": "🌍",
+    "Vendor Bias": "🏢",
+    "OS Bias": "🐧",
+    "Cloud Bias": "☁️",
+    "powershell": "💻",
+    "windows_paths": "📁",
+    "windows_commands": "⌨️",
+    "windows_tools": "🔧",
+    "windows_syntax": "📝",
+    "missing_linux": "🐧",
+}
 
 
 
@@ -199,41 +212,65 @@ async def docset_test(request: Request):
     return HTMLResponse("<h1>Docset router is working!</h1>")
 
 @router.get("/docset/{doc_set_name}")
-async def docset_details(doc_set_name: str, request: Request, current_user: Optional[User] = Depends(get_current_user)):
+async def docset_details(
+    doc_set_name: str,
+    request: Request,
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(25, ge=10, le=100, description="Items per page"),
+    current_user: Optional[User] = Depends(get_current_user)
+):
     """Show detailed bias analysis for a specific documentation set."""
     # URL decode the doc set name
     doc_set = unquote(doc_set_name)
-    
+
     db = SessionLocal()
-    
+
     try:
         print(f"[DEBUG] Docset request for: '{doc_set}'")
-        
+
         # Get all docset data in a single optimized query
         docset_data = get_docset_complete_data(db, doc_set)
-        
+
         summary_stats = docset_data['summary_stats']
         bias_history = docset_data['bias_history']
-        flagged_pages = docset_data['flagged_pages']
+        all_flagged_pages = docset_data['flagged_pages']
         use_doc_set_column = docset_data['use_doc_set_column']
-        
+
         print(f"[DEBUG] Summary stats: {summary_stats}")
         print(f"[DEBUG] Bias history: {len(bias_history)} entries")
-        print(f"[DEBUG] Flagged pages: {len(flagged_pages)} pages")
+        print(f"[DEBUG] Flagged pages: {len(all_flagged_pages)} pages")
         print(f"[DEBUG] Using doc_set column: {use_doc_set_column}")
-        
+
         # Debug: Show available docsets if no pages found
         if summary_stats['total_pages'] == 0:
             print(f"[DEBUG] No pages found for doc_set: '{doc_set}' - showing empty state")
             available_docsets = get_available_docsets(db)
             print(f"[DEBUG] Available docsets in database: {sorted(available_docsets)}")
-        
+
+        # Paginate flagged pages
+        total_flagged = len(all_flagged_pages)
+        total_pages_count = (total_flagged + per_page - 1) // per_page if total_flagged > 0 else 1
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        flagged_pages = all_flagged_pages[start_idx:end_idx]
+
+        pagination = {
+            "page": page,
+            "per_page": per_page,
+            "total": total_flagged,
+            "total_pages": total_pages_count,
+            "has_prev": page > 1,
+            "has_next": end_idx < total_flagged,
+            "start_idx": start_idx + 1 if total_flagged > 0 else 0,
+            "end_idx": min(end_idx, total_flagged)
+        }
+
         # Format display name
         display_name = format_doc_set_name(doc_set)
         print(f"[DEBUG] Display name: {display_name}")
-        
+
         print(f"[DEBUG] About to render template...")
-        
+
         result = templates.TemplateResponse("docset_details.html", {
             "request": request,
             "doc_set": doc_set,
@@ -241,6 +278,8 @@ async def docset_details(doc_set_name: str, request: Request, current_user: Opti
             "summary_stats": summary_stats,
             "bias_history": bias_history,
             "flagged_pages": flagged_pages,
+            "pagination": pagination,
+            "bias_icon_map": BIAS_ICON_MAP,
             "user": current_user
         })
         

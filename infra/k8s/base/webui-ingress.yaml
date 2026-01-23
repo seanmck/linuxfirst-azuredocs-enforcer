@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webui-ingress
+  namespace: azuredocs-app
+  annotations:
+    # Enable automatic certificate provisioning with cert-manager
+    cert-manager.io/cluster-issuer: letsencrypt-prod-dns
+    # Force HTTP to HTTPS redirect
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Set proxy body size for file uploads
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    # Set proxy timeouts
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  ingressClassName: webapprouting.kubernetes.azure.com
+  tls:
+  - hosts:
+    - linuxdocs.seanmck.dev
+    secretName: linuxdocs-tls-secret  # cert-manager will create this secret
+  rules:
+  - host: linuxdocs.seanmck.dev
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: webui
+            port:
+              number: 8000

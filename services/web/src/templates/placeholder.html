@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ page_title }} - Linux-first Docs for Azure</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+    <!-- Include Top Navigation -->
+    {% include 'components/top_nav.html' %}
+
+    <div class="container">
+        <div class="placeholder-content">
+            <div class="placeholder-header">
+                <img class="placeholder-logo" src="/static/tux_reading.png" alt="Tux the Linux penguin reading">
+                <h1>{{ page_title }}</h1>
+                {% if coming_soon %}
+                    <div class="coming-soon-badge">Coming Soon</div>
+                {% endif %}
+            </div>
+            
+            <div class="placeholder-message">
+                <p>{{ message }}</p>
+            </div>
+            
+            <div class="placeholder-actions">
+                <a href="/" class="btn btn-primary">Back to Dashboard</a>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .placeholder-content {
+            background: #fff;
+            border-radius: 16px;
+            padding: 3rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            margin: 2rem auto;
+            max-width: 600px;
+        }
+        
+        .placeholder-header {
+            margin-bottom: 2rem;
+        }
+        
+        .placeholder-logo {
+            width: 80px;
+            height: auto;
+            margin-bottom: 1rem;
+        }
+        
+        .placeholder-header h1 {
+            color: #2563eb;
+            font-size: 2.2rem;
+            margin: 0.5rem 0;
+        }
+        
+        .coming-soon-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            padding: 0.5rem 1.5rem;
+            border-radius: 2rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+        }
+        
+        .placeholder-message {
+            color: #6b7280;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin: 2rem 0;
+        }
+        
+        .placeholder-actions {
+            margin-top: 2rem;
+        }
+        
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+            padding: 0.8rem 2rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: inline-block;
+        }
+        
+        .btn-primary:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+        
+        @media (max-width: 768px) {
+            .placeholder-content {
+                padding: 2rem 1.5rem;
+                margin: 1rem;
+            }
+            
+            .placeholder-header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .placeholder-logo {
+                width: 60px;
+            }
+        }
+    </style>
+</body>
+</html>

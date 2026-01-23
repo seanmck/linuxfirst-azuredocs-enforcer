@@ -1,57 +1,65 @@
-#!/bin/zsh
+#!/bin/bash
 # scripts/start-dev.sh
-# Starts all development services locally: web UI and queue worker.
+# Starts all development services in Docker containers with hot-reloading.
+#
+# Prerequisites:
+#   - Docker and docker-compose installed
+#   - docker-compose.override.yml exists (copy from docker-compose.override.yml.example)
+#   - .env file exists with required environment variables (optional)
+#
+# Usage:
+#   ./scripts/start-dev.sh
+#
+# Services started:
+#   - db (PostgreSQL on port 5432)
+#   - rabbitmq (ports 5672, 15672)
+#   - web (port 8010 -> 8000, with hot-reload)
+#   - worker (queue_worker with hot-reload)
+#   - document_worker (with hot-reload)
+#   - bias_scoring_service (port 9000, with hot-reload)
+#
+# Press Ctrl+C to stop all services.
 
 set -e
-set -x
 
-# Ensure a virtual environment is created and activated for local development
-if [ ! -d ".venv" ]; then
-  echo "Creating a virtual environment..."
-  python3 -m venv .venv
+cd "$(dirname "$0")/.."
+
+# Ensure .env file exists (docker-compose requires it if referenced in env_file)
+if [ ! -f ".env" ]; then
+  echo "Creating empty .env file..."
+  echo "# Add your environment variables here" > .env
+  echo "# See .env.example for available options" >> .env
 fi
 
-# Activate the virtual environment
-source .venv/bin/activate
-
-# Always install dependencies for all services
-echo "Installing dependencies..."
-pip install -r services/web/requirements.txt
-pip install -r services/worker/requirements.txt
-pip install -r services/mcp-server/requirements.txt
-
-# Set environment variables
-export PYTHONPATH=$(pwd):$PYTHONPATH
-export RABBITMQ_HOST=localhost
-
-echo "Starting all services..."
-
-# Clean up any existing processes first
-echo "Checking for existing processes..."
-if lsof -i :8000 -t >/dev/null; then
-  echo "Killing processes using port 8000..."
-  lsof -i :8000 -t | xargs kill -9
+# Check for docker-compose.override.yml
+if [ ! -f "docker-compose.override.yml" ]; then
+  echo "docker-compose.override.yml not found."
+  echo "Copying from docker-compose.override.yml.example..."
+  cp docker-compose.override.yml.example docker-compose.override.yml
 fi
 
-if pgrep -f "queue_worker.py" > /dev/null; then
-  echo "Killing existing queue worker processes..."
-  pkill -f "queue_worker.py"
-fi
-if pgrep -f "document_worker.py" > /dev/null; then
-  echo "Killing existing document worker processes..."
-  pkill -f "document_worker.py"
-fi
+# Stop any existing containers to free up ports
+docker-compose down 2>/dev/null || true
 
-# Start web UI
-./scripts/start-webui.sh &
-WEBUI_PID=$!
+# Stop any containers using our required ports (from other projects or standalone)
+for port in 5432 5672 15672 8010 9000; do
+  container_id=$(docker ps -q --filter "publish=$port")
+  if [ -n "$container_id" ]; then
+    echo "Stopping container using port $port..."
+    docker stop $container_id 2>/dev/null || true
+  fi
+done
 
-# Start queue worker
-./scripts/start-worker.sh &
-WORKER_PID=$!
+echo "Building and starting all services..."
+echo "Web UI will be available at: http://localhost:8010"
+echo "RabbitMQ management: http://localhost:15672 (guest/guest)"
+echo ""
+echo "Press Ctrl+C to stop all services."
+echo ""
 
-echo "Web UI running with PID $WEBUI_PID"
-echo "Queue worker running with PID $WORKER_PID"
+# Run database migrations first (db-migrate depends on db being healthy)
+echo "Running database migrations..."
+docker-compose up --build db-migrate
 
-# Wait for user to stop with Ctrl-C
-wait 
+# Start all services (excluding db-migrate which already ran)
+docker-compose up --build

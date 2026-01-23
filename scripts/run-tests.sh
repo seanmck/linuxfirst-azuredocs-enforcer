@@ -1,9 +1,80 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 # scripts/run-tests.sh
-# Sets up the test environment and runs integration tests.
+# Runs unit tests and integration tests (if infrastructure is available).
+#
+# Usage:
+#   ./scripts/run-tests.sh                    # Run all tests
+#   SKIP_INTEGRATION=1 ./scripts/run-tests.sh # Run unit tests only
 
 set -e
 set -x
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
+
+# =============================================================================
+# Virtual Environment Setup
+# =============================================================================
+
+# Create venv if it doesn't exist
+if [ ! -d ".venv" ]; then
+  echo "=== Creating virtual environment ==="
+  python3 -m venv .venv
+fi
+
+# Activate venv
+source .venv/bin/activate
+
+# Install dependencies if pytest is not available
+if ! python -c "import pytest" 2>/dev/null; then
+  echo "=== Installing test dependencies ==="
+  pip install --upgrade pip -q
+  pip install -r requirements-test.txt -q
+fi
+
+export PYTHONPATH=$(pwd):$PYTHONPATH
+
+# =============================================================================
+# Unit Tests (no infrastructure required)
+# =============================================================================
+echo "=== Running Unit Tests ==="
+pytest tests/unit/ -v --tb=short
+
+# Check if we should skip integration tests
+if [ "$SKIP_INTEGRATION" = "1" ]; then
+  echo "=== Skipping Integration Tests (SKIP_INTEGRATION=1) ==="
+  echo "=== All Unit Tests Passed ==="
+  exit 0
+fi
+
+# =============================================================================
+# Integration Tests (requires PostgreSQL and RabbitMQ)
+# =============================================================================
+echo "=== Checking Infrastructure for Integration Tests ==="
+
+# Check PostgreSQL
+if ! nc -z localhost 5432 2>/dev/null; then
+  echo "WARNING: PostgreSQL not available on localhost:5432"
+  echo "To run integration tests: docker-compose up -d db rabbitmq"
+  echo "Skipping integration tests."
+  echo "=== Unit Tests Passed (Integration Tests Skipped) ==="
+  exit 0
+fi
+
+# Check RabbitMQ
+if ! nc -z localhost 5672 2>/dev/null; then
+  echo "WARNING: RabbitMQ not available on localhost:5672"
+  echo "To run integration tests: docker-compose up -d db rabbitmq"
+  echo "Skipping integration tests."
+  echo "=== Unit Tests Passed (Integration Tests Skipped) ==="
+  exit 0
+fi
+
+echo "Infrastructure available. Running integration tests..."
+
+export RABBITMQ_HOST=localhost
+export PGSSLMODE=disable
 
 CLEANUP_PIDS=()
 cleanup() {
@@ -18,45 +89,39 @@ cleanup() {
 }
 trap cleanup INT TERM
 
-# Activate venv if it exists
-if [ -d ".venv" ]; then
-  source .venv/bin/activate
-fi
-
-export PYTHONPATH=$(pwd):$PYTHONPATH
-export RABBITMQ_HOST=localhost
-
-echo "[TEST MODE] Starting web server in background..."
-(cd services/web && TEST_MODE=1 uvicorn src.main:app --host 0.0.0.0 --port 8000) &
+# Start web server in background for API tests
+echo "Starting web server for integration tests..."
+(cd services/web && TEST_MODE=1 uvicorn src.main:app --host 127.0.0.1 --port 8000) &
 WEB_PID=$!
-CLEANUP_PIDS+=$WEB_PID
+CLEANUP_PIDS+=($WEB_PID)
 
-echo "Web server started with PID $WEB_PID. Waiting for it to be ready..."
+# Wait for web server to be ready
+echo "Waiting for web server to be ready..."
 for i in {1..20}; do
-  if curl -sSf http://localhost:8000/ > /dev/null; then
-    echo "Web server is up and responding to HTTP requests!"
+  if curl -sSf http://localhost:8000/ > /dev/null 2>&1; then
+    echo "Web server is ready!"
     break
   fi
-  echo "Waiting for web server HTTP response (attempt $i)..."
+  echo "Waiting for web server (attempt $i)..."
   sleep 1
 done
 
-if ! curl -sSf http://localhost:8000/ > /dev/null; then
-  echo "Web server failed to start or respond to HTTP requests."
-  kill $WEB_PID || true
+if ! curl -sSf http://localhost:8000/ > /dev/null 2>&1; then
+  echo "Web server failed to start."
+  kill $WEB_PID 2>/dev/null || true
   exit 1
 fi
 
-echo "[TEST MODE] Running test_manual_github_scan.py..."
-python3 tests/test_manual_github_scan.py
+# Run integration tests
+echo "=== Running Integration Tests ==="
+pytest tests/integration/ -v --tb=short || {
+  echo "Integration tests failed."
+  kill $WEB_PID 2>/dev/null || true
+  exit 1
+}
 
-echo "[TEST MODE] Starting queue worker..."
-(cd services/worker && python3 src/queue_worker.py) &
-WORKER_PID=$!
-CLEANUP_PIDS+=$WORKER_PID
-echo "[TEST MODE] Queue worker started with PID $WORKER_PID."
+# Cleanup
+echo "Cleaning up web server..."
+kill $WEB_PID 2>/dev/null || true
 
-wait $WORKER_PID
-echo "[TEST MODE] Cleaning up web server..."
-kill $WEB_PID || true
-echo "[TEST MODE] Done." 
+echo "=== All Tests Passed ==="

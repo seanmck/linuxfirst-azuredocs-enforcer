@@ -1,0 +1,78 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: doc-collector
+  namespace: azuredocs-app
+  labels:
+    app: doc-collector
+    component: scheduler
+spec:
+  schedule: "0 0 * * *"
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600  # Auto-delete 1 hour after completion
+      template:
+        metadata:
+          labels:
+            app: doc-collector
+            component: scheduler
+            azure.workload.identity/use: "true"
+        spec:
+          priorityClassName: worker-low-priority
+          serviceAccountName: azuredocs-app-sa
+          restartPolicy: Never
+          containers:
+          - name: doc-collector
+            image: seanmckdemo.azurecr.io/queue-worker
+            imagePullPolicy: Always
+            command: ["python", "/app/scripts/enqueue_github_scan.py"]
+            env:
+            - name: PYTHONPATH
+              value: "/app"
+            - name: RABBITMQ_HOST
+              value: "rabbitmq"
+            - name: RABBITMQ_PORT
+              value: "5672"
+            - name: RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: azuredocs-secrets
+                  key: RABBITMQ_USERNAME
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: azuredocs-secrets
+                  key: RABBITMQ_PASSWORD
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: azuredocs-secrets
+                  key: GITHUB_TOKEN
+            envFrom:
+            - secretRef:
+                name: sc-azuredocsdbconnection-secret
+            resources:
+              requests:
+                memory: "128Mi"
+                cpu: "50m"
+              limits:
+                memory: "256Mi"
+                cpu: "200m"
+            volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+          volumes:
+          - name: secrets-store
+            csi:
+              driver: secrets-store.csi.k8s.io
+              readOnly: true
+              volumeAttributes:
+                secretProviderClass: "azuredocs-secrets"
+  # Keep last 3 successful jobs and 3 failed jobs for debugging
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  # Don't run overlapping jobs
+  concurrencyPolicy: Forbid
+  # If a job fails, don't retry - wait for next scheduled run
+  suspend: false

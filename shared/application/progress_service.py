@@ -105,10 +105,10 @@ class ProgressService:
         if scan.phase_progress and phase in scan.phase_progress:
             progress_percentage = scan.phase_progress[phase].get('progress_percentage', 0)
         
-        # Calculate page-based overall progress
+        # Calculate file-based overall progress (for GitHub scans)
         overall_progress = 0
-        if scan.total_pages_found and scan.total_pages_found > 0:
-            overall_progress = (scan.pages_processed / scan.total_pages_found) * 100
+        if scan.total_files_queued and scan.total_files_queued > 0:
+            overall_progress = (scan.total_files_completed / scan.total_files_queued) * 100
         elif scan.status == 'completed':
             overall_progress = 100
         
@@ -207,10 +207,10 @@ class ProgressService:
             try:
                 scan = db.query(Scan).filter(Scan.id == scan_id).first()
                 if scan:
-                    # Calculate page-based overall progress
+                    # Calculate file-based overall progress (for GitHub scans)
                     overall_progress = 0
-                    if scan.total_pages_found and scan.total_pages_found > 0:
-                        overall_progress = (scan.pages_processed / scan.total_pages_found) * 100
+                    if scan.total_files_queued and scan.total_files_queued > 0:
+                        overall_progress = (scan.total_files_completed / scan.total_files_queued) * 100
                     elif scan.status == 'completed':
                         overall_progress = 100
                     

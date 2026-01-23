@@ -1,0 +1,124 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: webui
+  namespace: azuredocs-app
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+  selector:
+    app: webui
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webui
+  namespace: azuredocs-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: webui
+  template:
+    metadata:
+      labels:
+        app: webui
+        azure.workload.identity/use: "true"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      priorityClassName: webui-high-priority
+      serviceAccountName: azuredocs-app-sa
+      containers:
+        - name: webui
+          image: seanmckdemo.azurecr.io/webui
+          env:
+          - name: AZURE_OPENAI_DEPLOYMENT
+            value: "gpt-4.1"
+          - name: ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: azuredocs-secrets
+                key: ADMIN_PASSWORD
+          - name: ADMIN_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: azuredocs-secrets
+                key: ADMIN_USERNAME
+          - name: APP_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: azuredocs-secrets
+                key: APP_SECRET_KEY
+          - name: RABBITMQ_HOST
+            value: "rabbitmq"
+          - name: RABBITMQ_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: azuredocs-secrets
+                key: RABBITMQ_USERNAME
+          - name: RABBITMQ_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: azuredocs-secrets
+                key: RABBITMQ_PASSWORD
+          - name: REDIS_HOST
+            value: "redis"
+          - name: REDIS_PORT
+            value: "6379"
+          - name: GITHUB_APP_ID
+            valueFrom:
+              secretKeyRef:
+                name: azuredocs-secrets
+                key: GITHUB_APP_ID
+          - name: GITHUB_APP_PRIVATE_KEY
+            valueFrom:
+              secretKeyRef:
+                name: azuredocs-secrets
+                key: GITHUB_PRIVATE_KEY
+          - name: GITHUB_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: azuredocs-secrets
+                key: GITHUB_CLIENT_ID
+          - name: GITHUB_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: azuredocs-secrets
+                key: GITHUB_CLIENT_SECRET
+          - name: BASE_URL
+            value: "https://linuxdocs.seanmck.dev"
+          - name: GITHUB_OAUTH_REDIRECT_URI
+            value: "https://linuxdocs.seanmck.dev/auth/github/callback"
+          - name: GITHUB_APP_INSTALLATION_URL
+            value: "https://github.com/apps/linux-first-docs-prod/installations/new"
+          envFrom:
+          - secretRef:
+              name: sc-azuredocsdbconnection-secret
+          - secretRef:
+              name: sc-linuxdocsazureopenai-secret
+          ports:
+            - containerPort: 8000
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1024Mi"
+          volumeMounts:
+          - name: secrets-store
+            mountPath: "/mnt/secrets-store"
+            readOnly: true
+      nodeSelector:
+        karpenter.sh/capacity-type: on-demand
+      volumes:
+      - name: secrets-store
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "azuredocs-secrets"
