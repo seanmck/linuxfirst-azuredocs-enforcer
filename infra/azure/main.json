@@ -2036,7 +2036,7 @@
             },
             "kubernetesVersion": {
               "type": "string",
-              "defaultValue": "1.28",
+              "defaultValue": "1.30",
               "metadata": {
                 "description": "Kubernetes version"
               }
