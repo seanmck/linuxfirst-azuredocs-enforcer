@@ -90,13 +90,13 @@ class ScanCompletionService:
                 or_(
                     # Primary: severity exists and is not 'none'
                     and_(
-                        Page.mcp_holistic['severity'].astext.isnot(None),
-                        func.lower(Page.mcp_holistic['severity'].astext) != 'none'
+                        Page.mcp_holistic.op('->>')('severity').isnot(None),
+                        func.lower(Page.mcp_holistic.op('->>')('severity')) != 'none'
                     ),
                     # Fallback: severity missing but bias_types array is non-empty
                     and_(
-                        Page.mcp_holistic['severity'].astext.is_(None),
-                        func.jsonb_array_length(func.coalesce(Page.mcp_holistic['bias_types'], '[]')) > 0
+                        Page.mcp_holistic.op('->>')('severity').is_(None),
+                        func.json_array_length(Page.mcp_holistic.op('->')('bias_types')) > 0
                     )
                 )
             ).count()
