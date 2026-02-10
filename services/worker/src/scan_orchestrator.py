@@ -139,6 +139,7 @@ class ScanOrchestrator:
             scan.total_files_discovered = files_queued
             scan.total_files_queued = files_queued
             scan.total_files_completed = 0
+            scan.total_pages_found = files_queued
             self.db.commit()
             
             # Record successful scan initiation
