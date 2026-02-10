@@ -4,7 +4,8 @@ FROM mcr.microsoft.com/devcontainers/python:1-3.12-bullseye
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && \
+RUN rm -f /etc/apt/sources.list.d/yarn.list && \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
         git \
         gcc \
