@@ -112,6 +112,7 @@ class ScanCompletionService:
             scan.finished_at = datetime.datetime.now(datetime.timezone.utc)
             scan.biased_pages_count = biased_pages_count
             scan.flagged_snippets_count = flagged_snippets_count
+            scan.total_pages_found = processed_pages + error_pages
 
             # Set last_commit_sha for future incremental scans
             if scan.working_commit_sha:
