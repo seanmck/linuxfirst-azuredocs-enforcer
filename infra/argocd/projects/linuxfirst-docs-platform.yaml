@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: linuxfirst-docs-platform
+  namespace: argocd
+spec:
+  description: Linux First Azure Docs Enforcer cluster platform resources
+  sourceRepos:
+    - 'https://github.com/seanmck/linuxfirst-azuredocs-enforcer.git'
+  destinations:
+    - namespace: argocd
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: scheduling.k8s.io
+      kind: PriorityClass
+    - group: cert-manager.io
+      kind: ClusterIssuer
+    - group: karpenter.sh
+      kind: NodePool
+  namespaceResourceWhitelist: []

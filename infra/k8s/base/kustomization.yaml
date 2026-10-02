@@ -4,14 +4,9 @@ kind: Kustomization
 namespace: azuredocs-app
 
 resources:
-  # Namespace
-  - namespace.yaml
-
-  # Priority Classes
-  - priority-classes.yaml
-
   # Service Account & RBAC
   - service-account.yaml
+  - resource-policy.yaml
 
   # Secrets & Configuration
   - db-secret.yaml
@@ -38,10 +33,6 @@ resources:
 
   # Networking
   - webui-ingress.yaml
-  - cert-manager.yaml
-
-  # Karpenter NodePools
-  - spot-nodepool.yaml
 
 labels:
   - pairs:
