@@ -11,6 +11,6 @@ spec:
         - name: webui
           env:
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://jaeger.azuredocs-app.svc.cluster.local:4317"
+              value: "http://jaeger.azuredocs-staging.svc.cluster.local:4317"
             - name: OTEL_SERVICE_NAME
               value: "azuredocs-webui"

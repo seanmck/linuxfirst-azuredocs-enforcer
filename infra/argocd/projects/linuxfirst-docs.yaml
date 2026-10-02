@@ -8,22 +8,11 @@ spec:
   sourceRepos:
     - 'https://github.com/seanmck/linuxfirst-azuredocs-enforcer.git'
   destinations:
-    - namespace: azuredocs-app
+    - namespace: azuredocs-prod
       server: https://kubernetes.default.svc
-  # Cluster-scoped resources (keep tight)
-  clusterResourceWhitelist:
-    - group: ''
-      kind: Namespace
-    - group: scheduling.k8s.io
-      kind: PriorityClass
-    - group: rbac.authorization.k8s.io
-      kind: ClusterRole
-    - group: rbac.authorization.k8s.io
-      kind: ClusterRoleBinding
-    - group: cert-manager.io
-      kind: ClusterIssuer
-    - group: karpenter.sh
-      kind: NodePool
+    - namespace: azuredocs-staging
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist: []
   # Namespace-scoped resources (only what we deploy)
   namespaceResourceWhitelist:
     # Core resources
@@ -37,6 +26,14 @@ spec:
       kind: ServiceAccount
     - group: ''
       kind: PersistentVolumeClaim
+    - group: ''
+      kind: ResourceQuota
+    - group: ''
+      kind: LimitRange
+    - group: rbac.authorization.k8s.io
+      kind: Role
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding
     # Workloads
     - group: apps
       kind: Deployment

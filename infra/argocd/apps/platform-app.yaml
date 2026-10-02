@@ -1,19 +1,19 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: linuxfirst-docs-staging
+  name: linuxfirst-docs-platform
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
-  project: linuxfirst-docs
+  project: linuxfirst-docs-platform
   source:
     repoURL: https://github.com/seanmck/linuxfirst-azuredocs-enforcer.git
     targetRevision: main
-    path: infra/k8s/overlays/dev
+    path: infra/k8s/platform
   destination:
     server: https://kubernetes.default.svc
-    namespace: azuredocs-staging
+    namespace: argocd
   syncPolicy:
     automated:
       prune: true

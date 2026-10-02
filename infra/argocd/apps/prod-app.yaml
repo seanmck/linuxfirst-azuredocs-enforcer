@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: linuxfirst-docs-prod
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   project: linuxfirst-docs
   source:
@@ -11,10 +13,8 @@ spec:
     path: infra/k8s/overlays/prod
   destination:
     server: https://kubernetes.default.svc
-    namespace: azuredocs-app
+    namespace: azuredocs-prod
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
