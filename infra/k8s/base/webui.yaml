@@ -33,6 +33,13 @@ spec:
     spec:
       priorityClassName: webui-high-priority
       serviceAccountName: azuredocs-app-sa
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: webui
       containers:
         - name: webui
           image: seanmckdemo.azurecr.io/webui
@@ -122,3 +129,14 @@ spec:
           readOnly: true
           volumeAttributes:
             secretProviderClass: "azuredocs-secrets"
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: webui
+  namespace: azuredocs-app
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: webui
