@@ -43,6 +43,8 @@ spec:
       kind: Job
     - group: batch
       kind: CronJob
+    - group: policy
+      kind: PodDisruptionBudget
     # Networking
     - group: networking.k8s.io
       kind: Ingress
